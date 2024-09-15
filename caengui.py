@@ -29,34 +29,41 @@ class ToolTip:
         self.widget = widget
         self.text = text
         self.tooltip = None
+        self.label = None  # To reference the Label for updating its text
 
         self.widget.bind("<Enter>", lambda _: self.show_tooltip())
         self.widget.bind("<Leave>", lambda _: self.hide_tooltip())
 
     def show_tooltip(self):
-        x = self.widget.winfo_rootx() + 20
-        y = self.widget.winfo_rooty() + 20
-        self.tooltip = tk.Toplevel(self.widget)
-        self.tooltip.wm_overrideredirect(True)
-        self.tooltip.wm_geometry(f"+{x}+{y}")
-        label = tk.Label(
-            self.tooltip,
-            text=self.text,
-            background="light goldenrod",
-            relief="solid",
-            borderwidth=1,
-            font=("Arial", 10),
-            justify="left",
-        )
-        label.pack()
+        if self.tooltip:  # Tooltip is already being shown
+            self.label.config(text=self.text)  # Just update the text
+        else:
+            x = self.widget.winfo_rootx() + 20
+            y = self.widget.winfo_rooty() + 20
+            self.tooltip = tk.Toplevel(self.widget)
+            self.tooltip.wm_overrideredirect(True)
+            self.tooltip.wm_geometry(f"+{x}+{y}")
+
+            self.label = tk.Label(
+                self.tooltip,
+                text=self.text,
+                background="light goldenrod",
+                relief="solid",
+                borderwidth=1,
+                font=("Arial", 10),
+            )
+            self.label.pack()
 
     def hide_tooltip(self):
         if self.tooltip:
             self.tooltip.destroy()
         self.tooltip = None
+        self.label = None  # Reset the reference to the label
 
     def change_text(self, text):
         self.text = text
+        if self.tooltip:  # If the tooltip is visible, update its text
+            self.label.config(text=self.text)
 
 
 class CaenHVPSGUI:
@@ -191,27 +198,35 @@ class CaenHVPSGUI:
         ).grid(row=1, column=2)
         tk.Label(
             channels_frame,
-            text="vset (V)",
+            text="Set vset (V)",
             font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
         ).grid(row=1, column=3, columnspan=2)
         tk.Label(
             channels_frame,
-            text="vmon (V)",
+            text="vset (V)",
             font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
         ).grid(row=1, column=5)
         tk.Label(
             channels_frame,
-            text="imon (uA)",
+            text="vmon (V)",
             font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
         ).grid(row=1, column=6)
+        tk.Label(
+            channels_frame,
+            text="imon (uA)",
+            font=("Arial", 10, "bold"),
+            bg="darkblue",
+            fg="white",
+        ).grid(row=1, column=7)
 
         self.vset_entries = []
+        self.vset_labels = []
         self.vmon_labels = []
         self.imon_labels = []
         self.state_indicators = []
@@ -268,12 +283,16 @@ class CaenHVPSGUI:
             vset_entry.grid(row=i + 2, column=4, sticky="NSE", padx=0, pady=5)
             self.vset_entries.append(vset_entry)
 
+            vset_label = tk.Label(channels_frame, width=7, justify="center", text="-1")
+            vset_label.grid(row=i + 2, column=5, sticky="NS", padx=10, pady=5)
+            self.vset_labels.append(vset_label)
+
             vmon_label = tk.Label(channels_frame, width=7, justify="center", text="-1")
-            vmon_label.grid(row=i + 2, column=5, sticky="NS", padx=10, pady=5)
+            vmon_label.grid(row=i + 2, column=6, sticky="NS", padx=10, pady=5)
             self.vmon_labels.append(vmon_label)
 
             imon_label = tk.Label(channels_frame, width=7, justify="center", text="-1")
-            imon_label.grid(row=i + 2, column=6, sticky="NS", padx=10, pady=5)
+            imon_label.grid(row=i + 2, column=7, sticky="NS", padx=10, pady=5)
             self.imon_labels.append(imon_label)
 
         return channels_frame
@@ -501,6 +520,7 @@ class CaenHVPSGUI:
 
     def read_values(self):
         for i, ch in enumerate(self.m.channels):
+            self.vset_labels[i].config(text=f"{ch.vset:.1f}")
             self.vmon_labels[i].config(text=f"{ch.vmon:.1f}")
             self.imon_labels[i].config(text=f"{ch.imon:.3f}")
             self.update_state_indicator(i, ch)
