@@ -596,75 +596,7 @@ class CaenHVPSGUI:
         print(message)
         if not self.silence_alarm:
             send_slack_message(message)
-    
-    def raise_voltage_protocol(self, final_vset=[2000,600,350,250], step = 100):
-        final_vset = {'cathode' : 2000, 'gem top' : 600, 'gem bottom' : 350, 'mesh left' : 250}
-        temp_vset = {k: 0 for k in final_vset.keys()} # initialize the temporary voltage setpoints
-        channels = {k: None for k in final_vset.keys()} # initialize the channels
-        channels_vmon_guilabel = {k: None for k in final_vset.keys()} # initialize the channels
-        for name, ch in channels.items():
-            if name == 'cathode':
-                ch = spll
-                vmon_guilabel = None
-            else:
-                try:
-                    channel_number = list(CHANNEL_NAMES.keys())[list(CHANNEL_NAMES.values()).index(name)]
-                except ValueError:
-                    print(f"ERROR: Channel {name} not found in CHANNEL_NAMES")
-                    return
-                ch = m.channels[channel_number]
-                vmon_guilabel = self.vmon_labels[channel_number]
-            channels[name] = ch
-            channels_vmon_guilabel[name] = vmon_guilabel
 
-        max_vset = max([v for v in final_vset.values()])
-        n_steps = int( max_vset / step )
-        print(f"Number of steps: {n_steps}")
-        vset = 0
-        channels_reached = 0
-        for _ in range(n_steps):
-            vset = vset + step
-            temp_vset = [vset for __ in range(len(final_vset))]
-            temp_vset = {k: vset for k in final_vset.keys()}
-            if any([t >= f for t, f in zip(temp_vset.values(), final_vset.values())]):
-                channels_reached += 1
-            for ch, f in final_vset.items():
-                temp_vset[ch] = f if temp_vset[ch] >= f else temp_vset[ch]
-            print(f"Step {_+1}: {temp_vset}")
-
-            # apply vsets to the channels
-            for ch, v in temp_vset.items():
-                channels[ch].vset = v
-            
-            # wait for the channels to reach the setpoints
-            all_channels_reached = False
-            while not all_channels_reached:
-                all_channels_reached = True
-                '''
-                for ch, v in temp_vset.items():
-                    if channels[ch].vmon < v:
-                        all_channels_reached = False
-                        break
-                '''
-                for ch, label in channels_vmon_guilabel.items():
-                    vmon = -1
-                    if label is not None:
-                        if "cget" in dir(label):
-                            vmon = float(label.cget("text"))
-                        else:
-                            vmon = float(label.get())
-                    else:
-                        vmon = channels[ch].vmon # this should not be used because it will communicate with the device outside of the device locking queue
-                    if abs(vmon - temp_vset[ch]) > 5:
-                        all_channels_reached = False
-                        break
-                    time.sleep(1) # wait 1 second before next check
-
-            time.sleep(3) # wait 3 seconds before next step
-
-            
-
-        
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
