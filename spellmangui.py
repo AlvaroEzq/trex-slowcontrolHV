@@ -110,6 +110,9 @@ class SpellmanFrame:
         voltage_dac_text = tk.Label(marco1, text='Voltage DAC(V) : ', width=14)
         voltage_dac_entry = tk.Entry(marco1, width=6, justify='right')
         voltage_dac_entry.insert(0, str(self.spellman.vset))
+        voltage_dac_entry.bind(
+                "<Return>", lambda event: self.issue_command(self.set_vset)
+            )
         voltage_dac_set = tk.Button(marco1, text='SET', command=lambda: self.issue_command(self.set_vset), width=3)
         
         voltage_dac_text.pack(side='left')
@@ -120,6 +123,9 @@ class SpellmanFrame:
         current_dac_text = tk.Label(marco2, text='Current DAC(mA): ', width=14)
         current_dac_entry = tk.Entry(marco2, width=6, justify='right')
         current_dac_entry.insert(0, str(self.spellman.iset))
+        current_dac_entry.bind(
+                "<Return>", lambda event: self.issue_command(self.set_iset)
+            )
         current_dac_set = tk.Button(marco2, text='SET', command=lambda: self.issue_command(self.set_iset), width=3)
         
         current_dac_text.pack(side='left')
