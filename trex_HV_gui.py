@@ -7,6 +7,8 @@ import spellmangui
 import spellmanClass as spll
 import hvps
 
+from checkframe import ChecksFrame
+
 class HVGUI:
     def __init__(self, caen_module=None, spellman_module=None):
         self.caen_module = caen_module
@@ -19,6 +21,7 @@ class HVGUI:
 
         self.multidevice_frame = None
         self.all_channels = {}
+        self.all_guis = {}
         self.channels_gui = {}
         self.channels_vmon_guilabel = {}
         self.channels_vset_guientries = {}
@@ -35,9 +38,10 @@ class HVGUI:
             self.caen_frame = tk.Frame(self.root)
             self.caen_frame.pack(side="left", fill="both", expand=True)
             self.caen_gui = caengui.CaenHVPSGUI(module=self.caen_module, parent_frame=self.caen_frame,
-                                                channel_names=caengui.CHANNEL_NAMES, start_mainloop=False)
+                                                channel_names=caengui.CHANNEL_NAMES, silence=True)
             self.all_channels = {name: self.caen_module.channels[n] for n, name in self.caen_gui.channel_names.items()}
             self.channels_gui = {name: self.caen_gui for name in self.caen_gui.channel_names.values()}
+            self.all_guis['caen'] = self.caen_gui
             self.channels_vmon_guilabel = {name: label for name, label in zip(self.caen_gui.channel_names.values(), self.caen_gui.vmon_labels)}
             self.channels_vset_guientries = {name: entry for name, entry in zip(self.caen_gui.channel_names.values(), self.caen_gui.vset_entries)}
 
@@ -47,6 +51,7 @@ class HVGUI:
             self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame)
             self.all_channels = {'cathode' : self.spellman_module, **self.all_channels} # add the spellman module as cathode at the front of the dict
             self.channels_gui['cathode'] = self.spellman_gui
+            self.all_guis['cathode'] = self.spellman_gui
             self.channels_vmon_guilabel['cathode'] = self.spellman_gui.labels['voltage_s']
             self.channels_vset_guientries['cathode'] = self.spellman_gui.labels['voltage_dac_s']
             
@@ -118,10 +123,14 @@ class HVGUI:
             vset_entry.insert(0, self.channels_vset_guientries[ch_opt].get())
             self.vset_entries.append(vset_entry)
 
-        right_frame = tk.Frame(self.multidevice_frame)
+        apply_button = tk.Button(left_frame, text="Apply", command=self.raise_voltage_protocol)
+        apply_button.grid(row=n_rows+1, column=0, columnspan=3, pady=20)
+
+        right_frame = tk.Frame(self.multidevice_frame, padx=10, pady=10)
         right_frame.pack(side="left", anchor="center", padx=20)
-        apply_button = tk.Button(right_frame, text="Apply", command=self.raise_voltage_protocol)
-        apply_button.pack(anchor="center", side="left")
+        self.multidevice_checksframe = ChecksFrame(right_frame)
+        self.multidevice_checksframe.all_channels = self.all_channels
+        self.multidevice_checksframe.all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
 
 
     def raise_voltage_protocol(self, step = 100):
@@ -167,6 +176,14 @@ class HVGUI:
             for ch, f in final_vset.items():
                 temp_vset[ch] = f if temp_vset[ch] >= f else temp_vset[ch]
             print(f"Step {_+1}: {temp_vset}")
+
+            # simulate the checks results before applying the new vsets
+            parameters_values = {}
+            for ch, v in temp_vset.items():
+                parameters_values[ch+".vset"] = v
+            if not self.multidevice_checksframe.simulate_check_conditions(parameters_values):
+                print("Step did not pass the checks.")
+                return
 
             # apply vsets to the channels
             for ch, v in temp_vset.items():

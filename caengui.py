@@ -10,6 +10,10 @@ import hvps
 
 CHANNEL_NAMES = {0: "mesh right", 1: "mesh left", 2: "gem top", 3: "gem bottom"}
 
+from check import Check
+from checkframe import ChecksFrame
+from tooltip import ToolTip
+
 import requests
 import json
 def send_slack_message(message:str):
@@ -24,52 +28,12 @@ def send_slack_message(message:str):
     except Exception as e:
         print(e)
 
-class ToolTip:
-    def __init__(self, widget, text):
-        self.widget = widget
-        self.text = text
-        self.tooltip = None
-        self.label = None  # To reference the Label for updating its text
-
-        self.widget.bind("<Enter>", lambda _: self.show_tooltip())
-        self.widget.bind("<Leave>", lambda _: self.hide_tooltip())
-
-    def show_tooltip(self):
-        if self.tooltip:  # Tooltip is already being shown
-            self.label.config(text=self.text)  # Just update the text
-        else:
-            x = self.widget.winfo_rootx() + 20
-            y = self.widget.winfo_rooty() + 20
-            self.tooltip = tk.Toplevel(self.widget)
-            self.tooltip.wm_overrideredirect(True)
-            self.tooltip.wm_geometry(f"+{x}+{y}")
-
-            self.label = tk.Label(
-                self.tooltip,
-                text=self.text,
-                background="light goldenrod",
-                relief="solid",
-                borderwidth=1,
-                font=("Arial", 10),
-            )
-            self.label.pack()
-
-    def hide_tooltip(self):
-        if self.tooltip:
-            self.tooltip.destroy()
-        self.tooltip = None
-        self.label = None  # Reset the reference to the label
-
-    def change_text(self, text):
-        self.text = text
-        if self.tooltip:  # If the tooltip is visible, update its text
-            self.label.config(text=self.text)
-
-
 class CaenHVPSGUI:
-    def __init__(self, module, channel_names=None, silence=False, parent_frame=None, start_mainloop=True):
+    def __init__(self, module, channel_names=None, checks=None, parent_frame=None, silence=False):
         if channel_names is None:
             channel_names = {}
+        if checks is None:
+            checks = {}
 
         self.channel_vars = None
         self.set_buttons = None
@@ -79,8 +43,13 @@ class CaenHVPSGUI:
         self.imon_labels = None
         self.vmon_labels = None
         self.vset_entries = None
+        self.vset_labels = None
+        self.checks = checks
+        self.checks_vars = None
+        self.checks_checkboxes = None
 
         self.alarm_frame = None
+        self.security_frame = None
         self.set_multichannel_button = None
         self.clear_alarm_button = None
         self.interlock_indicator = None
@@ -103,18 +72,21 @@ class CaenHVPSGUI:
         self.alarm_detected = True # to avoid sending the alarm message when the GUI is started with the module alarm already active
         self.silence_alarm = silence
 
-        self.create_gui(start_mainloop)
+        self.create_gui()
 
-    def create_gui(self, start_mainloop=True):
+    def create_gui(self):
+        start_mainloop = False
         if self.root is None:
             self.root = tk.Tk()
             self.root.title("Caen HVPS GUI")
+            start_mainloop = True
 
         self.main_frame = self.create_main_frame()
         self.alarm_frame = self.create_alarm_frame(self.main_frame)
         self.channel_frame = self.create_channels_frame(self.main_frame)
         if self.m.number_of_channels > 1:
             self.multichannel_frame = self.create_multichannel_frame(self.channel_frame)
+        self.security_frame = self.create_security_frame(self.main_frame)
 
         self.start_background_threads()
 
@@ -167,13 +139,13 @@ class CaenHVPSGUI:
             fg="white",
             command=lambda: self.issue_command(self.clear_alarm),
         )
-        self.clear_alarm_button.grid(row=3, column=0, columnspan=2, pady=20)
+        self.clear_alarm_button.grid(row=3, column=0, columnspan=2, pady=10)
 
         return alarm_frame
 
     def create_channels_frame(self, frame):
         channels_frame = tk.Frame(frame, bg="darkblue", padx=10, pady=10)
-        channels_frame.grid(row=1, column=1, padx=10, pady=10)
+        channels_frame.grid(row=1, column=1, columnspan=2, rowspan=2, padx=10, pady=10)
 
         tk.Label(
             channels_frame,
@@ -339,6 +311,14 @@ class CaenHVPSGUI:
         self.set_multichannel_button.grid(row=1, column=1, rowspan=4, padx=20, pady=5)
         return frame
 
+    def create_security_frame(self, frame):
+        security_frame = tk.Frame(frame)
+        security_frame.grid(row=2, column=0, padx=10, pady=10, sticky="NWE")
+        self.checksframe = ChecksFrame(security_frame)
+        self.checksframe.all_channels = {self.channel_names[i] : self.m.channels[i] for i in range(self.m.number_of_channels)}
+        self.checksframe.all_locks = tuple([self.device_lock])
+        return security_frame
+
     def open_channel_property_window(self, channel_number):
         def values_from_description(description_: str | dict) -> list[str]:
             if isinstance(description_, str):
@@ -474,7 +454,8 @@ class CaenHVPSGUI:
             self.root.config(cursor="watch")
             self.root.update()
 
-    def set_vset(self, channel_number):
+    def set_vset(self, channel_number, check=True):
+        prev_vset = self.m.channels[channel_number].vset # TODO? get from the label so we save communication time
         try:
             vset_value = float(self.vset_entries[channel_number].get())
         except ValueError:
@@ -483,16 +464,35 @@ class CaenHVPSGUI:
                 0, str(self.m.channels[channel_number].vset)
             )
             print("ValueError: Set voltage value must be a number")
-            return
+            return False
         self.m.channels[channel_number].vset = vset_value
+        if check and self.checksframe is not None:
+            if not self.checksframe.check_conditions(): # TODO: better use simulate_check_conditions ??
+                self.m.channels[channel_number].vset = prev_vset
+                self.vset_entries[channel_number].config(fg="red")
+                return False
+            else:
+                self.vset_entries[channel_number].config(fg="black")
+        return True
 
-    def set_multichannel_vset_and_turn_on(self):
+    def set_multichannel_vset_and_turn_on(self, check=True):
+        prev_vsets = [ch.vset for ch in self.m.channels] # TODO? get from the labels so we save communication time
         for i, entry in enumerate(self.vset_entries):
             if self.channel_vars[i].get():
-                self.set_vset(i)
-                self.m.channels[i].turn_on()
+                self.set_vset(i, check=False) # do check after all the vset values are set
                 entry.delete(0, tk.END)
                 entry.insert(0, str(self.m.channels[i].vset))
+        if check and self.checksframe is not None:
+            if not self.checksframe.check_conditions(): # TODO: better use simulate_check_conditions ??
+                for i, ch in enumerate(self.m.channels):
+                    if self.channel_vars[i].get():
+                        ch.vset = prev_vsets[i]
+                return False
+        # turn on if all the checks passed
+        for i, chvar in enumerate(self.channel_vars):
+            if chvar.get():
+                self.m.channels[i].turn_on()
+        return True
 
     def clear_alarm(self):
         self.m.clear_alarm_signal()
@@ -673,16 +673,31 @@ if __name__ == "__main__":
     parser.add_argument("--silence", action="store_true", help="Silence alarm")
 
     args = parser.parse_args()
+    CHECKS = [
+        Check(
+            name="1bar, Vgem",
+            channels={},
+            condition="gem top.vset - gem bottom.vset <= 270",
+            description="Maximum Vgem = 270 V",
+        ),
+
+        Check(
+            name="1bar, Vmesh",
+            channels={},
+            condition="mesh left.vset <= 300",
+            description="Maximum Vmesh = 300 V",
+        ),
+    ]
 
     if not args.test:
         with hvps.Caen(port=args.port) as caen:
             print("port:", caen.port)
             print("baudrate:", caen.baudrate)
             m = caen.module(0)
-            CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence)
+            CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS)
 
     else:
         from caen_simulator import *  # noqa: F403
 
         m = ModuleSimulator(4)  # noqa: F405
-        CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence)
+        CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS)
