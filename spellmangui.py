@@ -129,7 +129,7 @@ class SpellmanFrame:
 
         voltage_dac_text = tk.Label(marco1, text='Voltage DAC(V) : ', width=14)
         voltage_dac_entry = tk.Entry(marco1, width=10, justify='right')
-        voltage_dac_entry.insert(0, str(self.spellman.vset))
+        voltage_dac_entry.insert(0, f"{self.spellman.vset:.0f}")
         voltage_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_vset)
         )
@@ -141,7 +141,7 @@ class SpellmanFrame:
 
         current_dac_text = tk.Label(marco2, text='Current DAC(mA): ', width=14)
         current_dac_entry = tk.Entry(marco2, width=10, justify='right')
-        current_dac_entry.insert(0, str(self.spellman.iset))
+        current_dac_entry.insert(0, f"{self.spellman.iset:.5f}")
         current_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_iset)
         )
