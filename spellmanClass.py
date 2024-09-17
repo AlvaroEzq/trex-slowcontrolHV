@@ -9,8 +9,8 @@ class Spellman:
     I_MAX = 0.6  # 0.6 mA max spellman
     I_COEF = I_MAX / 4095
 
-    def __init__(self, ip='192.168.17.1', port=50001):
-        self.server_host = ip
+    def __init__(self, host='192.168.17.1', port=50001):
+        self.server_host = host
         self.server_port = port
         self._vset = None
         self._iset = None

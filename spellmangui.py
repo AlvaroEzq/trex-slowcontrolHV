@@ -2,8 +2,9 @@ import tkinter as tk
 import queue
 import threading
 import time
+import argparse
 
-#import spellmanModule as spll  # Assuming spellmanModule has required functions
+# import spellmanModule as spll  # Assuming spellmanModule has required functions
 from spellmanClass import Spellman
 
 class SpellmanFrame:
@@ -227,6 +228,18 @@ class SpellmanFrame:
 
 # Usage
 if __name__ == "__main__":
-    spll = Spellman()
-    app = SpellmanFrame(spll)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test", action="store_true", help="Enable test mode")
+    parser.add_argument("--port", type=int, help="Select port", default=50001)
+    parser.add_argument("--host", type=str, help="Select host", default='192.168.17.1')
+
+    args = parser.parse_args()
+
+    if not args.test:
+        spll = Spellman(args.host, args.port)
+        app = SpellmanFrame(spll)
+    else:
+        from simulators import SpellmanSimulator
+        spll = SpellmanSimulator()
+        app = SpellmanFrame(spll)
 
