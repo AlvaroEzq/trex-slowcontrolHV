@@ -128,7 +128,7 @@ class SpellmanFrame:
         marco2.grid(row=1, column=0, pady=2)
 
         voltage_dac_text = tk.Label(marco1, text='Voltage DAC(V) : ', width=14)
-        voltage_dac_entry = tk.Entry(marco1, width=6, justify='right')
+        voltage_dac_entry = tk.Entry(marco1, width=10, justify='right')
         voltage_dac_entry.insert(0, str(self.spellman.vset))
         voltage_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_vset)
@@ -140,7 +140,7 @@ class SpellmanFrame:
         voltage_dac_set.grid(row=0, column=2)
 
         current_dac_text = tk.Label(marco2, text='Current DAC(mA): ', width=14)
-        current_dac_entry = tk.Entry(marco2, width=6, justify='right')
+        current_dac_entry = tk.Entry(marco2, width=10, justify='right')
         current_dac_entry.insert(0, str(self.spellman.iset))
         current_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_iset)
@@ -232,7 +232,7 @@ class SpellmanFrame:
             vset_value = float(self.labels['voltage_dac_s'].get())
         except ValueError:
             self.labels['voltage_dac_s'].delete(0, tk.END)
-            self.labels['voltage_dac_s'].insert(0, str(self.spellman.get_vset()))
+            self.labels['voltage_dac_s'].insert(0, f"{self.spellman.get_vset():.0f}")
             print("ValueError: Set voltage value must be a number")
             return
         self.spellman.vset = vset_value
@@ -242,7 +242,7 @@ class SpellmanFrame:
             iset_value = float(self.labels['current_dac_s'].get())
         except ValueError:
             self.labels['current_dac_s'].delete(0, tk.END)
-            self.labels['current_dac_s'].insert(0, str(self.spellman.get_iset()))
+            self.labels['current_dac_s'].insert(0, f"{self.spellman.get_iset():.5f}")
             print("ValueError: Set current value must be a number")
             return
         self.spellman.iset = iset_value
