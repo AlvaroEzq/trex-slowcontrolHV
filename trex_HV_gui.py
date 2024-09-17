@@ -1,6 +1,7 @@
 import tkinter as tk
 import time
 import argparse
+import threading
 
 import caengui
 import spellmangui
@@ -136,7 +137,7 @@ class HVGUI:
             vset_entry.insert(0, self.channels_vset_guientries[ch_opt].get())
             self.vset_entries.append(vset_entry)
 
-        apply_button = tk.Button(left_frame, text="Apply", command=self.raise_voltage_protocol)
+        apply_button = tk.Button(left_frame, text="Apply", command=self.raise_voltage_protocol_thread)
         apply_button.grid(row=n_rows+1, column=0, columnspan=3, pady=20)
 
         right_frame = tk.Frame(self.multidevice_frame, padx=10, pady=10)
@@ -144,6 +145,8 @@ class HVGUI:
         all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
         self.checksframe = ChecksFrame(right_frame, checks=self.checks, all_channels=self.all_channels, all_locks=all_devices_locks)
 
+    def raise_voltage_protocol_thread(self, step = 100):
+        threading.Thread(target=self.raise_voltage_protocol, args=(step,)).start()
 
     def raise_voltage_protocol(self, step = 100):
         # final_vset = {'cathode' : 2000, 'gem top' : 600, 'gem bottom' : 350, 'mesh left' : 250}
