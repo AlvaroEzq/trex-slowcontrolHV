@@ -169,14 +169,15 @@ class HVGUI:
             if ch not in self.all_channels.keys():
                 print(f"Channel {ch} not found in the list of available channels")
                 return
-            if not self.all_channels[ch].on:
-                print(f"Channel {ch} is off. Turn it on before running the protocol")
-                return
+            with self.channels_gui[ch].device_lock:
+                if not self.all_channels[ch].on:
+                    print(f"Channel {ch} is off. Turn it on before running the protocol")
+                    return
 
         temp_vset = {k: 0 for k in final_vset.keys()} # initialize the temporary voltage setpoints
 
         max_vset = max([v for v in final_vset.values()])
-        n_steps = int( max_vset / step )
+        n_steps = int( max_vset / step ) # TODO: these must include the factors
         print(f"Number of steps: {n_steps}")
         vset = 0
         channels_reached = 0
@@ -192,13 +193,25 @@ class HVGUI:
             # simulate the checks results before applying the new vsets
             parameters_values = {}
             for ch, v in temp_vset.items():
-                parameters_values[ch+".vset"] = v
-            if not self.multidevice_checksframe.simulate_check_conditions(parameters_values):
-                print("Step did not pass the checks.")
+                parameters_values[ch.replace(" ", "") + ".vset"] = v
+            # multidevice checks
+            if not self.checksframe.simulate_check_conditions(parameters_values):
+                print("Step did not pass the multidevice checks.")
                 return
+            # individual device checks
+            for device, gui in self.all_guis.items():
+                try:
+                    if not gui.checksframe.simulate_check_conditions(parameters_values):
+                        print(f"Step did not pass the {device} checks.")
+                        return
+                    else:
+                        print(f"Step passed the {device} checks.")
+                except AttributeError:
+                    pass
 
             # apply vsets to the channels
             for ch, v in temp_vset.items():
+                # change the vset entry to the new value (emulate the human manually changing the value)
                 self.channels_vset_guientries[ch].delete(0, tk.END)
                 self.channels_vset_guientries[ch].insert(0, str(v))
                 channel = self.all_channels[ch]
