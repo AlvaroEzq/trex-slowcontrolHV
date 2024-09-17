@@ -224,40 +224,6 @@ class SpellmanFrame:
         while True:
             self.issue_command(self.read_values)
             time.sleep(2)
-'''    
-class MultideviceControlPanel:
-    def __init__(self, parent_frame, spellman, caen_module):
-        self.cathode = spellman
-        self.last_ring = 0
-        self.caen_module = caen_module
-        self.total_channels = 2 + self.caen_module.number_of_channels
-        self.channels= {'Spellman' : self.spellman,
-                    'Last ring' :   self.last_ring}
-        for i in range(self.caen_module.number_of_channels):
-            channels[f'Channel {i}'] = self.caen_module.channels[i]
-        self.create_frame(parent_frame)
-
-    def create_frame(self):
-        self.main_frame = tk.LabelFrame(self.root, text='MULTIDEVICE CONTROL PANEL', bg='lightgrey')
-        self.main_frame.pack(fill='both', expand=True)
-
-        tk.Label(self.main_frame, text='Channel', bg='lightgrey').grid(row=0, column=0)
-        tk.Label(self.main_frame, text='Final vset', bg='lightgrey').grid(row=0, column=1)
-        tk.Label(self.main_frame, text='Temp vset', bg='lightgrey').grid(row=0, column=2)
-
-        channel_optionMenus = []
-        final_vset_entries = []
-        temp_vset_entries = []
-        for i in range(self.total_channels):
-            optmenu = tk.OptionMenu(self.main_frame, self.channels.keys[i], *self.channels.keys()).grid(row=i+1, column=0)
-            final_entry = tk.Entry(self.main_frame).grid(row=i+1, column=1)
-            temp_entry = tk.Entry(self.main_frame).grid(row=i+1, column=2)
-            channel_optionMenus.append(optmenu)
-            final_vset_entries.append(final_entry)
-            temp_vset_entries.append(temp_entry)
-        
-        tk.Button(self.main_frame, text='Apply', command=self.apply).grid(row=1, column=3, rowspan=self.total_channels)
-'''
 
 # Usage
 if __name__ == "__main__":
