@@ -41,6 +41,7 @@ class HVGUI:
         self.checksframe = None
         self.channel_optmenus = None
         self.vset_entries = None
+        self.factor_entries = None
 
         self.create_gui()
 
@@ -179,8 +180,8 @@ class HVGUI:
 
         temp_vset = {k: 0 for k in final_vset.keys()} # initialize the temporary voltage setpoints
 
-        max_vset = max([v for v in final_vset.values()])
-        n_steps = int( max_vset / step ) # TODO: these must include the factors
+        max_vset = max([round(v*f) for v, f in zip(final_vset.values(), factors.values())])
+        n_steps = int( max_vset / step ) + 1
         print(f"Number of steps: {n_steps}")
         vset = 0
         channels_reached = 0
