@@ -314,7 +314,7 @@ if __name__ == "__main__":
             app = HVGUI(caen_module=m, spellman_module=spellman, checks_caen=checks_caen, checks_spellman=checks_spellman, checks_multidevice=checks_multidevice)
 
     else:
-        from caen_simulator import ModuleSimulator, SpellmanSimulator
+        from simulators import ModuleSimulator, SpellmanSimulator
         caen_module = ModuleSimulator(4, trip_probability=0)
         spellman_module = SpellmanSimulator()
         app = HVGUI(caen_module=caen_module, spellman_module=spellman_module, checks_caen=checks_caen, checks_spellman=checks_spellman, checks_multidevice=checks_multidevice)

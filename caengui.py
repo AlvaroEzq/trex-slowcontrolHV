@@ -632,7 +632,7 @@ if __name__ == "__main__":
             CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS)
 
     else:
-        from caen_simulator import *  # noqa: F403
+        from simulators import *  # noqa: F403
 
         m = ModuleSimulator(4)  # noqa: F405
         CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS)
