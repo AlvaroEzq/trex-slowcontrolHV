@@ -1,0 +1,30 @@
+# Group 1: Caen checks
+[caen]
+[[caen.1bar]]
+name = "Vgem (1bar)"
+condition = "gemtop.vset - gembottom.vset < 271"
+description = "Keep Vgem below 270V"
+
+[[caen.1bar]]
+name = "Vmesh (1bar)"
+condition = "meshleft.vset < 301 and meshright.vset < 301"
+description = "Keep Vmesh below 300V"
+
+[[caen.1bar]]
+name = "Etransfer (1bar)"
+condition = "(gembottom.vset - meshleft.vset)/1/1.1 < 331"
+description = "Keep Etransfer below 300V/cm/bar"
+
+# Group 2: Spellman checks
+[spellman]
+[[spellman.1bar]]
+name = "Vcathode (1bar)"
+condition = "cathode.vset < 3001"
+description = "Keep Vcathode below 3000V"
+
+# Group 3: Multidevice checks
+[multidevice]
+[[multidevice.1bar]]
+name = "lastring-gemtop"
+condition = "abs(cathode.vset*0.286 - gemtop.vset) < 101"
+description = "Keep lastring-gemtop below 100V"

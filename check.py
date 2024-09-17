@@ -1,3 +1,4 @@
+import toml
 from contextlib import ExitStack
 
 class Check:
@@ -110,3 +111,17 @@ class MultiDeviceCheck(Check):
 
     def eval_condition_with_action(self):
         pass
+
+
+# Function to load an arbitrary number of instances from a TOML file
+def load_checks_from_toml_file(file_path: str, group_name: str) -> list:
+    data = {}
+    with open(file_path, 'r') as file:
+        data = toml.load(file)
+
+    checks = []
+    for subgroup in data.get(group_name, {}).values():
+        for check in subgroup:
+            checks.append(MultiDeviceCheck(**check))
+
+    return checks

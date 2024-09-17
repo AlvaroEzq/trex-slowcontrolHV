@@ -8,23 +8,36 @@ import spellmanClass as spll
 import hvps
 
 from checkframe import ChecksFrame
+from check import load_checks_from_toml_file
 
 class HVGUI:
-    def __init__(self, caen_module=None, spellman_module=None):
+    def __init__(self, caen_module=None, spellman_module=None, checks_caen=None, checks_spellman=None, checks_multidevice=None):
+        if checks_caen is None:
+            checks_caen = []
+        if checks_spellman is None:
+            checks_spellman = []
+        if checks_multidevice is None:
+            checks_multidevice = []
+
         self.caen_module = caen_module
         self.caen_frame = None
         self.caen_gui = None
+        self.caen_checks = checks_caen
 
         self.spellman_module = spellman_module
         self.spellman_frame = None
         self.spellman_gui = None
+        self.spellman_checks = checks_spellman
 
-        self.multidevice_frame = None
+        self.checks = checks_multidevice
         self.all_channels = {}
         self.all_guis = {}
         self.channels_gui = {}
         self.channels_vmon_guilabel = {}
         self.channels_vset_guientries = {}
+
+        self.multidevice_frame = None
+        self.checksframe = None
         self.channel_optmenus = None
         self.vset_entries = None
 
