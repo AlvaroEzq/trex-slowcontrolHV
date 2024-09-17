@@ -458,7 +458,7 @@ class CaenHVPSGUI:
             self.root.update()
 
     def set_vset(self, channel_number, check=True):
-        prev_vset = self.m.channels[channel_number].vset # TODO? get from the label so we save communication time
+        prev_vset = float(self.vset_labels[channel_number].cget("text"))
         try:
             vset_value = float(self.vset_entries[channel_number].get())
         except ValueError:
@@ -479,7 +479,7 @@ class CaenHVPSGUI:
         return True
 
     def set_multichannel_vset_and_turn_on(self, check=True):
-        prev_vsets = [ch.vset for ch in self.m.channels] # TODO? get from the labels so we save communication time
+        prev_vsets = [float(label.cget("text")) for label in self.vset_labels]
         for i, entry in enumerate(self.vset_entries):
             if self.channel_vars[i].get():
                 self.set_vset(i, check=False) # do check after all the vset values are set
