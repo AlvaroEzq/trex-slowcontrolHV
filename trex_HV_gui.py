@@ -169,7 +169,7 @@ class HVGUI:
 
         threading.Thread(target=self.raise_voltage_protocol, args=(step_number,)).start()
 
-    def raise_voltage_protocol(self, step = 100):
+    def raise_voltage_protocol(self, step = 100, timeout = 60):
         # final_vset = {'cathode' : 2000, 'gem top' : 600, 'gem bottom' : 350, 'mesh left' : 250}
         final_vset = {}
         factors = {}
@@ -257,6 +257,7 @@ class HVGUI:
             
             # wait for the channels to reach the setpoints
             all_channels_reached = False
+            time_waiting = 0
             while not all_channels_reached:
                 self.root.update()
                 all_channels_reached = True
@@ -274,8 +275,13 @@ class HVGUI:
                         all_channels_reached = False
                         break
                 time.sleep(1) # wait 1 second before next check
+                time_waiting += 1 # use same time as the number of seconds waited
+                if time_waiting > timeout:
+                    print("Timeout waiting for channels to reach the setpoints.")
+                    break # pass to the next step
 
-            time.sleep(3) # wait 3 seconds before next step
+            time.sleep(5) # wait 3 seconds before next step
+
         if self.step_entry:
             self.step_entry.config(state="normal")
 
