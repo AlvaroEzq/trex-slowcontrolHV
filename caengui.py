@@ -13,6 +13,7 @@ CHANNEL_NAMES = {0: "mesh right", 1: "mesh left", 2: "gem top", 3: "gem bottom"}
 from check import Check
 from checkframe import ChecksFrame
 from tooltip import ToolTip
+from logger import ChannelState
 
 import requests
 import json
@@ -47,6 +48,7 @@ class CaenHVPSGUI:
         self.checks = checks
         self.checks_vars = None
         self.checks_checkboxes = None
+        self.channels_state = None
 
         self.alarm_frame = None
         self.security_frame = None
@@ -517,15 +519,23 @@ class CaenHVPSGUI:
         entry.insert(0, str(self.m.channels[channel_number].vset))
 
     def read_loop(self):
+        if self.channels_state is None:
+            self.channels_state = [ChannelState(name=self.channel_names[i], diff_vmon=0.5, diff_imon=0.01) for i, ch in enumerate(self.m.channels)]
         while True:
             self.issue_command(self.read_values)
+            for chstate in self.channels_state:
+                chstate.save_state()
             time.sleep(1)
 
     def read_values(self):
         for i, ch in enumerate(self.m.channels):
-            self.vset_labels[i].config(text=f"{ch.vset:.1f}")
-            self.vmon_labels[i].config(text=f"{ch.vmon:.1f}")
-            self.imon_labels[i].config(text=f"{ch.imon:.3f}")
+            vset = ch.vset
+            vmon = ch.vmon
+            imon = ch.imon
+            self.channels_state[i].set_state(vmon, imon)
+            self.vset_labels[i].config(text=f"{vset:.1f}")
+            self.vmon_labels[i].config(text=f"{vmon:.1f}")
+            self.imon_labels[i].config(text=f"{imon:.3f}")
             self.update_state_indicator(i, ch)
         self.update_alarm_indicators()
 

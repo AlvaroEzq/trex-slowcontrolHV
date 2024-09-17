@@ -6,6 +6,7 @@ import argparse
 
 # import spellmanModule as spll  # Assuming spellmanModule has required functions
 from spellmanClass import Spellman
+from logger import ChannelState
 
 class SpellmanFrame:
     def __init__(self, spellman, parent=None):
@@ -13,6 +14,7 @@ class SpellmanFrame:
         self.buttons = {}
         self.labels = {}
         self.label_vars = {}
+        self.channel_state = None
         if parent is None:
             self.root = tk.Tk()
             self.root.title('Spellman control GUI')
@@ -268,6 +270,7 @@ class SpellmanFrame:
     def read_values(self):
         vmon = self.spellman.vmon
         imon = self.spellman.imon
+        self.channel_state.set_state(vmon, imon)
         self.label_vars['voltage'].set(f"{vmon:.0f}")
         self.labels['current_s'].config(text=f"{imon:.5f}")
 
@@ -286,8 +289,11 @@ class SpellmanFrame:
             self.labels['hv'].config(text=hv)
 
     def read_loop(self):
+        if self.channel_state is None:
+            self.channel_state = ChannelState("spellman", diff_vmon=15, diff_imon=999, precision_vmon=0, precision_imon=5)
         while True:
             self.issue_command(self.read_values)
+            self.channel_state.save_state(save_previous=False)
             time.sleep(2)
 
 # Usage
