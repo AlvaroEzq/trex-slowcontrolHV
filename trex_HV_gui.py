@@ -38,7 +38,7 @@ class HVGUI:
             self.caen_frame = tk.Frame(self.root)
             self.caen_frame.pack(side="left", fill="both", expand=True)
             self.caen_gui = caengui.CaenHVPSGUI(module=self.caen_module, parent_frame=self.caen_frame,
-                                                channel_names=caengui.CHANNEL_NAMES, silence=True)
+                                                channel_names=caengui.CHANNEL_NAMES, checks=self.caen_checks, silence=False)
             self.all_channels = {name: self.caen_module.channels[n] for n, name in self.caen_gui.channel_names.items()}
             self.channels_gui = {name: self.caen_gui for name in self.caen_gui.channel_names.values()}
             self.all_guis['caen'] = self.caen_gui
@@ -48,7 +48,7 @@ class HVGUI:
         if self.spellman_module is not None:
             self.spellman_frame = tk.Frame(self.root)
             self.spellman_frame.pack(side="right", fill=tk.BOTH, expand=True)
-            self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame)
+            self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame) # TODO: implement individual spellman checks
             self.all_channels = {'cathode' : self.spellman_module, **self.all_channels} # add the spellman module as cathode at the front of the dict
             self.channels_gui['cathode'] = self.spellman_gui
             self.all_guis['cathode'] = self.spellman_gui
@@ -128,9 +128,8 @@ class HVGUI:
 
         right_frame = tk.Frame(self.multidevice_frame, padx=10, pady=10)
         right_frame.pack(side="left", anchor="center", padx=20)
-        self.multidevice_checksframe = ChecksFrame(right_frame)
-        self.multidevice_checksframe.all_channels = self.all_channels
-        self.multidevice_checksframe.all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
+        all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
+        self.checksframe = ChecksFrame(right_frame, checks=self.checks, all_channels=self.all_channels, all_locks=all_devices_locks)
 
 
     def raise_voltage_protocol(self, step = 100):
@@ -226,8 +225,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
     parser.add_argument("--port", type=str, help="Select port", default="/dev/ttyUSB0")
+    parser.add_argument("--checks", type=str, help="Select checks configuration file", default="checks_config.toml")
 
     args = parser.parse_args()
+
+    checks_caen = load_checks_from_toml_file(args.checks, "caen")
+    checks_spellman = load_checks_from_toml_file(args.checks, "spellman")
+    checks_multidevice = load_checks_from_toml_file(args.checks, "multidevice")
 
     if not args.test:
         with hvps.Caen(port=args.port) as caen:
@@ -235,12 +239,12 @@ if __name__ == "__main__":
             print("baudrate:", caen.baudrate)
             m = caen.module(0)
             spellman = spll.Spellman()
-            app = HVGUI(caen_module=m, spellman_module=spellman)
+            app = HVGUI(caen_module=m, spellman_module=spellman, checks_caen=checks_caen, checks_spellman=checks_spellman, checks_multidevice=checks_multidevice)
 
     else:
         from caen_simulator import ModuleSimulator, SpellmanSimulator
         caen_module = ModuleSimulator(4, trip_probability=0)
         spellman_module = SpellmanSimulator()
-        app = HVGUI(caen_module=caen_module, spellman_module=spellman_module)
+        app = HVGUI(caen_module=caen_module, spellman_module=spellman_module, checks_caen=checks_caen, checks_spellman=checks_spellman, checks_multidevice=checks_multidevice)
 
 

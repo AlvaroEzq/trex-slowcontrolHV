@@ -80,7 +80,7 @@ class MultiDeviceCheck(Check):
         super().__init__(name, condition, channels, description)
         if devices_locks is None:
             devices_locks = ()
-        self.devices_locks = devices_locks
+        self.device_locks = devices_locks
 
     def set_devices(self, devices_locks : tuple):
         self.devices_locks = devices_locks
@@ -89,7 +89,7 @@ class MultiDeviceCheck(Check):
         # ExitStack allows us to manage a dynamic number of context managers
         with ExitStack() as stack:
             # Acquire all locks
-            for lock in locks:
+            for lock in self.device_locks:
                 stack.enter_context(lock)
             # Once all locks are acquired, perform the action
             rtrn = super().eval_condition()
@@ -100,7 +100,7 @@ class MultiDeviceCheck(Check):
         # ExitStack allows us to manage a dynamic number of context managers
         with ExitStack() as stack:
             # Acquire all locks
-            for lock in locks:
+            for lock in self.device_locks:
                 stack.enter_context(lock)
             # Once all locks are acquired, perform the action
             rtrn = super().simulate_eval_condition(channels_values)

@@ -7,20 +7,25 @@ from check import Check, MultiDeviceCheck
 from tooltip import ToolTip
 
 class ChecksFrame:
-    def __init__(self, parent_frame = None, checks = None):
-        self.root = parent_frame
+    def __init__(self, parent_frame = None, checks = None, all_channels = None, all_locks = None):
         if checks is None:
             checks = []
+        if all_channels is None:
+            all_channels = {}
+        if all_locks is None:
+            all_locks = {}
+
+        self.root = parent_frame
         self.checks = checks
-        self.all_channels = {}
-        self.all_devices_locks = {}
+        self.all_channels = all_channels
+        self.all_locks = all_locks
 
         self.checks_vars = []
         self.checks_checkboxes = []
         self.checks_tooltips = []
         self.edit_checks_button = None
 
-        self.frame = self.create_security_frame()
+        self.create_security_frame()
 
     def set_checks(self, checks : list):
         if checks is None:
@@ -70,6 +75,7 @@ class ChecksFrame:
         )
         self.edit_checks_button.grid(row=len(self.checks)+1, column=0, padx=10, pady=10, sticky="w")
 
+        self.frame = security_frame
         self.start_background_threads()
 
         if start_mainloop:
@@ -185,7 +191,7 @@ class ChecksFrame:
         # set all the devices locks for the checks, just in case the devices locks are not initialized
         for check in self.checks:
             if isinstance(check, MultiDeviceCheck):
-                check.set_devices(self.all_devices_locks)
+                check.set_devices(self.all_locks)
 
     def check_conditions(self):
         failed_checks = []
