@@ -171,6 +171,19 @@ class HVGUI:
 
     def raise_voltage_protocol(self, step = 100, timeout = 60):
         # final_vset = {'cathode' : 2000, 'gem top' : 600, 'gem bottom' : 350, 'mesh left' : 250}
+        def get_vmon(ch_name):
+            label = self.channels_vmon_guilabel[ch_name]
+            vmon = -1
+            if label is not None:
+                if "cget" in dir(label):
+                    vmon = float(label.cget("text"))
+                else:
+                    vmon = float(label.get())
+            else:
+                with self.channels_gui[ch_name].device_lock:
+                    vmon = self.all_channels[ch_name].vmon
+            return vmon
+
         final_vset = {}
         factors = {}
         for i, ch in enumerate(self.channel_optmenus):
@@ -240,6 +253,9 @@ class HVGUI:
 
             # apply vsets to the channels
             for ch, v in temp_vset.items():
+                if get_vmon(ch) > v:
+                    print(f"Voltage monitor for channel {ch} is higher than the setpoint. Skipping the step.")
+                    continue
                 # change the vset entry to the new value (emulate the human manually changing the value)
                 self.channels_vset_guientries[ch].delete(0, tk.END)
                 self.channels_vset_guientries[ch].insert(0, str(v))
@@ -259,19 +275,10 @@ class HVGUI:
             all_channels_reached = False
             time_waiting = 0
             while not all_channels_reached:
-                self.root.update()
                 all_channels_reached = True
                 for ch in temp_vset.keys():
-                    label = self.channels_vmon_guilabel[ch]
-                    vmon = -1
-                    if label is not None:
-                        if "cget" in dir(label):
-                            vmon = float(label.cget("text"))
-                        else:
-                            vmon = float(label.get())
-                    else:
-                        vmon = self.all_channels[ch].vmon # this should not be used because it will communicate with the device outside of the device locking queue
-                    if abs(vmon - temp_vset[ch]) > 5:
+                    vmon = get_vmon(ch)
+                    if temp_vset[ch] - vmon > 13: # the spellman has 12V of precision...
                         all_channels_reached = False
                         break
                 time.sleep(1) # wait 1 second before next check
