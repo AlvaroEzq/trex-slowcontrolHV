@@ -42,6 +42,8 @@ class HVGUI:
         self.channel_optmenus = None
         self.vset_entries = None
         self.factor_entries = None
+        self.step_entry = None
+        self.step_var = None
 
         self.create_gui()
 
@@ -138,8 +140,15 @@ class HVGUI:
             vset_entry.insert(0, self.channels_vset_guientries[ch_opt].get())
             self.vset_entries.append(vset_entry)
 
-        apply_button = tk.Button(left_frame, text="Apply", command=self.raise_voltage_protocol_thread)
-        apply_button.grid(row=n_rows+1, column=0, columnspan=3, pady=20)
+        tk.Label(left_frame, text="Step(V):").grid(row=n_rows+1, column=1, sticky="E", padx=0)
+        self.step_var = tk.StringVar()
+        step_entry = tk.Entry(left_frame, justify="right", width=5, textvariable=self.step_var)
+        step_entry.grid(row=n_rows+1, column=2, sticky="W", padx=0)
+        step_entry.insert(0, "100")
+        self.step_entry = step_entry
+
+        apply_button = tk.Button(left_frame, text="Apply", command= lambda: self.raise_voltage_protocol_thread(self.step_var.get()))
+        apply_button.grid(row=n_rows+1, column=0, columnspan=2, pady=20)
 
         right_frame = tk.Frame(self.multidevice_frame, padx=10, pady=10)
         right_frame.pack(side="left", anchor="center", padx=20)
@@ -147,7 +156,18 @@ class HVGUI:
         self.checksframe = ChecksFrame(right_frame, checks=self.checks, all_channels=self.all_channels, all_locks=all_devices_locks)
 
     def raise_voltage_protocol_thread(self, step = 100):
-        threading.Thread(target=self.raise_voltage_protocol, args=(step,)).start()
+        try:
+            step_number = float(step)
+        except ValueError:
+            print("Invalid step value")
+            self.step_var.set("100")
+            return
+        if step_number <= 0 or step_number > 100:
+            print("Step value must be between 0 and 100")
+            self.step_var.set("100")
+            return
+
+        threading.Thread(target=self.raise_voltage_protocol, args=(step_number,)).start()
 
     def raise_voltage_protocol(self, step = 100):
         # final_vset = {'cathode' : 2000, 'gem top' : 600, 'gem bottom' : 350, 'mesh left' : 250}
@@ -178,6 +198,9 @@ class HVGUI:
                     print(f"Channel {ch} is off. Turn it on before running the protocol")
                     return
 
+        if self.step_entry:
+            self.step_entry.config(state="disabled")
+
         temp_vset = {k: 0 for k in final_vset.keys()} # initialize the temporary voltage setpoints
 
         max_vset = max([round(v*f) for v, f in zip(final_vset.values(), factors.values())])
@@ -201,15 +224,17 @@ class HVGUI:
             # multidevice checks
             if not self.checksframe.simulate_check_conditions(parameters_values):
                 print("Step did not pass the multidevice checks.")
+                if self.step_entry:
+                    self.step_entry.config(state="normal")
                 return
             # individual device checks
             for device, gui in self.all_guis.items():
                 try:
                     if not gui.checksframe.simulate_check_conditions(parameters_values):
                         print(f"Step did not pass the {device} checks.")
+                        if self.step_entry:
+                            self.step_entry.config(state="normal")
                         return
-                    else:
-                        print(f"Step passed the {device} checks.")
                 except AttributeError:
                     pass
 
@@ -225,6 +250,8 @@ class HVGUI:
                     channel.vset = v
                 except Exception as e:
                     print(f"Error setting voltage for channel {ch}: {e}")
+                    if self.step_entry:
+                        self.step_entry.config(state="normal")
                     return
                 # self.all_channels[ch].vset = v
             
@@ -249,6 +276,8 @@ class HVGUI:
                 time.sleep(1) # wait 1 second before next check
 
             time.sleep(3) # wait 3 seconds before next step
+        if self.step_entry:
+            self.step_entry.config(state="normal")
 
 if __name__ == "__main__":
     
