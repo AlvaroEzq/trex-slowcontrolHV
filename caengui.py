@@ -116,15 +116,17 @@ class CaenHVPSGUI(DeviceGUI):
         ToolTip(intlck_label, f"Interlock mode: {self.device.interlock_mode}")
 
         self.alarm_indicator = tk.Canvas(
-            alarm_frame, width=30, height=30, bg="red", highlightthickness=0
+            alarm_frame, width=30, height=30, bg="gray", highlightthickness=0
         )
         self.alarm_indicator.grid(row=2, column=0, padx=10, pady=10)
+        self.alarm_indicator.create_oval(2, 2, 28, 28, fill="gray")
         self.alarm_tooltip = ToolTip(self.alarm_indicator, "Alarm signal")
 
         self.interlock_indicator = tk.Canvas(
-            alarm_frame, width=30, height=30, bg="green", highlightthickness=0
+            alarm_frame, width=30, height=30, bg="gray", highlightthickness=0
         )
         self.interlock_indicator.grid(row=2, column=1, padx=10, pady=10)
+        self.interlock_indicator.create_oval(2, 2, 28, 28, fill="gray")
         self.interlock_tooltip = ToolTip(self.interlock_indicator, "Interlock signal")
 
         self.clear_alarm_button = tk.Button(
@@ -218,9 +220,10 @@ class CaenHVPSGUI(DeviceGUI):
             ToolTip(channel_button, f"Channel {i}: click for more setting options.")
 
             state_indicator = tk.Canvas(
-                channels_frame, width=20, height=20, bg="black", highlightthickness=0
+                channels_frame, width=30, height=30, bg="darkblue", highlightthickness=0
             )
             state_indicator.grid(row=i + 2, column=1, sticky="NSEW", padx=5, pady=5)
+            state_indicator.create_oval(2, 2, 28, 28, fill="black")
             self.state_indicators.append(state_indicator)
             self.state_tooltips.append(ToolTip(state_indicator, "State:"))
 
@@ -441,42 +444,60 @@ class CaenHVPSGUI(DeviceGUI):
         apply_button.grid(row=len(properties), column=1, padx=10, pady=10, sticky="w")
 
     def set_vset(self, channel_number, check=True):
+        # entry formatting
         prev_vset = float(self.vset_labels[channel_number].cget("text"))
         try:
             vset_value = float(self.vset_entries[channel_number].get())
         except ValueError:
             self.vset_entries[channel_number].delete(0, tk.END)
-            self.vset_entries[channel_number].insert(
-                0, str(self.device.channels[channel_number].vset)
-            )
+            self.vset_entries[channel_number].insert(0, str(prev_vset))
             print("ValueError: Set voltage value must be a number")
             return False
-        self.device.channels[channel_number].vset = vset_value
+
+        # simulate the checks with the change in the vset value
+        parameters_values = {self.channels_name[channel_number].replace(" ", "")+".vset": vset_value}
         if check and self.checksframe is not None:
-            if not self.checksframe.check_conditions(): # TODO: better use simulate_check_conditions ??
-                self.device.channels[channel_number].vset = prev_vset
+            self.vset_entries[channel_number].config(state="readonly") # to avoid the user to change the value while the checks are being simulated
+            if not self.checksframe.simulate_check_conditions(parameters_values):
                 self.vset_entries[channel_number].config(fg="red")
+                self.vset_entries[channel_number].config(state="normal")
                 return False
             else:
                 self.vset_entries[channel_number].config(fg="black")
+                self.vset_entries[channel_number].config(state="normal")
+
+        # finally set the value
+        self.device.channels[channel_number].vset = vset_value
         return True
 
     def set_multichannel_vset_and_turn_on(self, check=True):
-        prev_vsets = [float(label.cget("text")) for label in self.vset_labels]
+        def change_entries_state(state):
+            for entry, var in zip(self.vset_entries, self.channel_vars):
+                if var.get():
+                    entry.config(state=state)
+
+        # simulate the checks with the change in the vset value
+        parameters_values = {}
         for i, entry in enumerate(self.vset_entries):
             if self.channel_vars[i].get():
-                self.set_vset(i, check=False) # do check after all the vset values are set
-                entry.delete(0, tk.END)
-                entry.insert(0, str(self.device.channels[i].vset))
+                try:
+                    vset_value = float(entry.get())
+                except ValueError:
+                    print("ValueError: Set voltage value must be a number")
+                    return False
+                parameters_values[self.channels_name[i].replace(" ", "")+".vset"] = vset_value
+
         if check and self.checksframe is not None:
-            if not self.checksframe.check_conditions(): # TODO: better use simulate_check_conditions ??
-                for i, ch in enumerate(self.device.channels):
-                    if self.channel_vars[i].get():
-                        ch.vset = prev_vsets[i]
+            change_entries_state("readonly") # to avoid the user to change the values while the checks are being simulated
+            if not self.checksframe.simulate_check_conditions(parameters_values):
+                change_entries_state("normal")
                 return False
-        # turn on if all the checks passed
-        for i, chvar in enumerate(self.channel_vars):
-            if chvar.get():
+            change_entries_state("normal")
+
+        # finally set the values and turn on the channels
+        for i, entry in enumerate(self.vset_entries):
+            if self.channel_vars[i].get():
+                self.device.channels[i].vset = float(entry.get())
                 self.device.channels[i].turn_on()
         return True
 
@@ -542,7 +563,7 @@ class CaenHVPSGUI(DeviceGUI):
                 state_tooltip_text += " (RAMP UP)"
             if stat["RDW"]:
                 state_tooltip_text += " (RAMP DOWN)"
-        self.state_indicators[channel_number].configure(bg=state_indicator_color)
+        self.state_indicators[channel_number].itemconfig(1, fill=state_indicator_color)
         self.state_tooltips[channel_number].change_text(f"State: {state_tooltip_text}")
 
         self.turn_buttons[channel_number].configure(
@@ -552,16 +573,17 @@ class CaenHVPSGUI(DeviceGUI):
     def update_alarm_indicators(self):
         bas = self.device.board_alarm_status.copy()
         ilk = self.device.interlock_status
-        self.alarm_indicator.config(
-            bg="red"
+        self.alarm_indicator.itemconfig(
+            1,
+            fill="red"
             if any([v for k, v in bas.items()])
             else "green"
         )
         self.alarm_tooltip.change_text(
             f"Alarm signal: {[k for k, v in bas.items() if v]}"
         )
-        self.interlock_indicator.config(
-            bg="red" if ilk else "green"
+        self.interlock_indicator.itemconfig(
+            1, fill="red" if ilk else "green"
         )
         self.interlock_tooltip.change_text(
             f"Interlock signal: {ilk}"
