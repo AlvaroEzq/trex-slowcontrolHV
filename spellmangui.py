@@ -7,31 +7,24 @@ import argparse
 # import spellmanModule as spll  # Assuming spellmanModule has required functions
 from spellmanClass import Spellman
 from logger import ChannelState
+from devicegui import DeviceGUI
 
-class SpellmanFrame:
+class SpellmanFrame(DeviceGUI):
     def __init__(self, spellman, parent=None):
-        self.spellman = spellman
         self.buttons = {}
         self.labels = {}
         self.label_vars = {}
-        self.channel_state = None
-        if parent is None:
-            self.root = tk.Tk()
-            self.root.title('Spellman control GUI')
-        else:
-            self.root = parent
+        self.channels_state_save_previous = False
+        self.channels_state_diff_vmon = 15
+        self.channels_state_diff_imon = 999
+        self.channels_state_prec_vmon = 0
+        self.channels_state_prec_imon = 5
+        self.read_loop_time = 2  # seconds
+        super().__init__(spellman, ['cathode'], parent)
 
-        self.command_queue = queue.Queue()
-        self.device_lock = threading.Lock()
-
-        self.create_frame()
-
-        if parent is None:
-            self.root.mainloop()
-
-    def create_frame(self):
+    def create_gui(self):
         self.main_frame = tk.LabelFrame(
-            self.root, text=f"{self.spellman.name}", font=("", 16), bg="lightgray",
+            self.root, text=f"{self.device.name}", font=("", 16), bg="lightgray",
             labelanchor="n", padx=10, pady=10, bd=4
         )
         self.main_frame.pack(fill="both", expand=True)
@@ -131,7 +124,7 @@ class SpellmanFrame:
 
         voltage_dac_text = tk.Label(marco1, text='Voltage DAC(V) : ', width=14)
         voltage_dac_entry = tk.Entry(marco1, width=10, justify='right')
-        voltage_dac_entry.insert(0, f"{self.spellman.vset:.0f}")
+        voltage_dac_entry.insert(0, f"{self.device.vset:.0f}")
         voltage_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_vset)
         )
@@ -143,7 +136,7 @@ class SpellmanFrame:
 
         current_dac_text = tk.Label(marco2, text='Current DAC(mA): ', width=14)
         current_dac_entry = tk.Entry(marco2, width=10, justify='right')
-        current_dac_entry.insert(0, f"{self.spellman.iset:.5f}")
+        current_dac_entry.insert(0, f"{self.device.iset:.5f}")
         current_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_iset)
         )
@@ -188,66 +181,37 @@ class SpellmanFrame:
         self.labels['lastring_v_right'] = lastring_v_right_label
         self.labels['lastring_i_right'] = lastring_i_right_label
 
-    def start_background_threads(self):
-        threading.Thread(target=self.read_loop, daemon=True).start()
-        threading.Thread(target=self.process_commands, daemon=True).start()
-
-    def process_commands(self):
-        while True:
-            func, args, kwargs = self.command_queue.get()
-            with self.device_lock:
-                func(*args, **kwargs)
-            self.command_queue.task_done()
-            if self.root.cget("cursor") == "watch" and func.__name__ != "read_values":
-                self.root.config(cursor="")
-
-    def issue_command(self, func, *args, **kwargs):
-        # do not stack read_values commands (critical if reading values is slow)
-        if (
-            func.__name__ == "read_values"
-            and (func, args, kwargs) in self.command_queue.queue
-        ):
-            return
-        # print('\n'), [print(i) for i in self.command_queue.queue] # debug
-        self.command_queue.put((func, args, kwargs))
-        if (
-            func.__name__ != "read_values"
-        ):  # because it is constantly reading values in the background
-            self.root.config(cursor="watch")
-            self.root.update()
-
-    # Stub methods for buttons (replace with actual implementations)
     def remote_on(self):
-        self.spellman.remote_on()
+        self.device.remote_on()
 
     def remote_off(self):
-        self.spellman.remote_off()
+        self.device.remote_off()
 
     def hv_on(self):
-        self.spellman.hv_on()
+        self.device.hv_on()
 
     def hv_off(self):
-        self.spellman.hv_off()
+        self.device.hv_off()
 
     def set_vset(self):
         try:
             vset_value = float(self.labels['voltage_dac_s'].get())
         except ValueError:
             self.labels['voltage_dac_s'].delete(0, tk.END)
-            self.labels['voltage_dac_s'].insert(0, f"{self.spellman.get_vset():.0f}")
+            self.labels['voltage_dac_s'].insert(0, f"{self.device.get_vset():.0f}")
             print("ValueError: Set voltage value must be a number")
             return
-        self.spellman.vset = vset_value
+        self.device.vset = vset_value
 
     def set_iset(self):
         try:
             iset_value = float(self.labels['current_dac_s'].get())
         except ValueError:
             self.labels['current_dac_s'].delete(0, tk.END)
-            self.labels['current_dac_s'].insert(0, f"{self.spellman.get_iset():.5f}")
+            self.labels['current_dac_s'].insert(0, f"{self.device.get_iset():.5f}")
             print("ValueError: Set current value must be a number")
             return
-        self.spellman.iset = iset_value
+        self.device.iset = iset_value
 
     def update_last_rings(self, *args):
         vmon_str = self.label_vars['voltage'].get()
@@ -268,13 +232,13 @@ class SpellmanFrame:
         self.labels['lastring_i_right'].config(text=f"{imon_right:.5f}")
 
     def read_values(self):
-        vmon = self.spellman.vmon
-        imon = self.spellman.imon
-        self.channel_state.set_state(vmon, imon)
+        vmon = self.device.vmon
+        imon = self.device.imon
+        self.channels_state[0].set_state(vmon, imon)
         self.label_vars['voltage'].set(f"{vmon:.0f}")
         self.labels['current_s'].config(text=f"{imon:.5f}")
 
-        stat = self.spellman.stat
+        stat = self.device.stat
         remote = stat['REMOTE']
         hv = stat['HV']
 
@@ -288,13 +252,6 @@ class SpellmanFrame:
         else:
             self.labels['hv'].config(text=hv)
 
-    def read_loop(self):
-        if self.channel_state is None:
-            self.channel_state = ChannelState("spellman", diff_vmon=15, diff_imon=999, precision_vmon=0, precision_imon=5)
-        while True:
-            self.issue_command(self.read_values)
-            self.channel_state.save_state(save_previous=False)
-            time.sleep(2)
 
 # Usage
 if __name__ == "__main__":

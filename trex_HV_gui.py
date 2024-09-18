@@ -56,11 +56,11 @@ class HVGUI:
             self.caen_frame.pack(side="left", fill="both", expand=True)
             self.caen_gui = caengui.CaenHVPSGUI(module=self.caen_module, parent_frame=self.caen_frame,
                                                 channel_names=caengui.CHANNEL_NAMES, checks=self.caen_checks, silence=False)
-            self.all_channels = {name: self.caen_module.channels[n] for n, name in self.caen_gui.channel_names.items()}
-            self.channels_gui = {name: self.caen_gui for name in self.caen_gui.channel_names.values()}
+            self.all_channels = {name: self.caen_module.channels[i] for i, name in enumerate(self.caen_gui.channels_name)}
+            self.channels_gui = {name: self.caen_gui for name in self.caen_gui.channels_name}
             self.all_guis['caen'] = self.caen_gui
-            self.channels_vmon_guilabel = {name: label for name, label in zip(self.caen_gui.channel_names.values(), self.caen_gui.vmon_labels)}
-            self.channels_vset_guientries = {name: entry for name, entry in zip(self.caen_gui.channel_names.values(), self.caen_gui.vset_entries)}
+            self.channels_vmon_guilabel = {name: label for name, label in zip(self.caen_gui.channels_name, self.caen_gui.vmon_labels)}
+            self.channels_vset_guientries = {name: entry for name, entry in zip(self.caen_gui.channels_name, self.caen_gui.vset_entries)}
 
         if self.spellman_module is not None:
             self.spellman_frame = tk.Frame(self.root)

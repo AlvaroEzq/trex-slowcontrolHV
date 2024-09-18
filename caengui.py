@@ -8,12 +8,13 @@ import argparse
 
 import hvps
 
-CHANNEL_NAMES = {0: "mesh right", 1: "mesh left", 2: "gem top", 3: "gem bottom"}
+CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
 
 from check import Check
 from checkframe import ChecksFrame
 from tooltip import ToolTip
 from logger import ChannelState
+from devicegui import DeviceGUI
 
 import requests
 import json
@@ -29,10 +30,10 @@ def send_slack_message(message:str):
     except Exception as e:
         print(e)
 
-class CaenHVPSGUI:
+class CaenHVPSGUI(DeviceGUI):
     def __init__(self, module, channel_names=None, checks=None, parent_frame=None, silence=False):
         if channel_names is None:
-            channel_names = {}
+            channel_names = []
         if checks is None:
             checks = {}
 
@@ -48,7 +49,6 @@ class CaenHVPSGUI:
         self.checks = checks
         self.checks_vars = None
         self.checks_checkboxes = None
-        self.channels_state = None
 
         self.alarm_frame = None
         self.security_frame = None
@@ -61,20 +61,17 @@ class CaenHVPSGUI:
         self.multichannel_frame = None
         self.channel_frame = None
         self.main_frame = None
-        self.root = parent_frame
-
-        self.m = module  # Simulated module with 4 channels
-        self.channel_names = channel_names
-        for i in range(self.m.number_of_channels):
-            if i not in self.channel_names:
-                self.channel_names[i] = f"Channel {i}"  # default name for the channel
-        self.command_queue = queue.Queue()
-        self.device_lock = threading.Lock()
 
         self.alarm_detected = True # to avoid sending the alarm message when the GUI is started with the module alarm already active
         self.silence_alarm = silence
 
-        self.create_gui()
+        if len(channel_names) < module.number_of_channels:
+            for i in range(module.number_of_channels):
+                if i >= len(channel_names):
+                    channel_names[i] = f"Channel {i}"
+
+        super().__init__(module, channel_names, parent_frame)
+
 
     def create_gui(self):
         start_mainloop = False
@@ -86,7 +83,7 @@ class CaenHVPSGUI:
         self.main_frame = self.create_main_frame()
         self.alarm_frame = self.create_alarm_frame(self.main_frame)
         self.channel_frame = self.create_channels_frame(self.main_frame)
-        if self.m.number_of_channels > 1:
+        if self.device.number_of_channels > 1:
             self.multichannel_frame = self.create_multichannel_frame(self.channel_frame)
         self.security_frame = self.create_security_frame(self.main_frame)
 
@@ -96,7 +93,7 @@ class CaenHVPSGUI:
             self.root.mainloop()
 
     def create_main_frame(self):
-        main_frame = tk.LabelFrame(self.root, text=f"Module {self.m.name}", font=("", 16), bg="lightgray", padx=10, pady=10, labelanchor="n", bd=4)
+        main_frame = tk.LabelFrame(self.root, text=f"Module {self.device.name}", font=("", 16), bg="lightgray", padx=10, pady=10, labelanchor="n", bd=4)
         main_frame.pack(fill="both", expand=True)
         return main_frame
 
@@ -119,7 +116,7 @@ class CaenHVPSGUI:
             fg="black",
         )
         intlck_label.grid(row=1, column=1)
-        ToolTip(intlck_label, f"Interlock mode: {self.m.interlock_mode}")
+        ToolTip(intlck_label, f"Interlock mode: {self.device.interlock_mode}")
 
         self.alarm_indicator = tk.Canvas(
             alarm_frame, width=30, height=30, bg="red", highlightthickness=0
@@ -207,10 +204,10 @@ class CaenHVPSGUI:
         self.state_tooltips = []
         self.turn_buttons = []
         self.set_buttons = []
-        for i in range(self.m.number_of_channels):
+        for i in range(self.device.number_of_channels):
             channel_button = tk.Button(
                 channels_frame,
-                text=f"{self.channel_names[i]}",
+                text=f"{self.channels_name[i]}",
                 font=("Arial", 12, "bold"),
                 bg="darkblue",
                 fg="white",
@@ -253,7 +250,7 @@ class CaenHVPSGUI:
             self.set_buttons.append(set_button)
 
             vset_entry = tk.Entry(channels_frame, width=7, justify="center")
-            vset_entry.insert(0, str(self.m.channels[i].vset))
+            vset_entry.insert(0, str(self.device.channels[i].vset))
             vset_entry.grid(row=i + 2, column=4, sticky="NSE", padx=0, pady=5)
             vset_entry.bind(
                 "<Return>", lambda event, x=i: self.issue_command(self.set_vset, x)
@@ -277,7 +274,7 @@ class CaenHVPSGUI:
     def create_multichannel_frame(self, frame):
         checkbox_frame = tk.Frame(frame, bg="darkblue")
         checkbox_frame.grid(
-            row=self.m.number_of_channels + 2, column=1, columnspan=6, pady=10
+            row=self.device.number_of_channels + 2, column=1, columnspan=6, pady=10
         )
 
         tk.Label(
@@ -289,12 +286,12 @@ class CaenHVPSGUI:
         ).grid(row=0, column=0, columnspan=2, pady=10)
 
         self.channel_vars = []
-        for i in range(self.m.number_of_channels):
+        for i in range(self.device.number_of_channels):
             var = tk.IntVar()
             self.channel_vars.append(var)
             tk.Checkbutton(
                 checkbox_frame,
-                text=f" {self.channel_names[i]}",
+                text=f" {self.channels_name[i]}",
                 variable=var,
                 font=("Arial", 10),
                 bg="darkblue",
@@ -319,7 +316,7 @@ class CaenHVPSGUI:
     def create_security_frame(self, frame):
         security_frame = tk.Frame(frame)
         security_frame.grid(row=2, column=0, padx=10, pady=10, sticky="NWE")
-        channels = {self.channel_names[i] : self.m.channels[i] for i in range(self.m.number_of_channels)}
+        channels = {self.channels_name[i] : self.device.channels[i] for i in range(self.device.number_of_channels)}
         locks = tuple([self.device_lock])
         self.checksframe = ChecksFrame(security_frame, checks=self.checks, channels=channels, locks=locks)
         return security_frame
@@ -345,10 +342,10 @@ class CaenHVPSGUI:
 
         # Crear la nueva ventana
         new_window = tk.Toplevel(self.root)
-        new_window.title(f"{self.channel_names[channel_number]}")
+        new_window.title(f"{self.channels_name[channel_number]}")
         new_window.configure(bg="darkblue")
 
-        ch = self.m.channels[channel_number]
+        ch = self.device.channels[channel_number]
         try:
             set_properties = (
                 hvps.commands.caen.channel._SET_CHANNEL_COMMANDS
@@ -431,34 +428,6 @@ class CaenHVPSGUI:
         )
         apply_button.grid(row=len(properties), column=1, padx=10, pady=10, sticky="w")
 
-    def start_background_threads(self):
-        threading.Thread(target=self.read_loop, daemon=True).start()
-        threading.Thread(target=self.process_commands, daemon=True).start()
-
-    def process_commands(self):
-        while True:
-            func, args, kwargs = self.command_queue.get()
-            with self.device_lock:
-                func(*args, **kwargs)
-            self.command_queue.task_done()
-            if self.root.cget("cursor") == "watch" and func.__name__ != "read_values":
-                self.root.config(cursor="")
-
-    def issue_command(self, func, *args, **kwargs):
-        # do not stack read_values commands (critical if reading values is slow)
-        if (
-            func.__name__ == "read_values"
-            and (func, args, kwargs) in self.command_queue.queue
-        ):
-            return
-        # print('\n'), [print(i) for i in self.command_queue.queue] # debug
-        self.command_queue.put((func, args, kwargs))
-        if (
-            func.__name__ != "read_values"
-        ):  # because it is constantly reading values in the background
-            self.root.config(cursor="watch")
-            self.root.update()
-
     def set_vset(self, channel_number, check=True):
         prev_vset = float(self.vset_labels[channel_number].cget("text"))
         try:
@@ -466,14 +435,14 @@ class CaenHVPSGUI:
         except ValueError:
             self.vset_entries[channel_number].delete(0, tk.END)
             self.vset_entries[channel_number].insert(
-                0, str(self.m.channels[channel_number].vset)
+                0, str(self.device.channels[channel_number].vset)
             )
             print("ValueError: Set voltage value must be a number")
             return False
-        self.m.channels[channel_number].vset = vset_value
+        self.device.channels[channel_number].vset = vset_value
         if check and self.checksframe is not None:
             if not self.checksframe.check_conditions(): # TODO: better use simulate_check_conditions ??
-                self.m.channels[channel_number].vset = prev_vset
+                self.device.channels[channel_number].vset = prev_vset
                 self.vset_entries[channel_number].config(fg="red")
                 return False
             else:
@@ -486,25 +455,25 @@ class CaenHVPSGUI:
             if self.channel_vars[i].get():
                 self.set_vset(i, check=False) # do check after all the vset values are set
                 entry.delete(0, tk.END)
-                entry.insert(0, str(self.m.channels[i].vset))
+                entry.insert(0, str(self.device.channels[i].vset))
         if check and self.checksframe is not None:
             if not self.checksframe.check_conditions(): # TODO: better use simulate_check_conditions ??
-                for i, ch in enumerate(self.m.channels):
+                for i, ch in enumerate(self.device.channels):
                     if self.channel_vars[i].get():
                         ch.vset = prev_vsets[i]
                 return False
         # turn on if all the checks passed
         for i, chvar in enumerate(self.channel_vars):
             if chvar.get():
-                self.m.channels[i].turn_on()
+                self.device.channels[i].turn_on()
         return True
 
     def clear_alarm(self):
-        self.m.clear_alarm_signal()
+        self.device.clear_alarm_signal()
         self.alarm_detected = False
 
     def toggle_channel(self, channel_number):
-        ch = self.m.channels[channel_number]
+        ch = self.device.channels[channel_number]
         if ch.stat["ON"]:
             ch.turn_off()
         else:
@@ -513,22 +482,13 @@ class CaenHVPSGUI:
 
     def set_vset_and_turn_on(self, channel_number):
         entry = self.vset_entries[channel_number]
-        self.m.channels[channel_number].vset = float(entry.get())
-        self.m.channels[channel_number].turn_on()
+        self.device.channels[channel_number].vset = float(entry.get())
+        self.device.channels[channel_number].turn_on()
         entry.delete(0, tk.END)
-        entry.insert(0, str(self.m.channels[channel_number].vset))
-
-    def read_loop(self):
-        if self.channels_state is None:
-            self.channels_state = [ChannelState(name=self.channel_names[i], diff_vmon=0.5, diff_imon=0.01) for i, ch in enumerate(self.m.channels)]
-        while True:
-            self.issue_command(self.read_values)
-            for chstate in self.channels_state:
-                chstate.save_state()
-            time.sleep(1)
+        entry.insert(0, str(self.device.channels[channel_number].vset))
 
     def read_values(self):
-        for i, ch in enumerate(self.m.channels):
+        for i, ch in enumerate(self.device.channels):
             vset = ch.vset
             vmon = ch.vmon
             imon = ch.imon
@@ -573,8 +533,8 @@ class CaenHVPSGUI:
         )
 
     def update_alarm_indicators(self):
-        bas = self.m.board_alarm_status.copy()
-        ilk = self.m.interlock_status
+        bas = self.device.board_alarm_status.copy()
+        ilk = self.device.interlock_status
         self.alarm_indicator.config(
             bg="red"
             if any([v for k, v in bas.items()])
@@ -599,13 +559,13 @@ class CaenHVPSGUI:
     
     def action_when_alarm(self, board_alarm_status = None):
         if board_alarm_status is None:
-            board_alarm_status = self.m.board_alarm_status.copy()
-        message = f"Alarm detected in module {self.m.name}:\n"
+            board_alarm_status = self.device.board_alarm_status.copy()
+        message = f"Alarm detected in module {self.device.name}:\n"
         for k, v in board_alarm_status.items():
             if v:
                 message += f"  {k}"
                 if 'CH' in k:
-                    message += f" ({self.channel_names[int(k[-1])]})"
+                    message += f" ({self.channels_name[int(k[-1])]})"
         print(message)
         if not self.silence_alarm:
             send_slack_message(message)
