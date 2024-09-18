@@ -7,18 +7,18 @@ from check import Check, MultiDeviceCheck
 from tooltip import ToolTip
 
 class ChecksFrame:
-    def __init__(self, parent_frame = None, checks = None, all_channels = None, all_locks = None):
+    def __init__(self, parent_frame = None, checks = None, channels = None, locks = None):
         if checks is None:
             checks = []
-        if all_channels is None:
-            all_channels = {}
-        if all_locks is None:
-            all_locks = {}
+        if channels is None:
+            channels = {}
+        if locks is None:
+            locks = {}
 
         self.root = parent_frame
         self.checks = checks
-        self.all_channels = all_channels
-        self.all_locks = all_locks
+        self.channels = channels
+        self.locks = locks
 
         self.checks_vars = []
         self.checks_checkboxes = []
@@ -117,7 +117,7 @@ class ChecksFrame:
                 name = name_entries[i].get()
                 condition = condition_entries[i].get()
                 description = description_entries[i].get()
-                channels = self.all_channels.copy() # set all the channels for the checks
+                channels = self.channels.copy() # set all the channels for the checks
                 self.checks[i] = Check(name, condition, channels, description)
                 self.checks_checkboxes[i].config(text=f" {name}")
                 self.checks_tooltips[i].change_text(description)
@@ -187,11 +187,11 @@ class ChecksFrame:
     def set_checks_channels_and_locks(self):
         # set all the channels for the checks, just in case the channels are not initialized
         for check in self.checks:
-            check.set_channels(self.all_channels)
+            check.set_channels(self.channels)
         # set all the devices locks for the checks, just in case the devices locks are not initialized
         for check in self.checks:
             if isinstance(check, MultiDeviceCheck):
-                check.set_devices(self.all_locks)
+                check.set_devices(self.locks)
 
     def check_conditions(self):
         failed_checks = []

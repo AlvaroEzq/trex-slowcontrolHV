@@ -319,9 +319,9 @@ class CaenHVPSGUI:
     def create_security_frame(self, frame):
         security_frame = tk.Frame(frame)
         security_frame.grid(row=2, column=0, padx=10, pady=10, sticky="NWE")
-        all_channels = {self.channel_names[i] : self.m.channels[i] for i in range(self.m.number_of_channels)}
-        all_locks = tuple([self.device_lock])
-        self.checksframe = ChecksFrame(security_frame, checks=self.checks, all_channels=all_channels, all_locks=all_locks)
+        channels = {self.channel_names[i] : self.m.channels[i] for i in range(self.m.number_of_channels)}
+        locks = tuple([self.device_lock])
+        self.checksframe = ChecksFrame(security_frame, checks=self.checks, channels=channels, locks=locks)
         return security_frame
 
     def open_channel_property_window(self, channel_number):

@@ -153,7 +153,7 @@ class HVGUI:
         right_frame = tk.Frame(self.multidevice_frame, padx=10, pady=10)
         right_frame.pack(side="left", anchor="center", padx=20)
         all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
-        self.checksframe = ChecksFrame(right_frame, checks=self.checks, all_channels=self.all_channels, all_locks=all_devices_locks)
+        self.checksframe = ChecksFrame(right_frame, checks=self.checks, channels=self.all_channels, locks=all_devices_locks)
 
     def raise_voltage_protocol_thread(self, step = 100):
         try:
