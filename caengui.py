@@ -283,7 +283,9 @@ class CaenHVPSGUI(DeviceGUI):
         ).grid(row=0, column=0, columnspan=2, pady=10)
 
         self.channel_vars = []
+        nRows = 0
         for i in range(self.device.number_of_channels):
+            nRows += 1
             var = tk.IntVar()
             self.channel_vars.append(var)
             tk.Checkbutton(
@@ -307,7 +309,20 @@ class CaenHVPSGUI(DeviceGUI):
             fg="white",
             command=lambda: self.issue_command(self.set_multichannel_vset_and_turn_on),
         )
-        self.set_multichannel_button.grid(row=1, column=1, rowspan=4, padx=20, pady=5)
+        self.set_multichannel_button.grid(
+            row=1, column=1, rowspan=int(nRows / 2), padx=20, pady=5
+        )
+        self.turn_off_multichannel_button = tk.Button(
+            checkbox_frame,
+            text="Turn off multichannel",
+            font=("Arial", 10),
+            bg="navy",
+            fg="white",
+            command=lambda: self.issue_command(self.turn_off_multichannel),
+        )
+        self.turn_off_multichannel_button.grid(
+            row=int(nRows / 2) + 1, column=1, rowspan=int(nRows / 2), padx=20, pady=5
+        )
         return frame
 
     def create_security_frame(self, frame):
@@ -464,6 +479,11 @@ class CaenHVPSGUI(DeviceGUI):
             if chvar.get():
                 self.device.channels[i].turn_on()
         return True
+
+    def turn_off_multichannel(self):
+        for i, chvar in enumerate(self.channel_vars):
+            if chvar.get():
+                self.device.channels[i].turn_off()
 
     def clear_alarm(self):
         self.device.clear_alarm_signal()
