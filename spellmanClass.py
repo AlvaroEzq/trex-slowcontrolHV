@@ -12,6 +12,7 @@ class Spellman:
     def __init__(self, host='192.168.17.1', port=50001):
         self.server_host = host
         self.server_port = port
+        self.name = 'Spellman SL30'
         self._vset = None
         self._iset = None
         self._vmon = None

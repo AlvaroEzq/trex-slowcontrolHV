@@ -176,6 +176,7 @@ class SpellmanSimulator:
     def __init__(self):
         self.server_host = "ip"
         self.server_port = 50001
+        self.name = 'Spellman SL30 SIMULATOR'
         self.vset = 0 # V
         self.iset = 0
         self.vmon = 0 # mA

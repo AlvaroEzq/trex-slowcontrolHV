@@ -31,7 +31,7 @@ class SpellmanFrame:
 
     def create_frame(self):
         self.main_frame = tk.LabelFrame(
-            self.root, text='SPELLMAN', font=("", 16), bg="lightgray",
+            self.root, text=f"{self.spellman.name}", font=("", 16), bg="lightgray",
             labelanchor="n", padx=10, pady=10, bd=4
         )
         self.main_frame.pack(fill="both", expand=True)
