@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import tkinter as tk
-import threading
-import queue
-import time
 import argparse
 
 import hvps

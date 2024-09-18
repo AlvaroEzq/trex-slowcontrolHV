@@ -1,7 +1,4 @@
 import tkinter as tk
-import queue
-import threading
-import time
 import argparse
 
 # import spellmanModule as spll  # Assuming spellmanModule has required functions
