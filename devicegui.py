@@ -21,6 +21,7 @@ class DeviceGUI(ABC):
         start_mainloop = False
         if parent_frame is None:
             self.root = tk.Tk()
+            self.root.title(f"{device.name} GUI")
             start_mainloop = True
         else:
             self.root = parent_frame
