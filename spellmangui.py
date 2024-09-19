@@ -241,13 +241,17 @@ class SpellmanFrame(DeviceGUI):
 
         if isinstance(remote, bool):
             self.labels['remote_s'].config(text='ON' if remote else 'OFF')
+            self.labels['remote_s'].config(fg='green' if remote else 'red')
         else:
             self.labels['remote_s'].config(text=remote)
+            self.labels['remote_s'].config(fg='black')
 
         if isinstance(hv, bool):
             self.labels['hv'].config(text='ON' if hv else 'OFF')
+            self.labels['hv'].config(fg='green' if hv else 'red')
         else:
             self.labels['hv'].config(text=hv)
+            self.labels['hv'].config(fg='black')
 
 
 # Usage
