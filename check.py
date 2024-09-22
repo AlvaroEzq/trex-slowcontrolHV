@@ -76,7 +76,7 @@ class Check:
 
 
 # if the condition combines channels of different devices, we need to acquire the locks of these devices before evaluating the condition
-class MultiDeviceCheck(Check):
+class CheckWithLock(Check):
     def __init__(self, name : str, condition : str, channels : dict = None, devices_locks : tuple = None, description : str = ""):
         super().__init__(name, condition, channels, description)
         if devices_locks is None:
@@ -122,6 +122,6 @@ def load_checks_from_toml_file(file_path: str, group_name: str) -> list:
     checks = []
     for subgroup in data.get(group_name, {}).values():
         for check in subgroup:
-            checks.append(MultiDeviceCheck(**check))
+            checks.append(CheckWithLock(**check))
 
     return checks

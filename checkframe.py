@@ -3,7 +3,7 @@ from tkinter import messagebox
 import threading
 import time
 
-from check import Check, MultiDeviceCheck
+from check import Check, CheckWithLock
 from tooltip import ToolTip
 
 class ChecksFrame:
@@ -64,7 +64,7 @@ class ChecksFrame:
             )
             checkbox.grid(row=i+1, column=0, sticky="w", padx=0, pady=0)
             self.checks_checkboxes.append(checkbox)
-            tooltip = ToolTip(checkbox, check.description + "( " + check.condition + " )")
+            tooltip = ToolTip(checkbox, check.description + " ( " + check.condition + " ) ")
             self.checks_tooltips.append(tooltip)
         
         self.edit_checks_button = tk.Button(
@@ -147,7 +147,7 @@ class ChecksFrame:
                 highlightthickness=0,
             ))
             self.checks_checkboxes[-1].grid(row=len(self.checks)+1, column=0, sticky="w", padx=0, pady=0)
-            self.checks.append(MultiDeviceCheck("", ""))
+            self.checks.append(CheckWithLock("", ""))
             self.set_checks_channels_and_locks()
             self.checks_tooltips.append(ToolTip(self.checks_checkboxes[-1], self.checks[-1].description + "( " + self.checks[-1].condition + " )"))
             # move the edit button to the bottom
@@ -190,7 +190,7 @@ class ChecksFrame:
             check.set_channels(self.channels)
         # set all the devices locks for the checks, just in case the devices locks are not initialized
         for check in self.checks:
-            if isinstance(check, MultiDeviceCheck):
+            if isinstance(check, CheckWithLock):
                 check.set_devices(self.locks)
 
     def check_conditions(self):
