@@ -2,7 +2,7 @@ import toml
 from contextlib import ExitStack
 
 class Check:
-    def __init__(self, name : str, condition : str, channels : dict = None, description : str = ""):
+    def __init__(self, name : str, condition : str, channels : dict = None, description : str = "", active=True):
         self.name = name
 
         if channels is None:
@@ -21,7 +21,7 @@ class Check:
             self.code = None
 
         self.description = description
-        self.active = True
+        self.active = active
 
     def is_available(self):
         return self.active and (self.code is not None)
@@ -77,8 +77,8 @@ class Check:
 
 # if the condition combines channels of different devices, we need to acquire the locks of these devices before evaluating the condition
 class CheckWithLock(Check):
-    def __init__(self, name : str, condition : str, channels : dict = None, devices_locks : tuple = None, description : str = ""):
-        super().__init__(name, condition, channels, description)
+    def __init__(self, name : str, condition : str, channels : dict = None, devices_locks : tuple = None, description : str = "", **kwargs):
+        super().__init__(name, condition, channels, description, **kwargs)
         if devices_locks is None:
             devices_locks = ()
         self.device_locks = devices_locks

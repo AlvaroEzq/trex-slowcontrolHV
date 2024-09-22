@@ -22,6 +22,12 @@ name = "Vcathode (1bar)"
 condition = "cathode.vset < 3001"
 description = "Keep Vcathode below 3000V"
 
+[[spellman.iset]]
+name = "iset"
+condition = "cathode.iset > cathode.vset * (1/(200+80) + 1/(200+50))*0.001 or cathode.vset == 0 or cathode.hv_off()"
+description = "Ensure iset is set high enough"
+active = false
+
 # Group 3: Multidevice checks
 [multidevice]
 [[multidevice.1bar]]

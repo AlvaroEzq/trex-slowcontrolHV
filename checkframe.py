@@ -50,7 +50,7 @@ class ChecksFrame:
         self.checks_tooltips = []
         for i, check in enumerate(self.checks):
             var = tk.BooleanVar()
-            var.set(True)
+            var.set(check.is_available())
             self.checks_vars.append(var)
             var.trace_variable("w", lambda *args, x=i: self.checks[x].set_active(self.checks_vars[x].get()))
 
@@ -136,7 +136,7 @@ class ChecksFrame:
             apply_button.grid(row=len(name_entries)+2, column=1, padx=10, pady=10, sticky="w")
             # add the check to the list
             self.checks_vars.append(tk.BooleanVar())
-            self.checks_vars[-1].set(True)
+            self.checks_vars[-1].set(False)
             self.checks_vars[-1].trace_variable("w", lambda *args, x=len(self.checks)-1: self.checks[x].set_active(self.checks_vars[x].get()))
             self.checks_checkboxes.append(tk.Checkbutton(
                 self.frame,
