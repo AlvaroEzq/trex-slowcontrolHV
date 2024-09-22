@@ -28,7 +28,7 @@ def send_slack_message(message:str):
         print(e)
 
 class CaenHVPSGUI(DeviceGUI):
-    def __init__(self, module, channel_names=None, checks=None, parent_frame=None, silence=False):
+    def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False):
         if channel_names is None:
             channel_names = []
         if checks is None:
@@ -67,7 +67,7 @@ class CaenHVPSGUI(DeviceGUI):
                 if i >= len(channel_names):
                     channel_names[i] = f"Channel {i}"
 
-        super().__init__(module, channel_names, parent_frame)
+        super().__init__(module, channel_names, parent_frame, logging_enabled=log)
 
 
     def create_gui(self):
@@ -644,4 +644,4 @@ if __name__ == "__main__":
         from simulators import *  # noqa: F403
 
         m = ModuleSimulator(4)  # noqa: F405
-        CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS)
+        CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS, log=False)

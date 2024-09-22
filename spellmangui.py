@@ -7,17 +7,20 @@ from logger import ChannelState
 from devicegui import DeviceGUI
 
 class SpellmanFrame(DeviceGUI):
-    def __init__(self, spellman, parent=None):
+    def __init__(self, spellman, parent=None, log=True):
         self.buttons = {}
         self.labels = {}
         self.label_vars = {}
-        self.channels_state_save_previous = False
-        self.channels_state_diff_vmon = 15
-        self.channels_state_diff_imon = 999
-        self.channels_state_prec_vmon = 0
-        self.channels_state_prec_imon = 5
-        self.read_loop_time = 2  # seconds
-        super().__init__(spellman, ['cathode'], parent)
+
+        super().__init__(spellman, ['cathode'], parent,
+                        logging_enabled=log,
+                        channel_state_save_previous=False,
+                        channel_state_diff_vmon=50,
+                        channel_state_diff_imon=999,
+                        channel_state_prec_vmon=0,
+                        channel_state_prec_imon=5,
+                        read_loop_time=2,
+                        )
 
     def create_gui(self):
         self.main_frame = tk.LabelFrame(
@@ -269,5 +272,5 @@ if __name__ == "__main__":
     else:
         from simulators import SpellmanSimulator
         spll = SpellmanSimulator()
-        app = SpellmanFrame(spll)
+        app = SpellmanFrame(spll, log=False)
 
