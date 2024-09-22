@@ -12,7 +12,7 @@ from checkframe import ChecksFrame
 from check import load_checks_from_toml_file
 
 class HVGUI:
-    def __init__(self, caen_module=None, spellman_module=None, checks_caen=None, checks_spellman=None, checks_multidevice=None):
+    def __init__(self, caen_module=None, spellman_module=None, checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True):
         if checks_caen is None:
             checks_caen = []
         if checks_spellman is None:
@@ -37,6 +37,7 @@ class HVGUI:
         self.channels_vmon_guilabel = {}
         self.channels_vset_guientries = {}
 
+        self.logging_enabled = log
         self.multidevice_frame = None
         self.checksframe = None
         self.channel_optmenus = None
@@ -55,7 +56,7 @@ class HVGUI:
             self.caen_frame = tk.Frame(self.root)
             self.caen_frame.pack(side="left", fill="both", expand=True)
             self.caen_gui = caengui.CaenHVPSGUI(module=self.caen_module, parent_frame=self.caen_frame,
-                                                channel_names=caengui.CHANNEL_NAMES, checks=self.caen_checks, silence=False)
+                                                channel_names=caengui.CHANNEL_NAMES, checks=self.caen_checks, silence=False, log=self.logging_enabled)
             self.all_channels = {name: self.caen_module.channels[i] for i, name in enumerate(self.caen_gui.channels_name)}
             self.channels_gui = {name: self.caen_gui for name in self.caen_gui.channels_name}
             self.all_guis['caen'] = self.caen_gui
@@ -65,7 +66,7 @@ class HVGUI:
         if self.spellman_module is not None:
             self.spellman_frame = tk.Frame(self.root)
             self.spellman_frame.pack(side="right", fill=tk.BOTH, expand=True)
-            self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame) # TODO: implement individual spellman checks
+            self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame, log=self.logging_enabled) # TODO: implement individual spellman checks
             self.all_channels = {'cathode' : self.spellman_module, **self.all_channels} # add the spellman module as cathode at the front of the dict
             self.channels_gui['cathode'] = self.spellman_gui
             self.all_guis['cathode'] = self.spellman_gui
@@ -317,6 +318,6 @@ if __name__ == "__main__":
         from simulators import ModuleSimulator, SpellmanSimulator
         caen_module = ModuleSimulator(4, trip_probability=0)
         spellman_module = SpellmanSimulator()
-        app = HVGUI(caen_module=caen_module, spellman_module=spellman_module, checks_caen=checks_caen, checks_spellman=checks_spellman, checks_multidevice=checks_multidevice)
+        app = HVGUI(caen_module=caen_module, spellman_module=spellman_module, checks_caen=checks_caen, checks_spellman=checks_spellman, checks_multidevice=checks_multidevice, log=False)
 
 
