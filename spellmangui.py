@@ -4,13 +4,19 @@ import argparse
 # import spellmanModule as spll  # Assuming spellmanModule has required functions
 from spellmanClass import Spellman
 from logger import ChannelState
+from checkframe import ChecksFrame
 from devicegui import DeviceGUI
 
 class SpellmanFrame(DeviceGUI):
-    def __init__(self, spellman, parent=None, log=True):
+    def __init__(self, spellman, checks=None, parent=None, log=True):
+        if checks is None:
+            checks = []
+
+        self.checks = checks
         self.buttons = {}
         self.labels = {}
         self.label_vars = {}
+        self.security_frame = None
 
         super().__init__(spellman, ['cathode'], parent,
                         logging_enabled=log,
@@ -35,6 +41,7 @@ class SpellmanFrame(DeviceGUI):
         self.labels.update(self.maketable_s(self.main_frame))
         self.buttons, self.labels = self.makedac_s(self.main_frame, self.buttons, self.labels)
         self.makecalc(self.main_frame, self.labels)
+        self.security_frame = self.create_security_frame(self.main_frame)
 
         self.start_background_threads()
 
@@ -153,7 +160,7 @@ class SpellmanFrame(DeviceGUI):
 
     def makecalc(self, win, labels):
         marco = tk.LabelFrame(win, text='Last ring values', padx=10, pady=10)
-        marco.grid(row=3, column=0, columnspan=2, sticky='ew', padx=5, pady=5)
+        marco.grid(row=3, column=0, sticky='ew', padx=5, pady=5)
 
         voltage_label = tk.Label(marco, text='Voltage(V)')
         voltage_label.grid(row=1, column=0)
@@ -180,6 +187,14 @@ class SpellmanFrame(DeviceGUI):
         self.labels['lastring_i_left'] = lastring_i_left_label
         self.labels['lastring_v_right'] = lastring_v_right_label
         self.labels['lastring_i_right'] = lastring_i_right_label
+
+    def create_security_frame(self, frame):
+        security_frame = tk.Frame(frame)
+        security_frame.grid(row=3, column=1, sticky='ew', padx=5, pady=5)
+        channels = {self.channels_name[0] : self.device}
+        locks = tuple([self.device_lock])
+        self.checksframe = ChecksFrame(security_frame, checks=self.checks, channels=channels, locks=locks)
+        return security_frame
 
     def remote_on(self):
         self.device.remote_on()

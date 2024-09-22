@@ -66,7 +66,7 @@ class HVGUI:
         if self.spellman_module is not None:
             self.spellman_frame = tk.Frame(self.root)
             self.spellman_frame.pack(side="right", fill=tk.BOTH, expand=True)
-            self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame, log=self.logging_enabled) # TODO: implement individual spellman checks
+            self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame, checks=self.spellman_checks, log=self.logging_enabled) # TODO: implement individual spellman checks
             self.all_channels = {'cathode' : self.spellman_module, **self.all_channels} # add the spellman module as cathode at the front of the dict
             self.channels_gui['cathode'] = self.spellman_gui
             self.all_guis['cathode'] = self.spellman_gui
