@@ -208,7 +208,8 @@ class SpellmanFrame(DeviceGUI):
     def hv_off(self):
         self.device.hv_off()
 
-    def set_vset(self):
+    def set_vset(self, check=True):
+        # entry formatting
         try:
             vset_value = float(self.labels['voltage_dac_s'].get())
         except ValueError:
@@ -216,9 +217,25 @@ class SpellmanFrame(DeviceGUI):
             self.labels['voltage_dac_s'].insert(0, f"{self.device.get_vset():.0f}")
             print("ValueError: Set voltage value must be a number")
             return
+
+        # simulate the checks with the change in the vset value
+        parameters_values = {self.channels_name[0].replace(" ", "") +".vset" : vset_value}
+        if check and self.checksframe is not None:
+            self.labels['voltage_dac_s'].config(state='readonly') # to avoid manual changes while checking
+            if not self.checksframe.simulate_check_conditions(parameters_values):
+                self.labels['voltage_dac_s'].config(fg='red')
+                self.labels['voltage_dac_s'].config(state='normal')
+                return False
+            else:
+                self.labels['voltage_dac_s'].config(fg='black')
+                self.labels['voltage_dac_s'].config(state='normal')
+
+        # finally set the value
         self.device.vset = vset_value
+        return True
 
     def set_iset(self):
+        # entry formatting
         try:
             iset_value = float(self.labels['current_dac_s'].get())
         except ValueError:
@@ -226,7 +243,22 @@ class SpellmanFrame(DeviceGUI):
             self.labels['current_dac_s'].insert(0, f"{self.device.get_iset():.5f}")
             print("ValueError: Set current value must be a number")
             return
+
+        # simulate the checks with the change in the iset value
+        parameters_values = {self.channels_name[0].replace(" ", "") +".iset" : iset_value}
+        if self.checksframe is not None:
+            self.labels['current_dac_s'].config(state='readonly')
+            if not self.checksframe.simulate_check_conditions(parameters_values):
+                self.labels['current_dac_s'].config(fg='red')
+                self.labels['current_dac_s'].config(state='normal')
+                return False
+            else:
+                self.labels['current_dac_s'].config(fg='black')
+                self.labels['current_dac_s'].config(state='normal')
+
+        # finally set the value
         self.device.iset = iset_value
+        return True
 
     def update_last_rings(self, *args):
         vmon_str = self.label_vars['voltage'].get()
