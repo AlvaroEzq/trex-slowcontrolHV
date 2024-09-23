@@ -151,6 +151,9 @@ class HVGUI:
         apply_button = tk.Button(left_frame, text="Apply", command= lambda: self.raise_voltage_protocol_thread(self.step_var.get()))
         apply_button.grid(row=n_rows+1, column=0, columnspan=2, pady=20)
 
+        turn_off_button = tk.Button(left_frame, text="Turn off", command= lambda: self.turn_off_protocol_thread(self.step_var.get()))
+        turn_off_button.grid(row=n_rows+2, column=0, columnspan=2, pady=5)
+
         right_frame = tk.Frame(self.multidevice_frame, padx=10, pady=10)
         right_frame.pack(side="left", anchor="center", padx=20)
         all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
@@ -169,6 +172,20 @@ class HVGUI:
             return
 
         threading.Thread(target=self.raise_voltage_protocol, args=(step_number,)).start()
+
+    def turn_off_protocol_thread(self, step = 100):
+        try:
+            step_number = float(step)
+        except ValueError:
+            print("Invalid step value")
+            self.step_var.set("100")
+            return
+        if step_number <= 0 or step_number > 100:
+            print("Step value must be between 0 and 100")
+            self.step_var.set("100")
+            return
+
+        threading.Thread(target=self.turn_off_protocol, args=(step_number,)).start()
 
     def raise_voltage_protocol(self, step = 100, timeout = 60):
         # final_vset = {'cathode' : 2000, 'gem top' : 600, 'gem bottom' : 350, 'mesh left' : 250}
@@ -255,7 +272,7 @@ class HVGUI:
             # apply vsets to the channels
             for ch, v in temp_vset.items():
                 if get_vmon(ch) > v:
-                    print(f"Voltage monitor for channel {ch} is higher than the setpoint. Skipping the step.")
+                    #print(f"Voltage monitor for channel {ch} is higher than the setpoint. Skipping the step.")
                     continue
                 # change the vset entry to the new value (emulate the human manually changing the value)
                 self.channels_vset_guientries[ch].delete(0, tk.END)
@@ -292,6 +309,126 @@ class HVGUI:
 
         if self.step_entry:
             self.step_entry.config(state="normal")
+
+    def turn_off_protocol(self, step=100, timeout=60):
+        def get_vmon(ch_name):
+            label = self.channels_vmon_guilabel[ch_name]
+            vmon = -1
+            if label is not None:
+                if "cget" in dir(label):
+                    vmon = float(label.cget("text"))
+                else:
+                    vmon = float(label.get())
+            else:
+                with self.channels_gui[ch_name].device_lock:
+                    vmon = self.all_channels[ch_name].vmon
+            return vmon
+
+        current_vset = {}
+        factors = {}
+        for i, ch in enumerate(self.channel_optmenus):
+            if ch.cget("text") == "":
+                continue
+            current_vset[ch.cget("text")] = float(self.channels_vset_guientries[ch.cget("text")].get())
+            factors[ch.cget("text")] = float(self.factor_entries[i].get())
+        
+        if len(current_vset) < 1: # makes no sense to use this with less than 2 channels
+            print("No valid voltage setpoints found")
+            return
+        
+        # check that all channels involved are on
+        for ch in current_vset.keys():
+            if ch not in self.all_channels.keys():
+                print(f"Channel {ch} not found in the list of available channels")
+                return
+            with self.channels_gui[ch].device_lock:
+                if not self.all_channels[ch].on:
+                    print(f"WARNING: Channel {ch} is already off.")
+        
+        if self.step_entry:
+            self.step_entry.config(state="disabled")
+
+        temp_vset = current_vset # initialize the temporary voltage setpoints
+
+        max_vset = max([round(v*f) for v, f in zip(current_vset.values(), factors.values())])
+        n_steps = int( max_vset / step ) + 1
+        print(f"Number of steps: {n_steps}")
+        channels_reached = 0
+        for _ in range(n_steps):
+            temp_vset = {k: round(t-step/f) for k, t, f in zip(current_vset.keys(), temp_vset.values(), factors.values())}
+            if any([t <= 0 for t in temp_vset.values()]):
+                channels_reached += 1
+            for ch in temp_vset.keys():
+                temp_vset[ch] = 0 if temp_vset[ch] <= 0 else temp_vset[ch]
+            print(f"Step {_+1}: {temp_vset}")
+
+            # simulate the checks results before applying the new vsets
+            parameters_values = {}
+            for ch, v in temp_vset.items():
+                parameters_values[ch.replace(" ", "") + ".vset"] = v
+            # multidevice checks
+            if not self.checksframe.simulate_check_conditions(parameters_values):
+                print("Step did not pass the multidevice checks.")
+                if self.step_entry:
+                    self.step_entry.config(state="normal")
+                return
+            # individual device checks
+            for device, gui in self.all_guis.items():
+                try:
+                    if not gui.checksframe.simulate_check_conditions(parameters_values):
+                        print(f"Step did not pass the {device} checks.")
+                        if self.step_entry:
+                            self.step_entry.config(state="normal")
+                        return
+                except AttributeError:
+                    pass
+
+            # apply vsets to the channels
+            for ch, v in temp_vset.items():
+                if get_vmon(ch) < v:
+                    # print(f"Voltage monitor for channel {ch} is lower than the setpoint. Skipping the step.")
+                    continue
+                # change the vset entry to the new value (emulate the human manually changing the value)
+                self.channels_vset_guientries[ch].delete(0, tk.END)
+                self.channels_vset_guientries[ch].insert(0, str(v))
+                channel = self.all_channels[ch]
+                try:
+                    self.channels_gui[ch].issue_command(channel.vset(v))
+                except (AttributeError, TypeError):
+                    channel.vset = v
+                except Exception as e:
+                    print(f"Error setting voltage for channel {ch}: {e}")
+                    if self.step_entry:
+                        self.step_entry.config(state="normal")
+                    return
+                # self.all_channels[ch].vset = v
+
+            # wait for the channels to reach the setpoints
+            all_channels_reached = False
+            time_waiting = 0
+            while not all_channels_reached:
+                all_channels_reached = True
+                for ch in temp_vset.keys():
+                    vmon = get_vmon(ch)
+                    if vmon - temp_vset[ch] > 13:
+                        all_channels_reached = False
+                        break
+                time.sleep(1) # wait 1 second before next check
+                time_waiting += 1
+                if time_waiting > timeout:
+                    print("Timeout waiting for channels to reach the setpoints.")
+                    break
+
+            time.sleep(2) # wait seconds before next step
+
+            # turn off the channels
+            for ch in temp_vset.keys():
+                with self.channels_gui[ch].device_lock:
+                    self.all_channels[ch].turn_off()
+
+        if self.step_entry:
+            self.step_entry.config(state="normal")
+
 
 if __name__ == "__main__":
     

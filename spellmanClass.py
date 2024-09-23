@@ -260,3 +260,9 @@ class Spellman:
             return ans[0],ans[1]
         except Exception:
             return ''
+
+    def turn_on(self):
+        return self.hv_on()
+
+    def turn_off(self):
+        return self.hv_off()

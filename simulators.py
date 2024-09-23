@@ -238,6 +238,12 @@ class SpellmanSimulator:
     def hv_off(self):
         self.stat['HV'] = False
     
+    def turn_on(self):
+        self.hv_on()
+
+    def turn_off(self):
+        self.hv_off()
+
     def status(self):
         return self.stat
     

@@ -1,13 +1,14 @@
 # TREX-DM Slow Control HV
 
 This repository contains software for remote control and monitoring of high voltage (HV) power supplies, primarily used for the TREX-DM experiment.
+
 ![CAEN HV power supply GUI.](docs/maingui_withfailedcheck.PNG)
 
 ## Features
 - Graphical User Interface (GUI) for individual and multiple HV power supply devices. Including:
    - Security checks for individual and multiple devices.
    - Register of voltage and current monitor values of the channels of each device.
-   - Automatic multidevice raising of voltages following the standard protocol (raising all channels involved voltages simultaneously by steps.)
+   - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
    - Alert message to slack webhook when the CAEN device is in alarm state (to do so, copy your slack webhook in the function `send_slack_message` of [caengui.py](caengui.py)).
 - CAEN and Spellman SL30 simulators for testing without hardware.
 
