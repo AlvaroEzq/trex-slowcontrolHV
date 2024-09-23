@@ -34,7 +34,8 @@ This repository contains software for remote control and monitoring of high volt
 ## Requirements
 
 - Python 3.x
-- Additional python libraries listed in `requirements.txt`. For installing tkinter check [this](https://stackoverflow.com/a/74607246).
+- tkinter (for installation check [this](https://stackoverflow.com/a/74607246)).
+- Additional python libraries listed in `requirements.txt`.
 
 ## Project Structure
 
