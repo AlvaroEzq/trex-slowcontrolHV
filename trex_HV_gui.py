@@ -458,10 +458,10 @@ class HVGUI:
 
             time.sleep(2) # wait seconds before next step
 
-            # turn off the channels
-            for ch in temp_vset.keys():
-                with self.channels_gui[ch].device_lock:
-                    self.all_channels[ch].turn_off()
+        # turn off the channels
+        for ch in temp_vset.keys():
+            with self.channels_gui[ch].device_lock:
+                self.all_channels[ch].turn_off()
 
         if self.step_entry:
             self.step_entry.config(state="normal")
