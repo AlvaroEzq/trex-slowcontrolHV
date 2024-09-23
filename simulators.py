@@ -226,23 +226,23 @@ class SpellmanSimulator:
     def get_status(self):
         return self.stat
     
-    def remote_on(self):
+    def turn_remote_on(self):
         self.stat['REMOTE'] = True
     
-    def remote_off(self):
+    def turn_remote_off(self):
         self.stat['REMOTE'] = False
     
-    def hv_on(self):
+    def turn_hv_on(self):
         self.stat['HV'] = True
     
-    def hv_off(self):
+    def turn_hv_off(self):
         self.stat['HV'] = False
     
     def turn_on(self):
-        self.hv_on()
+        self.turn_hv_on()
 
     def turn_off(self):
-        self.hv_off()
+        self.turn_hv_off()
 
     def status(self):
         return self.stat

@@ -51,8 +51,8 @@ class SpellmanFrame(DeviceGUI):
 
         etiqueta_text = tk.Label(marco, text='    REMOTE : ', width=10)
         etiqueta = tk.Label(marco, text=' -- ', width=5)
-        boton_remote_on = tk.Button(marco, text='ON', command=lambda: self.issue_command(self.remote_on), width=3)
-        boton_remote_off = tk.Button(marco, text='OFF', command=lambda: self.issue_command(self.remote_off), width=3)
+        boton_remote_on = tk.Button(marco, text='ON', command=lambda: self.issue_command(self.turn_remote_on), width=3)
+        boton_remote_off = tk.Button(marco, text='OFF', command=lambda: self.issue_command(self.turn_remote_off), width=3)
 
         etiqueta_text.grid(row=0, column=0, sticky='w')
         etiqueta.grid(row=0, column=1)
@@ -71,8 +71,8 @@ class SpellmanFrame(DeviceGUI):
 
         etiqueta_text = tk.Label(marco, text='    HV   : ', width=10)
         etiqueta = tk.Label(marco, text=' -- ', width=5)
-        boton_hv_on = tk.Button(marco, text='ON', command=lambda: self.issue_command(self.hv_on), width=3)
-        boton_hv_off = tk.Button(marco, text='OFF', command=lambda: self.issue_command(self.hv_off), width=3)
+        boton_hv_on = tk.Button(marco, text='ON', command=lambda: self.issue_command(self.turn_hv_on), width=3)
+        boton_hv_off = tk.Button(marco, text='OFF', command=lambda: self.issue_command(self.turn_hv_off), width=3)
 
         etiqueta_text.grid(row=0, column=0, sticky='w')
         etiqueta.grid(row=0, column=1)
@@ -196,17 +196,17 @@ class SpellmanFrame(DeviceGUI):
         self.checksframe = ChecksFrame(security_frame, checks=self.checks, channels=channels, locks=locks)
         return security_frame
 
-    def remote_on(self):
-        self.device.remote_on()
+    def turn_remote_on(self):
+        self.device.turn_remote_on()
 
-    def remote_off(self):
-        self.device.remote_off()
+    def turn_remote_off(self):
+        self.device.turn_remote_off()
 
-    def hv_on(self):
-        self.device.hv_on()
+    def turn_hv_on(self):
+        self.device.turn_hv_on()
 
-    def hv_off(self):
-        self.device.hv_off()
+    def turn_hv_off(self):
+        self.device.turn_hv_off()
 
     def set_vset(self, check=True):
         # entry formatting

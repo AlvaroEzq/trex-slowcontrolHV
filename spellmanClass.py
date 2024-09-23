@@ -213,7 +213,7 @@ class Spellman:
             stat['ARC'] = '??'
         return stat
 
-    def remote_on(self):
+    def turn_remote_on(self):
         '''Turn on remote mode
         return a tupla with command code and error code ($=>ok)'''
         cmd = 85
@@ -225,7 +225,7 @@ class Spellman:
         except Exception:
             return ''
 
-    def remote_off(self):
+    def turn_remote_off(self):
         '''Turn off remote mode
         return a tupla with command code and error code ($=>ok)'''
         cmd = 85
@@ -237,7 +237,7 @@ class Spellman:
         except Exception:
             return ''
 
-    def hv_on(self):
+    def turn_hv_on(self):
         '''Turn on high voltage
         return a tupla with command code and error code ($=>ok)'''
         cmd = 99
@@ -249,7 +249,7 @@ class Spellman:
         except Exception:
             return ''
 
-    def hv_off(self):
+    def turn_hv_off(self):
         '''Turn off high voltage
         return a tupla with command code and error code ($=>ok)'''
         cmd = 99
@@ -262,7 +262,7 @@ class Spellman:
             return ''
 
     def turn_on(self):
-        return self.hv_on()
+        return self.turn_hv_on()
 
     def turn_off(self):
-        return self.hv_off()
+        return self.turn_hv_off()
