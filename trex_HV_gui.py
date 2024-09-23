@@ -1,7 +1,9 @@
 import tkinter as tk
+from tkinter.scrolledtext import ScrolledText
 import time
 import argparse
 import threading
+import sys
 
 import caengui
 import spellmangui
@@ -10,6 +12,7 @@ import hvps
 
 from checkframe import ChecksFrame
 from check import load_checks_from_toml_file
+from utilsgui import PrintLogger
 
 class HVGUI:
     def __init__(self, caen_module=None, spellman_module=None, checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True):
@@ -54,7 +57,7 @@ class HVGUI:
 
         if self.caen_module is not None:
             self.caen_frame = tk.Frame(self.root)
-            self.caen_frame.pack(side="left", fill="both", expand=True)
+            self.caen_frame.pack(side="left", fill="x", anchor="n", expand=True)
             self.caen_gui = caengui.CaenHVPSGUI(module=self.caen_module, parent_frame=self.caen_frame,
                                                 channel_names=caengui.CHANNEL_NAMES, checks=self.caen_checks, silence=False, log=self.logging_enabled)
             self.all_channels = {name: self.caen_module.channels[i] for i, name in enumerate(self.caen_gui.channels_name)}
@@ -76,7 +79,21 @@ class HVGUI:
         if self.caen_module is not None and self.spellman_module is not None:
             self.create_multidevice_frame(self.spellman_frame)
 
+        scrolled_text_frame = self.caen_frame if self.caen_frame else self.root
+        # State to track if the widget is hidden
+        self.text_visible = False
+
+        # Create the toggle button with a downward triangle (initially visible text)
+        self.toggle_button = tk.Button(scrolled_text_frame, text="\u25BC Show terminal output", command=self.toggle_scrolled_text,
+                                        font=("Arial", 9), relief="raised", bd=0)
+        self.toggle_button.pack(side="top", anchor="nw", pady=0, padx=5)
+        self.scrolled_text = ScrolledText(scrolled_text_frame, font=("Arial", "9", "normal"), state="disabled", height=9)
+        #self.scrolled_text.pack(side="bottom", fill="both", expand=True)
+        if self.scrolled_text:
+            self.redirect_logging(self.scrolled_text)
+
         self.root.mainloop()
+        self.reset_logging()
 
     def create_multidevice_frame(self, frame):
         self.multidevice_frame = tk.LabelFrame(frame, text="Multi-device control", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
@@ -158,6 +175,26 @@ class HVGUI:
         right_frame.pack(side="left", anchor="center", padx=20)
         all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
         self.checksframe = ChecksFrame(right_frame, checks=self.checks, channels=self.all_channels, locks=all_devices_locks)
+
+    def toggle_scrolled_text(self):
+        # Toggle the visibility of the ScrolledText widget
+        if self.text_visible:
+            self.scrolled_text.pack_forget()  # Hide the widget
+            self.toggle_button.config(text="\u25BC Show terminal output")
+        else:
+            self.scrolled_text.pack(side="bottom", fill="both", expand=False, padx=5)
+            self.toggle_button.config(text="\u25B2 Hide terminal output")
+
+        self.text_visible = not self.text_visible
+
+    def reset_logging(self):
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+
+    def redirect_logging(self, widget):
+        logger = PrintLogger(widget)
+        sys.stdout = logger
+        sys.stderr = logger
 
     def raise_voltage_protocol_thread(self, step = 100):
         try:

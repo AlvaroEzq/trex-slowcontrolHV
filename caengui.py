@@ -9,7 +9,7 @@ CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
 
 from check import Check
 from checkframe import ChecksFrame
-from tooltip import ToolTip
+from utilsgui import ToolTip
 from logger import ChannelState
 from devicegui import DeviceGUI
 

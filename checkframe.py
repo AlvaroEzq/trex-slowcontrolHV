@@ -4,7 +4,7 @@ import threading
 import time
 
 from check import Check, CheckWithLock
-from tooltip import ToolTip
+from utilsgui import ToolTip
 
 class ChecksFrame:
     def __init__(self, parent_frame = None, checks = None, channels = None, locks = None):
