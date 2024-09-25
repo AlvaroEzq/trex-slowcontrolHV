@@ -39,7 +39,7 @@ class SpellmanFrame(DeviceGUI):
         self.buttons, self.labels = self.makeremotebar_s(self.main_frame, self.buttons, self.labels)
         self.buttons, self.labels = self.makehvbar_s(self.main_frame, self.buttons, self.labels)
         self.labels.update(self.maketable_s(self.main_frame))
-        self.buttons, self.labels = self.makedac_s(self.main_frame, self.buttons, self.labels)
+        #self.buttons, self.labels = self.makedac_s(self.main_frame, self.buttons, self.labels)
         self.makecalc(self.main_frame, self.labels)
         self.security_frame = self.create_security_frame(self.main_frame)
 
@@ -87,76 +87,66 @@ class SpellmanFrame(DeviceGUI):
 
     def maketable_s(self, win):
         marco = tk.Frame(win)
-        marco.grid(row=2, column=0, sticky='nw', padx=5, pady=5)
+        marco.grid(row=2, column=0, columnspan=2, sticky='nw', padx=5, pady=5)
 
-        marco1 = tk.Frame(marco)
-        marco1.grid(row=0, column=0, pady=2)
-        marco2 = tk.Frame(marco)
-        marco2.grid(row=1, column=0, pady=2)
-        marco3 = tk.Frame(marco)
-        marco3.grid(row=2, column=0, pady=2)
+        tk.Label(marco, text='Set', width=10).grid(row=0, column=3)
+        tk.Label(marco, text='Monitor', width=10).grid(row=0, column=4)
 
-        voltage_text = tk.Label(marco1, text='Voltage(V) : ', width=14)
+        voltage_text = tk.Label(marco, text='Voltage (V) : ', width=11)
         voltage_var = tk.StringVar()
         voltage_var.trace_add("write", self.update_last_rings)
-        voltage_label = tk.Label(marco1, text='-----', width=12, textvariable=voltage_var)
-        current_text = tk.Label(marco2, text='Current(mA): ', width=14)
-        current_label = tk.Label(marco2, text='-----', width=12)
-        arc_text = tk.Label(marco3, text='Arc : ', width=14)
-        arc_label = tk.Label(marco3, text='Arc', width=12)
+        voltage_label = tk.Label(marco, text='-----', width=8, textvariable=voltage_var)
+        current_text = tk.Label(marco, text='Current (mA): ', width=11)
+        current_label = tk.Label(marco, text='-----', width=8)
+        arc_text = tk.Label(marco, text='Arc : ', width=11)
+        arc_label = tk.Label(marco, text='Arc')
 
-        voltage_text.grid(row=0, column=0, sticky='w')
-        voltage_label.grid(row=0, column=1)
-        current_text.grid(row=0, column=0, sticky='w')
-        current_label.grid(row=0, column=1)
-        arc_text.grid(row=0, column=0, sticky='w')
-        arc_label.grid(row=0, column=1)
+        voltage_text.grid(row=1, column=0, sticky='nse')
+        voltage_label.grid(row=1, column=4)
+        current_text.grid(row=2, column=0, sticky='nse')
+        current_label.grid(row=2, column=4)
+        arc_text.grid(row=3, column=0, sticky='nse')
+        arc_label.grid(row=3, column=1, sticky='nsw')
 
-        diccionario_labels = {
-            'voltage_s': voltage_label,
-            'current_s': current_label,
-            'arc': arc_label
-        }
-        self.label_vars['voltage'] = voltage_var
-        return diccionario_labels
 
-    def makedac_s(self, win, botones, labels):
-        marco = tk.Frame(win)
-        marco.grid(row=2, column=1, sticky='nw', padx=5, pady=5)
+        
 
-        marco1 = tk.Frame(marco)
-        marco1.grid(row=0, column=0, pady=2)
-        marco2 = tk.Frame(marco)
-        marco2.grid(row=1, column=0, pady=2)
-
-        voltage_dac_text = tk.Label(marco1, text='Voltage DAC(V) : ', width=14)
-        voltage_dac_entry = tk.Entry(marco1, width=10, justify='right')
+        voltage_dac_entry = tk.Entry(marco, width=8, justify='right')
         voltage_dac_entry.insert(0, f"{self.device.vset:.0f}")
         voltage_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_vset)
         )
-        voltage_dac_set = tk.Button(marco1, text='SET', command=lambda: self.issue_command(self.set_vset), width=3)
+        voltage_dac_set = tk.Button(marco, text='SET', command=lambda: self.issue_command(self.set_vset), width=3)
 
-        voltage_dac_text.grid(row=0, column=0, sticky='w')
-        voltage_dac_entry.grid(row=0, column=1)
-        voltage_dac_set.grid(row=0, column=2)
-
-        current_dac_text = tk.Label(marco2, text='Current DAC(mA): ', width=14)
-        current_dac_entry = tk.Entry(marco2, width=10, justify='right')
+        voltage_dac_entry.grid(row=1, column=2, sticky='nsw', padx=0)
+        voltage_dac_set.grid(row=1, column=1, sticky='nse', padx=0)
+        current_dac_entry = tk.Entry(marco, width=8, justify='right')
         current_dac_entry.insert(0, f"{self.device.iset:.5f}")
         current_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_iset)
         )
-        current_dac_set = tk.Button(marco2, text='SET', command=lambda: self.issue_command(self.set_iset), width=3)
+        current_dac_set = tk.Button(marco, text='SET', command=lambda: self.issue_command(self.set_iset), width=3)
 
-        current_dac_text.grid(row=0, column=0, sticky='w')
-        current_dac_entry.grid(row=0, column=1)
-        current_dac_set.grid(row=0, column=2)
+        current_dac_entry.grid(row=2, column=2, sticky='nsw', padx=0)
+        current_dac_set.grid(row=2, column=1, sticky='nse', padx=0)
 
-        labels['voltage_dac_s'] = voltage_dac_entry
-        labels['current_dac_s'] = current_dac_entry
+        voltage_dac_label = tk.Label(marco, width=10, justify='right', text='Vset(V)')
+        voltage_dac_label.grid(row=1, column=3, sticky='ns')
 
-        return botones, labels
+        current_dac_label = tk.Label(marco, width=10, justify='right', text='Iset(mA)')
+        current_dac_label.grid(row=2, column=3, sticky='ns')
+
+        diccionario_labels = {
+            'voltage_s': voltage_label,
+            'current_s': current_label,
+            'arc': arc_label,
+            'voltage_dac_s': voltage_dac_entry,
+            'current_dac_s': current_dac_entry,
+            'voltage_dac_label': voltage_dac_label,
+            'current_dac_label': current_dac_label,
+        }
+        self.label_vars['voltage'] = voltage_var
+        return diccionario_labels
 
     def makecalc(self, win, labels):
         marco = tk.LabelFrame(win, text='Last ring values', padx=10, pady=10)
@@ -281,9 +271,13 @@ class SpellmanFrame(DeviceGUI):
     def read_values(self):
         vmon = self.device.vmon
         imon = self.device.imon
+        vset = self.device.vset
+        iset = self.device.iset
         self.channels_state[0].set_state(vmon, imon)
         self.label_vars['voltage'].set(f"{vmon:.0f}")
         self.labels['current_s'].config(text=f"{imon:.5f}")
+        self.labels['voltage_dac_label'].config(text=f"{vset:.0f}")
+        self.labels['current_dac_label'].config(text=f"{iset:.5f}")
 
         stat = self.device.stat
         remote = stat['REMOTE']
