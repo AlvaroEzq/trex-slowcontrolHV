@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import tkinter as tk
 import argparse
+import datetime as dt
+import os
 
 import hvps
 
@@ -10,12 +12,12 @@ CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
 from check import Check
 from checkframe import ChecksFrame
 from utilsgui import ToolTip
-from logger import ChannelState
+from logger import ChannelState, LOG_DIR
 from devicegui import DeviceGUI
 
 import requests
 import json
-def send_slack_message(message:str):
+def send_slack_message(message:str, log=True):
     #### webhook to Alvaro chat
     # webhook_url = ""
     #### webhook to trex-operations channel
@@ -26,6 +28,20 @@ def send_slack_message(message:str):
         requests.post(webhook_url, data=json.dumps(slack_data), headers={'Content-Type': 'application/json'})
     except Exception as e:
         print(e)
+    if log:
+        filename = LOG_DIR + "/slack.log"
+        if not os.path.isfile(filename):
+            try:
+                # create the file if it does not exist
+                with open(filename, 'w') as file:
+                    pass
+                print("Writing to new file:", filename)
+            except:
+                print("Invalid file or directory:", filename)
+
+        with open(filename, 'a') as file:
+            time = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            file.write(time + " " + message + '\n')
 
 class CaenHVPSGUI(DeviceGUI):
     def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False):
@@ -60,6 +76,7 @@ class CaenHVPSGUI(DeviceGUI):
         self.main_frame = None
 
         self.alarm_detected = True # to avoid sending the alarm message when the GUI is started with the module alarm already active
+        self.ilk_detected = True # same as above but for the interlock
         self.silence_alarm = silence
 
         if len(channel_names) < module.number_of_channels:
@@ -595,7 +612,14 @@ class CaenHVPSGUI(DeviceGUI):
                 self.action_when_alarm()
         else:
             self.alarm_detected = False
-    
+
+        if ilk:
+            if not self.ilk_detected:
+                self.ilk_detected = True
+                self.action_when_interlock()
+        else:
+            self.ilk_detected = False
+
     def action_when_alarm(self, board_alarm_status = None):
         if board_alarm_status is None:
             board_alarm_status = self.device.board_alarm_status.copy()
@@ -605,6 +629,12 @@ class CaenHVPSGUI(DeviceGUI):
                 message += f"  {k}"
                 if 'CH' in k:
                     message += f" ({self.channels_name[int(k[-1])]})"
+        print(message)
+        if not self.silence_alarm:
+            send_slack_message(message)
+
+    def action_when_interlock(self):
+        message = f"Interlock detected in module {self.device.name}."
         print(message)
         if not self.silence_alarm:
             send_slack_message(message)
