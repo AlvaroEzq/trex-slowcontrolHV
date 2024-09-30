@@ -49,6 +49,10 @@ class HVGUI:
         self.step_entry = None
         self.step_var = None
 
+        self.protocol_stop_flag = False # flag to stop the protocol
+        self.protocol_stop_button = None
+        self.protocol_thread = None
+
         self.create_gui()
 
     def create_gui(self):
@@ -158,23 +162,42 @@ class HVGUI:
             vset_entry.insert(0, self.channels_vset_guientries[ch_opt].get())
             self.vset_entries.append(vset_entry)
 
-        tk.Label(left_frame, text="Step(V):").grid(row=n_rows+1, column=1, sticky="E", padx=0)
+        buttons_frame = tk.LabelFrame(left_frame, text="Actions")
+        buttons_frame.grid(row=n_rows+1, column=0, columnspan=3)
+
+        tk.Label(buttons_frame, text="Step(V):").grid(row=0, column=0, sticky="E", padx=0)
         self.step_var = tk.StringVar()
-        step_entry = tk.Entry(left_frame, justify="right", width=5, textvariable=self.step_var)
-        step_entry.grid(row=n_rows+1, column=2, sticky="W", padx=0)
+        step_entry = tk.Entry(buttons_frame, justify="right", width=5, textvariable=self.step_var)
+        step_entry.grid(row=1, column=0, sticky="W", padx=0)
         step_entry.insert(0, "100")
         self.step_entry = step_entry
 
-        apply_button = tk.Button(left_frame, text="Apply", command= lambda: self.raise_voltage_protocol_thread(self.step_var.get()))
-        apply_button.grid(row=n_rows+1, column=0, columnspan=2, pady=20)
+        apply_button = tk.Button(buttons_frame, text="Apply", command= lambda: self.raise_voltage_protocol_thread(self.step_var.get()))
+        apply_button.grid(row=0, column=1, sticky="we", padx=5)
 
-        turn_off_button = tk.Button(left_frame, text="Turn off", command= lambda: self.turn_off_protocol_thread(self.step_var.get()))
-        turn_off_button.grid(row=n_rows+2, column=0, columnspan=2, pady=5)
+        turn_off_button = tk.Button(buttons_frame, text="Turn off", command= lambda: self.turn_off_protocol_thread(self.step_var.get()))
+        turn_off_button.grid(row=1, column=1, sticky="we", padx=5)
+
+        self.protocol_stop_button = tk.Button(buttons_frame, text="Stop", command= lambda: threading.Thread(target=self.stop_protocol).start(), fg="red4")
+        self.protocol_stop_button.grid(row=0, column=2, rowspan=2, sticky="nsew")
+        self.protocol_stop_button.grid_remove()
 
         right_frame = tk.Frame(self.multidevice_frame, padx=10, pady=10)
         right_frame.pack(side="left", anchor="center", padx=20)
         all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
         self.checksframe = ChecksFrame(right_frame, checks=self.checks, channels=self.all_channels, locks=all_devices_locks)
+
+    def stop_protocol(self):
+        self.protocol_stop_flag = True
+        print("Stopping protocol...")
+        if self.protocol_thread and self.protocol_thread.is_alive():
+            self.protocol_thread.join() # this will block the main thread until the protocol thread finishes
+        if self.step_entry:
+            self.step_entry.config(state="normal")
+        if self.protocol_stop_button:
+            self.protocol_stop_button.grid_remove()
+        self.protocol_stop_flag = False
+        print("Protocol stopped.")
 
     def toggle_scrolled_text(self):
         # Toggle the visibility of the ScrolledText widget
@@ -208,7 +231,14 @@ class HVGUI:
             self.step_var.set("100")
             return
 
-        threading.Thread(target=self.raise_voltage_protocol, args=(step_number,)).start()
+        if self.protocol_stop_button:
+            self.protocol_stop_button.grid()
+
+        if self.protocol_thread and self.protocol_thread.is_alive():
+            print("Protocol thread already running")
+            return
+        self.protocol_thread = threading.Thread(target=self.raise_voltage_protocol, args=(step_number,))
+        self.protocol_thread.start()
 
     def turn_off_protocol_thread(self, step = 100):
         try:
@@ -222,7 +252,14 @@ class HVGUI:
             self.step_var.set("100")
             return
 
-        threading.Thread(target=self.turn_off_protocol, args=(step_number,)).start()
+        if self.protocol_stop_button:
+            self.protocol_stop_button.grid()
+
+        if self.protocol_thread and self.protocol_thread.is_alive():
+            print("Protocol thread already running")
+            return
+        self.protocol_thread = threading.Thread(target=self.turn_off_protocol, args=(step_number,))
+        self.protocol_thread.start()
 
     def raise_voltage_protocol(self, step = 100, timeout = 60):
         # final_vset = {'cathode' : 2000, 'gem top' : 600, 'gem bottom' : 350, 'mesh left' : 250}
@@ -277,6 +314,8 @@ class HVGUI:
         vset = 0
         channels_reached = 0
         for _ in range(n_steps):
+            if self.protocol_stop_flag:
+                break
             vset = vset + step
             temp_vset = {k: round(vset/f) for k, f in zip(final_vset.keys(), factors.values())}
             if any([t >= f for t, f in zip(temp_vset.values(), final_vset.values())]):
@@ -306,6 +345,8 @@ class HVGUI:
                 except AttributeError:
                     pass
 
+            if self.protocol_stop_flag:
+                break
             # apply vsets to the channels
             for ch, v in temp_vset.items():
                 if get_vmon(ch) > v:
@@ -330,6 +371,8 @@ class HVGUI:
             all_channels_reached = False
             time_waiting = 0
             while not all_channels_reached:
+                if self.protocol_stop_flag:
+                    break
                 all_channels_reached = True
                 for ch in temp_vset.keys():
                     vmon = get_vmon(ch)
@@ -341,11 +384,14 @@ class HVGUI:
                 if time_waiting > timeout:
                     print("Timeout waiting for channels to reach the setpoints.")
                     break # pass to the next step
-
+            if self.protocol_stop_flag:
+                break
             time.sleep(5) # wait 3 seconds before next step
 
         if self.step_entry:
             self.step_entry.config(state="normal")
+        if self.protocol_stop_button:
+            self.protocol_stop_button.grid_remove()
 
     def turn_off_protocol(self, step=100, timeout=60):
         def get_vmon(ch_name):
@@ -392,6 +438,8 @@ class HVGUI:
         print(f"Number of steps: {n_steps}")
         channels_reached = 0
         for _ in range(n_steps):
+            if self.protocol_stop_flag:
+                break
             temp_vset = {k: round(t-step/f) for k, t, f in zip(current_vset.keys(), temp_vset.values(), factors.values())}
             if any([t <= 0 for t in temp_vset.values()]):
                 channels_reached += 1
@@ -420,6 +468,8 @@ class HVGUI:
                 except AttributeError:
                     pass
 
+            if self.protocol_stop_flag:
+                break
             # apply vsets to the channels
             for ch, v in temp_vset.items():
                 if get_vmon(ch) < v:
@@ -444,6 +494,8 @@ class HVGUI:
             all_channels_reached = False
             time_waiting = 0
             while not all_channels_reached:
+                if self.protocol_stop_flag:
+                    break
                 all_channels_reached = True
                 for ch in temp_vset.keys():
                     vmon = get_vmon(ch)
@@ -459,12 +511,15 @@ class HVGUI:
             time.sleep(2) # wait seconds before next step
 
         # turn off the channels
-        for ch in temp_vset.keys():
-            with self.channels_gui[ch].device_lock:
-                self.all_channels[ch].turn_off()
+        if not self.protocol_stop_flag:
+            for ch in temp_vset.keys():
+                with self.channels_gui[ch].device_lock:
+                    self.all_channels[ch].turn_off()
 
         if self.step_entry:
             self.step_entry.config(state="normal")
+        if self.protocol_stop_button:
+            self.protocol_stop_button.grid_remove()
 
 
 if __name__ == "__main__":
