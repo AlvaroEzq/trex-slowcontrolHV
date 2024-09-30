@@ -631,13 +631,13 @@ class CaenHVPSGUI(DeviceGUI):
                     message += f" ({self.channels_name[int(k[-1])]})"
         print(message)
         if not self.silence_alarm:
-            send_slack_message(message)
+            threading.Thread(target=send_slack_message, args=(message,)).start() # to avoid blocking the GUI (it can be slow)
 
     def action_when_interlock(self):
         message = f"Interlock detected in module {self.device.name}."
         print(message)
         if not self.silence_alarm:
-            send_slack_message(message)
+            threading.Thread(target=send_slack_message, args=(message,)).start() # to avoid blocking the GUI (it can be slow)
 
 
 if __name__ == "__main__":
