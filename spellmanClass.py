@@ -53,7 +53,9 @@ class Spellman:
     # Properties
     @property
     def vset(self):
-        return self.get_vset()
+        if self._vset is None:
+            self._vset = self.get_vset()
+        return self._vset
 
     @vset.setter
     def vset(self, voltage_V):
@@ -62,7 +64,9 @@ class Spellman:
 
     @property
     def iset(self):
-        return self.get_iset()
+        if self._iset is None:
+            self._iset = self.get_iset()
+        return self._iset
 
     @iset.setter
     def iset(self, current_mA):
