@@ -206,8 +206,14 @@ class Spellman:
         ans = self.status()
         stat = {}
         try:
-            stat['REMOTE'] = bool(int(ans[3]))
-            stat['ARC'] = bool(ans[7])
+            stat['SYSFAULT'] = bool(int(ans[1])) # Fault
+            stat['SYSILK'] = bool(int(ans[2])) # Interlock
+            stat['REMOTE'] = bool(int(ans[3])) # Remote
+            stat['SYSHV'] = bool(int(ans[4])) # High voltage
+            stat['HC'] = bool(int(ans[5])) # High current
+            stat['REG'] = bool(int(ans[6])) # Regulation error
+            stat['ARC'] = bool(int(ans[7])) # Arc
+            stat['OT'] = bool(int(ans[8])) # Over temperature
         except IndexError:
             stat['REMOTE'] = '??'
             stat['ARC'] = '??'

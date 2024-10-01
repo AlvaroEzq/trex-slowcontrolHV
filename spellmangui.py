@@ -6,6 +6,7 @@ from spellmanClass import Spellman
 from logger import ChannelState
 from checkframe import ChecksFrame
 from devicegui import DeviceGUI
+from utilsgui import ToolTip
 
 class SpellmanFrame(DeviceGUI):
     def __init__(self, spellman, checks=None, parent=None, log=True):
@@ -16,6 +17,8 @@ class SpellmanFrame(DeviceGUI):
         self.buttons = {}
         self.labels = {}
         self.label_vars = {}
+        self.state_indicator = None
+        self.state_tooltip = None
         self.security_frame = None
 
         super().__init__(spellman, ['cathode'], parent,
@@ -91,6 +94,7 @@ class SpellmanFrame(DeviceGUI):
 
         tk.Label(marco, text='Set', width=10).grid(row=0, column=3)
         tk.Label(marco, text='Monitor', width=10).grid(row=0, column=4)
+        tk.Label(marco, text="State", width=10).grid(row=0, column=5)
 
         voltage_text = tk.Label(marco, text='Voltage (V) : ', width=11)
         voltage_var = tk.StringVar()
@@ -99,7 +103,7 @@ class SpellmanFrame(DeviceGUI):
         current_text = tk.Label(marco, text='Current (mA): ', width=11)
         current_label = tk.Label(marco, text='-----', width=8)
         arc_text = tk.Label(marco, text='Arc : ', width=11)
-        arc_label = tk.Label(marco, text='Arc')
+        arc_label = tk.Label(marco, text='??')
 
         voltage_text.grid(row=1, column=0, sticky='nse')
         voltage_label.grid(row=1, column=4)
@@ -107,9 +111,6 @@ class SpellmanFrame(DeviceGUI):
         current_label.grid(row=2, column=4)
         arc_text.grid(row=3, column=0, sticky='nse')
         arc_label.grid(row=3, column=1, sticky='nsw')
-
-
-        
 
         voltage_dac_entry = tk.Entry(marco, width=8, justify='right')
         voltage_dac_entry.insert(0, f"{self.device.vset:.0f}")
@@ -135,6 +136,11 @@ class SpellmanFrame(DeviceGUI):
 
         current_dac_label = tk.Label(marco, width=10, justify='right', text='Iset(mA)')
         current_dac_label.grid(row=2, column=3, sticky='ns')
+
+        self.state_indicator = tk.Canvas(marco, width=20, height=20)
+        self.state_indicator.grid(row=1, column=5, rowspan=2, sticky='nsew')
+        self.state_indicator.create_oval(27.5, 17.5, 47.5, 37.5, fill='gray')
+        self.state_tooltip = ToolTip(self.state_indicator, text='')
 
         diccionario_labels = {
             'voltage_s': voltage_label,
@@ -282,6 +288,7 @@ class SpellmanFrame(DeviceGUI):
         stat = self.device.stat
         remote = stat['REMOTE']
         hv = stat['HV']
+        arc = stat['ARC']
 
         if isinstance(remote, bool):
             self.labels['remote_s'].config(text='ON' if remote else 'OFF')
@@ -297,6 +304,29 @@ class SpellmanFrame(DeviceGUI):
             self.labels['hv'].config(text=hv)
             self.labels['hv'].config(fg='black')
 
+        if isinstance(arc, bool):
+            self.labels['arc'].config(text='ARC' if arc else 'no arc')
+            self.labels['arc'].config(fg='red' if arc else 'black')
+        else:
+            self.labels['arc'].config(text=arc)
+            self.labels['arc'].config(fg='black')
+
+        if stat['FAULT']:
+            state_indicator_color = 'red'
+            state_tooltip_text = 'FAULT'
+        elif stat['ILK']:
+            state_indicator_color = 'yellow'
+            state_tooltip_text = 'ILK'
+        else:
+            if stat['HV']:
+                state_indicator_color = 'green2'
+                state_tooltip_text = 'HV ON'
+            else:
+                state_indicator_color = 'dark green'
+                state_tooltip_text = 'HV OFF'
+
+        self.state_indicator.itemconfig(1, fill=state_indicator_color)
+        self.state_tooltip.change_text(state_tooltip_text)
 
 # Usage
 if __name__ == "__main__":
