@@ -12,7 +12,7 @@ import hvps
 
 from checkframe import ChecksFrame
 from check import load_checks_from_toml_file
-from utilsgui import PrintLogger
+from utilsgui import PrintLogger, ToolTip
 
 class HVGUI:
     def __init__(self, caen_module=None, spellman_module=None, checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True):
@@ -108,15 +108,19 @@ class HVGUI:
         tk.Label(left_frame, text="Channel").grid(row=0, column=0)
         factor_label = tk.Label(left_frame, text="Factor")
         factor_label.grid(row=0, column=1)
-        caengui.ToolTip(factor_label, "Factor to convert the voltage setpoint to the\nactual voltage you want to remain within the step.\n"
+        precision_label = tk.Label(left_frame, text="Prec(V)")
+        precision_label.grid(row=0, column=2)
+        ToolTip(factor_label, "Factor to convert the voltage setpoint to the\nactual voltage you want to remain within the step.\n"
                                         "For example, the cathode voltage is divided by\n0.286=80MOhm/(200+80)MOhm to get\nthe last ring voltage.")
-        tk.Label(left_frame, text="vset (V)").grid(row=0, column=2)
+        ToolTip(precision_label, "Precision (in volts) to consider that\nthe channel has reached the setpoint.")
+        tk.Label(left_frame, text="vset (V)").grid(row=0, column=3)
         def option_changed(row_number, *args):
             channel = self.channel_optmenus[row_number].cget("text")
             if channel == "":
                 # hide the vset entry
                 self.vset_entries[row_number].grid_remove()
                 self.factor_entries[row_number].grid_remove()
+                self.precision_entries[row_number].grid_remove()
                 # make the option menu as small as possible and blank
                 self.channel_optmenus[row_number].config(width=1)
                 self.channel_optmenus[row_number].grid(sticky="")
@@ -126,6 +130,7 @@ class HVGUI:
                 # show if hidden
                 self.vset_entries[row_number].grid()
                 self.factor_entries[row_number].grid()
+                self.precision_entries[row_number].grid()
                 # make the option menu as wide as the longest channel name
                 self.channel_optmenus[row_number].config(width=len(max(self.all_channels.keys(), key=len)))
                 # update the vset entry with the current value
@@ -139,6 +144,7 @@ class HVGUI:
         self.channel_optmenus = []
         self.vset_entries = []
         self.factor_entries = []
+        self.precision_entries = []
         for i, ch_opt in enumerate(channel_options):
             ch_opt = channel_options[i]
             if ch_opt == "":
@@ -157,8 +163,13 @@ class HVGUI:
             factor_entry.insert(0, "1" if ch_opt != "cathode" else "0.286") # 0.286 = 80MOhm/(200+80)MOhm to get last ring voltage (cathode voltage divider)
             self.factor_entries.append(factor_entry)
 
+            precision_entry = tk.Entry(left_frame, justify="center", width=5)
+            precision_entry.grid(row=i+1, column=2, padx=5)
+            precision_entry.insert(0, "1" if ch_opt != "cathode" else "50")
+            self.precision_entries.append(precision_entry)
+
             vset_entry = tk.Entry(left_frame, justify="center", width=7)
-            vset_entry.grid(row=i+1, column=2, padx=5)
+            vset_entry.grid(row=i+1, column=3, padx=5)
             vset_entry.insert(0, self.channels_vset_guientries[ch_opt].get())
             self.vset_entries.append(vset_entry)
 
@@ -192,12 +203,14 @@ class HVGUI:
         print("Stopping protocol...")
         if self.protocol_thread and self.protocol_thread.is_alive():
             self.protocol_thread.join() # this will block the main thread until the protocol thread finishes
+        print("Protocol stopped.")
+
+    def protocol_cleanup(self):
         if self.step_entry:
             self.step_entry.config(state="normal")
         if self.protocol_stop_button:
             self.protocol_stop_button.grid_remove()
         self.protocol_stop_flag = False
-        print("Protocol stopped.")
 
     def toggle_scrolled_text(self):
         # Toggle the visibility of the ScrolledText widget
@@ -278,6 +291,7 @@ class HVGUI:
 
         final_vset = {}
         factors = {}
+        precision = {}
         for i, ch in enumerate(self.channel_optmenus):
             if ch.cget("text") == "":
                 continue
@@ -288,19 +302,23 @@ class HVGUI:
                 continue
             final_vset[ch.cget("text")] = float(self.vset_entries[i].get())
             factors[ch.cget("text")] = float(self.factor_entries[i].get())
+            precision[ch.cget("text")] = float(self.precision_entries[i].get())
         
         if len(final_vset) < 1: # makes no sense to use this with less than 2 channels
             print("No valid voltage setpoints found")
+            self.protocol_cleanup()
             return
         
         # check that all channels involved are on
         for ch in final_vset.keys():
             if ch not in self.all_channels.keys():
                 print(f"Channel {ch} not found in the list of available channels")
+                self.protocol_cleanup()
                 return
             with self.channels_gui[ch].device_lock:
                 if not self.all_channels[ch].on:
                     print(f"Channel {ch} is off. Turn it on before running the protocol")
+                    self.protocol_cleanup()
                     return
 
         if self.step_entry:
@@ -331,16 +349,14 @@ class HVGUI:
             # multidevice checks
             if not self.checksframe.simulate_check_conditions(parameters_values):
                 print("Step did not pass the multidevice checks.")
-                if self.step_entry:
-                    self.step_entry.config(state="normal")
+                self.protocol_cleanup()
                 return
             # individual device checks
             for device, gui in self.all_guis.items():
                 try:
                     if not gui.checksframe.simulate_check_conditions(parameters_values):
                         print(f"Step did not pass the {device} checks.")
-                        if self.step_entry:
-                            self.step_entry.config(state="normal")
+                        self.protocol_cleanup()
                         return
                 except AttributeError:
                     pass
@@ -362,8 +378,7 @@ class HVGUI:
                     channel.vset = v
                 except Exception as e:
                     print(f"Error setting voltage for channel {ch}: {e}")
-                    if self.step_entry:
-                        self.step_entry.config(state="normal")
+                    self.protocol_cleanup()
                     return
                 # self.all_channels[ch].vset = v
             
@@ -376,22 +391,20 @@ class HVGUI:
                 all_channels_reached = True
                 for ch in temp_vset.keys():
                     vmon = get_vmon(ch)
-                    if temp_vset[ch] - vmon > 13: # the spellman has 12V of precision...
+                    prec = precision.get(ch, 1)
+                    if temp_vset[ch] - vmon > prec:
                         all_channels_reached = False
                         break
                 time.sleep(1) # wait 1 second before next check
                 time_waiting += 1 # use same time as the number of seconds waited
                 if time_waiting > timeout:
-                    print("Timeout waiting for channels to reach the setpoints.")
-                    break # pass to the next step
+                    print("Timeout waiting for channels to reach the setpoints. Stopping protocol.")
+                    self.protocol_stop_flag = True
             if self.protocol_stop_flag:
                 break
-            time.sleep(5) # wait 3 seconds before next step
+            time.sleep(2) # wait 3 seconds before next step
 
-        if self.step_entry:
-            self.step_entry.config(state="normal")
-        if self.protocol_stop_button:
-            self.protocol_stop_button.grid_remove()
+        self.protocol_cleanup()
 
     def turn_off_protocol(self, step=100, timeout=60):
         def get_vmon(ch_name):
@@ -409,20 +422,24 @@ class HVGUI:
 
         current_vset = {}
         factors = {}
+        precision = {}
         for i, ch in enumerate(self.channel_optmenus):
             if ch.cget("text") == "":
                 continue
             current_vset[ch.cget("text")] = float(self.channels_vset_guientries[ch.cget("text")].get())
             factors[ch.cget("text")] = float(self.factor_entries[i].get())
+            precision[ch.cget("text")] = float(self.precision_entries[i].get())
         
         if len(current_vset) < 1: # makes no sense to use this with less than 2 channels
             print("No valid voltage setpoints found")
+            self.protocol_cleanup()
             return
         
         # check that all channels involved are on
         for ch in current_vset.keys():
             if ch not in self.all_channels.keys():
                 print(f"Channel {ch} not found in the list of available channels")
+                self.protocol_cleanup()
                 return
             with self.channels_gui[ch].device_lock:
                 if not self.all_channels[ch].on:
@@ -454,16 +471,14 @@ class HVGUI:
             # multidevice checks
             if not self.checksframe.simulate_check_conditions(parameters_values):
                 print("Step did not pass the multidevice checks.")
-                if self.step_entry:
-                    self.step_entry.config(state="normal")
+                self.protocol_cleanup()
                 return
             # individual device checks
             for device, gui in self.all_guis.items():
                 try:
                     if not gui.checksframe.simulate_check_conditions(parameters_values):
                         print(f"Step did not pass the {device} checks.")
-                        if self.step_entry:
-                            self.step_entry.config(state="normal")
+                        self.protocol_cleanup()
                         return
                 except AttributeError:
                     pass
@@ -485,8 +500,7 @@ class HVGUI:
                     channel.vset = v
                 except Exception as e:
                     print(f"Error setting voltage for channel {ch}: {e}")
-                    if self.step_entry:
-                        self.step_entry.config(state="normal")
+                    self.protocol_cleanup()
                     return
                 # self.all_channels[ch].vset = v
 
@@ -499,14 +513,15 @@ class HVGUI:
                 all_channels_reached = True
                 for ch in temp_vset.keys():
                     vmon = get_vmon(ch)
-                    if vmon - temp_vset[ch] > 13:
+                    prec = precision.get(ch, 1)
+                    if vmon - temp_vset[ch] > prec:
                         all_channels_reached = False
                         break
                 time.sleep(1) # wait 1 second before next check
                 time_waiting += 1
                 if time_waiting > timeout:
-                    print("Timeout waiting for channels to reach the setpoints.")
-                    break
+                    print("Timeout waiting for channels to reach the setpoints. Stopping protocol.")
+                    self.protocol_stop_flag = True
 
             time.sleep(2) # wait seconds before next step
 
@@ -516,10 +531,7 @@ class HVGUI:
                 with self.channels_gui[ch].device_lock:
                     self.all_channels[ch].turn_off()
 
-        if self.step_entry:
-            self.step_entry.config(state="normal")
-        if self.protocol_stop_button:
-            self.protocol_stop_button.grid_remove()
+        self.protocol_cleanup()
 
 
 if __name__ == "__main__":
