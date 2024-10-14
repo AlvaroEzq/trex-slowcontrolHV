@@ -10,9 +10,12 @@ import spellmangui
 import spellmanClass as spll
 import hvps
 
+import utils
 from checkframe import ChecksFrame
 from check import load_checks_from_toml_file
 from utilsgui import PrintLogger, ToolTip
+from metrics_fetcher import MetricsFetcherSSH
+
 
 class HVGUI:
     def __init__(self, caen_module=None, spellman_module=None, checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True):
@@ -39,6 +42,7 @@ class HVGUI:
         self.channels_gui = {}
         self.channels_vmon_guilabel = {}
         self.channels_vset_guientries = {}
+        self.channels_vset_guilabel = {}
 
         self.logging_enabled = log
         self.multidevice_frame = None
@@ -52,6 +56,15 @@ class HVGUI:
         self.protocol_stop_flag = False # flag to stop the protocol
         self.protocol_stop_button = None
         self.protocol_thread = None
+
+        # daq metrics variables
+        self.metrics_fetcher = None
+        self.run_number_label = None
+        self.daq_speed_label = None
+        self.daq_events_label = None
+        self.events_number_label = None
+        self.add_to_googlesheet_button = None
+        self.add_to_googlesheet_thread = None
 
         self.create_gui()
 
@@ -69,6 +82,7 @@ class HVGUI:
             self.all_guis['caen'] = self.caen_gui
             self.channels_vmon_guilabel = {name: label for name, label in zip(self.caen_gui.channels_name, self.caen_gui.vmon_labels)}
             self.channels_vset_guientries = {name: entry for name, entry in zip(self.caen_gui.channels_name, self.caen_gui.vset_entries)}
+            self.channels_vset_guilabel = {name: label for name, label in zip(self.caen_gui.channels_name, self.caen_gui.vset_labels)}
 
         if self.spellman_module is not None:
             self.spellman_frame = tk.Frame(self.root)
@@ -79,6 +93,7 @@ class HVGUI:
             self.all_guis['cathode'] = self.spellman_gui
             self.channels_vmon_guilabel['cathode'] = self.spellman_gui.labels['voltage_s']
             self.channels_vset_guientries['cathode'] = self.spellman_gui.labels['voltage_dac_s']
+            self.channels_vset_guilabel['cathode'] = self.spellman_gui.labels['voltage_dac_label']
             
         if self.caen_module is not None and self.spellman_module is not None:
             self.create_multidevice_frame(self.spellman_frame)
@@ -92,9 +107,12 @@ class HVGUI:
                                         font=("Arial", 9), relief="raised", bd=0)
         self.toggle_button.pack(side="top", anchor="nw", pady=0, padx=5)
         self.scrolled_text = ScrolledText(scrolled_text_frame, font=("Arial", "9", "normal"), state="disabled", height=9)
-        #self.scrolled_text.pack(side="bottom", fill="both", expand=True)
+        self.scrolled_text.pack(side="left", fill="both", expand=True, padx=0)
         if self.scrolled_text:
             self.redirect_logging(self.scrolled_text)
+        daq_frame = tk.Frame(scrolled_text_frame)
+        daq_frame.pack(side="right", fill="both", expand=True)
+        self.create_daq_frame(daq_frame)
 
         self.root.mainloop()
         self.reset_logging()
@@ -197,6 +215,100 @@ class HVGUI:
         right_frame.pack(side="left", anchor="center", padx=20)
         all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
         self.checksframe = ChecksFrame(right_frame, checks=self.checks, channels=self.all_channels, locks=all_devices_locks)
+    def create_daq_frame(self, frame):
+        daq_frame = tk.LabelFrame(frame, text="DAQ metrics", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
+        daq_frame.pack()
+
+        tk.Label(daq_frame, text="Run number").grid(row=0, column=0, sticky="w")
+        self.run_number_label = tk.Label(daq_frame, text="N/A")
+        self.run_number_label.grid(row=0, column=1, sticky="e")
+
+        tk.Label(daq_frame, text="Run type").grid(row=1, column=0, sticky="w")
+        self.run_type_label = tk.Label(daq_frame, text="N/A")
+        self.run_type_label.grid(row=1, column=1, sticky="e")
+
+        tk.Label(daq_frame, text="Speed (MB/s)").grid(row=2, column=0, sticky="w")
+        self.daq_speed_label = tk.Label(daq_frame, text="N/A")
+        self.daq_speed_label.grid(row=1, column=1, sticky="e")
+
+        tk.Label(daq_frame, text="Speed (events/s)").grid(row=3, column=0, sticky="w")
+        self.daq_events_label = tk.Label(daq_frame, text="N/A")
+        self.daq_events_label.grid(row=2, column=1, sticky="e")
+
+        tk.Label(daq_frame, text="Number of events").grid(row=4, column=0, sticky="w")
+        self.events_number_label = tk.Label(daq_frame, text="N/A")
+        self.events_number_label.grid(row=3, column=1, sticky="e")
+
+        self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
+                                        command=self.add_run_to_googlesheet)
+        self.add_to_googlesheet_button.grid(row=5, column=0, columnspan=2, pady=10, sticky="nsew")
+
+        threading.Thread(target=self.daq_metrics_loop, daemon=True).start()
+
+    def daq_metrics_loop(self):
+        self.metrics_fetcher = MetricsFetcherSSH(
+                                url="http://localhost:8080/metrics",
+                                hostname="192.168.3.80",
+                                username="usertrex",
+                                key_filename="/home/usertrex/.ssh/id_rsa"
+                                )
+        while True:
+            self.metrics_fetcher.fetch_metrics()
+            if self.metrics_fetcher.metrics:
+                output_file_labels = self.metrics_fetcher.get_metric_labels("output_root_file_size_mb")
+                output_filename = ""
+                for lbl in output_file_labels:
+                    if "filename=" in lbl:
+                        output_filename = lbl.split("filename=")[1]
+                        output_filename = output_filename.replace('"', '')
+                        output_filename = output_filename.split("/")[-1]
+                        break
+                self.run_number_label.config(text=f'{self.metrics_fetcher.get_metric("run_number"):.0f}')
+                if self.metrics_fetcher.get_metric("run_number") != 0:
+                    if self.add_to_googlesheet_thread and self.add_to_googlesheet_thread.is_alive():
+                        pass
+                    else:
+                        self.add_to_googlesheet_button.config(state="normal")
+                self.run_type_label.config(text=output_filename.split("_")[1])
+                self.daq_speed_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_mb_per_sec_now"):.2f}')
+                self.daq_events_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_events_per_sec_now"):.1f}')
+                self.events_number_label.config(text=f'{self.metrics_fetcher.get_metric("number_of_events"):,.0f}')
+            else:
+                self.run_number_label.config(text="N/A")
+                self.daq_speed_label.config(text="N/A")
+                self.daq_events_label.config(text="N/A")
+                self.events_number_label.config(text="N/A")
+                self.add_to_googlesheet_button.config(state="disabled")
+            time.sleep(2.5)
+
+    def add_run_to_googlesheet(self):
+        def add_run():
+            print("Adding run to Google Sheet...")
+            self.add_to_googlesheet_button.config(state="disabled") # avoid spamming the button
+            run_number = self.run_number_label.cget("text")
+            start_date = time.strftime("%d/%m/%Y %H:%M")
+            if self.metrics_fetcher.metrics:
+                output_file_labels = self.metrics_fetcher.get_metric_labels("output_root_file_size_mb")
+                output_filename = ""
+                for lbl in output_file_labels:
+                    if "filename=" in lbl:
+                        output_filename = lbl.split("filename=")[1]
+                        output_filename = output_filename.replace('"', '')
+                        output_filename = output_filename.split("/")[-1]
+                        break
+            run_type = output_filename.split("_")[1]
+            voltages = {ch: float(self.channels_vset_guilabel[ch].cget("text")) for ch in self.all_channels.keys()}
+            row = utils.create_row_for_google_sheet(run_number, start_date, run_type, voltages)
+            print(f"Row to be added: {row}")
+            utils.append_row_to_google_sheet(row)
+            self.add_to_googlesheet_button.config(state="normal")
+            print("Run added to Google Sheet.")
+
+        if self.add_to_googlesheet_thread and self.add_to_googlesheet_thread.is_alive():
+            print("Run currently being added to Google Sheet. Please wait.")
+            return
+        self.add_to_googlesheet_thread = threading.Thread(target=add_run)
+        self.add_to_googlesheet_thread.start()
 
     def stop_protocol(self):
         self.protocol_stop_flag = True
