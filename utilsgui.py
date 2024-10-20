@@ -47,6 +47,10 @@ class PrintLogger(object):
         self.textbox = textbox
 
     def write(self, text):
+        # Use of after() is needed to prevent segmentation faults
+        self.textbox.after(0, self._append_text, text)
+
+    def _append_text(self, text):
         self.textbox.configure(state="normal")
         self.textbox.insert("end", text)
         self.textbox.see("end")
