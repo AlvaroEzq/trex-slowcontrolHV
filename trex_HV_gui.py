@@ -224,20 +224,20 @@ class HVGUI:
         self.run_number_label.grid(row=0, column=1, sticky="e")
 
         tk.Label(daq_frame, text="Run type").grid(row=1, column=0, sticky="w")
-        self.run_type_label = tk.Label(daq_frame, text="N/A")
-        self.run_type_label.grid(row=1, column=1, sticky="e")
+        self.run_filename_label = tk.Label(daq_frame, text="N/A")
+        self.run_filename_label.grid(row=1, column=1, sticky="e")
 
         tk.Label(daq_frame, text="Speed (MB/s)").grid(row=2, column=0, sticky="w")
         self.daq_speed_label = tk.Label(daq_frame, text="N/A")
-        self.daq_speed_label.grid(row=1, column=1, sticky="e")
+        self.daq_speed_label.grid(row=2, column=1, sticky="e")
 
         tk.Label(daq_frame, text="Speed (events/s)").grid(row=3, column=0, sticky="w")
         self.daq_events_label = tk.Label(daq_frame, text="N/A")
-        self.daq_events_label.grid(row=2, column=1, sticky="e")
+        self.daq_events_label.grid(row=3, column=1, sticky="e")
 
         tk.Label(daq_frame, text="Number of events").grid(row=4, column=0, sticky="w")
         self.events_number_label = tk.Label(daq_frame, text="N/A")
-        self.events_number_label.grid(row=3, column=1, sticky="e")
+        self.events_number_label.grid(row=4, column=1, sticky="e")
 
         self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
                                         command=self.add_run_to_googlesheet)
@@ -255,21 +255,15 @@ class HVGUI:
         while True:
             self.metrics_fetcher.fetch_metrics()
             if self.metrics_fetcher.metrics:
-                output_file_labels = self.metrics_fetcher.get_metric_labels("output_root_file_size_mb")
-                output_filename = ""
-                for lbl in output_file_labels:
-                    if "filename=" in lbl:
-                        output_filename = lbl.split("filename=")[1]
-                        output_filename = output_filename.replace('"', '')
-                        output_filename = output_filename.split("/")[-1]
-                        break
+                #output_filename = self.metrics_fetcher.get_filename()
+                run_type = self.metrics_fetcher.get_filename_metadata().get("run_type", "N/A")
                 self.run_number_label.config(text=f'{self.metrics_fetcher.get_metric("run_number"):.0f}')
                 if self.metrics_fetcher.get_metric("run_number") != 0:
                     if self.add_to_googlesheet_thread and self.add_to_googlesheet_thread.is_alive():
                         pass
                     else:
                         self.add_to_googlesheet_button.config(state="normal")
-                self.run_type_label.config(text=output_filename.split("_")[1])
+                self.run_filename_label.config(text=run_type)
                 self.daq_speed_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_mb_per_sec_now"):.2f}')
                 self.daq_events_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_events_per_sec_now"):.1f}')
                 self.events_number_label.config(text=f'{self.metrics_fetcher.get_metric("number_of_events"):,.0f}')
@@ -287,18 +281,19 @@ class HVGUI:
             self.add_to_googlesheet_button.config(state="disabled") # avoid spamming the button
             run_number = self.run_number_label.cget("text")
             start_date = time.strftime("%d/%m/%Y %H:%M")
-            if self.metrics_fetcher.metrics:
-                output_file_labels = self.metrics_fetcher.get_metric_labels("output_root_file_size_mb")
-                output_filename = ""
-                for lbl in output_file_labels:
-                    if "filename=" in lbl:
-                        output_filename = lbl.split("filename=")[1]
-                        output_filename = output_filename.replace('"', '')
-                        output_filename = output_filename.split("/")[-1]
-                        break
-            run_type = output_filename.split("_")[1]
-            voltages = {ch: float(self.channels_vset_guilabel[ch].cget("text")) for ch in self.all_channels.keys()}
-            row = utils.create_row_for_google_sheet(run_number, start_date, run_type, voltages)
+            metadata = self.metrics_fetcher.get_filename_metadata()
+            run_type = metadata.get("run_type", "")
+            metadata.pop("run_type", None)
+            metadata.pop("run_number", None)
+            metadata.pop("Vm", None)
+            metadata.pop("Vd", None)
+            column_data = {ch: float(self.channels_vset_guilabel[ch].cget("text")) for ch in self.all_channels.keys()}
+            column_data.update(metadata)
+            column_data['threshold left'] = self.metrics_fetcher.get_total_threshold_for_fem_aget(2, 0)
+            column_data['threshold right'] = self.metrics_fetcher.get_total_threshold_for_fem_aget(0, 0)
+            column_data['multiplicity left'] = self.metrics_fetcher.get_total_multiplicity_for_fem_aget(2, 0)
+            column_data['multiplicity right'] = self.metrics_fetcher.get_total_multiplicity_for_fem_aget(0, 0)
+            row = utils.create_row_for_google_sheet(run_number, start_date, run_type, column_data)
             print(f"Row to be added: {row}")
             utils.append_row_to_google_sheet(row)
             self.add_to_googlesheet_button.config(state="normal")

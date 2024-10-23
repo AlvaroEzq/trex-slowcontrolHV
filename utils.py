@@ -15,7 +15,7 @@ def append_row_to_google_sheet(row, worksheet_number=3):
     except Exception as e:
         print(f"Error while appending row to Google Sheet: {e}")
 
-def create_row_for_google_sheet(run_number, start_date, run_type, voltages):
+def create_row_for_google_sheet(run_number, start_date, run_type, other_columns):
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEET_CREDENTIALS_FILENAME, GOOGLE_SHEET_SCOPE)
         client = gspread.authorize(creds)
@@ -25,9 +25,9 @@ def create_row_for_google_sheet(run_number, start_date, run_type, voltages):
     except Exception as e:
         column_names = ['Run', 'Date', 'Type', 'Time', 'Vmesh Left (V)', 'Eg-mm (V/cm*bar)', 'Vgem(top-bott) (V)',
                         'Vgembottom', 'Vgemtop', 'Vlastring', 'Ec-g(V/cm*bar)', 'Vcathode (V)', 'Ec-mm (V/cm*bar)',
-                        'Vmesh Rigth (V)', 'Pressure (bar)', 'Flow (ln/h)', 'Gain (FEC units)', 'Shaping time (FEC units)',
-                        'Clock (FEC units/MHz)', 'Threshold_North (daq+thr)', 'Threshold_South (daq+thr)',
-                        'Trigg_delay (hexad/decimal)', 'trip info', 'Notes',
+                        'Vmesh Right (V)', 'Pressure (bar)', 'Flow (ln/h)', 'Gain (FEC units)', 'Shape time (FEC units)',
+                        'Clock (FEC units/MHz)', 'Threshold Left (daq+thr)', 'Multiplicity Left', 'Threshold Right (daq+thr)',
+                        'Multiplicity Right', 'Trigg_delay (hexad/decimal)', 'trip info', 'Notes',
                         ]
         print(f"Error, {e}, while fetching column names from Google Sheet. Using default column names")
     column_names = [c.replace(' ', '').lower() for c in column_names]
@@ -35,7 +35,7 @@ def create_row_for_google_sheet(run_number, start_date, run_type, voltages):
     row[0] = run_number
     row[1] = start_date
     row[2] = run_type
-    for ch, v in voltages.items():
+    for ch, v in other_columns.items():
         ch = ch.replace(' ', '').lower()
         column_found = False
         for column in column_names:

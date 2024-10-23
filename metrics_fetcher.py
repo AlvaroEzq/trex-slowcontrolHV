@@ -2,6 +2,8 @@ import re
 from collections import defaultdict
 import paramiko
 import requests
+import re
+import os
 
 def parse_prometheus_metrics(metrics_data):
     """
@@ -111,6 +113,111 @@ for metric, info in parsed_metrics.items():
         print(f"  Labels: {labels} -> Value: {value}")
 """
 
+
+def parse_run_file_by_fem(file_content):
+    """ Extracts values from a file content string and organizes them by FEM number.
+    Example of file content: the .run file
+    Currently it does not support fem * and aget *.
+    """
+    values_by_fem = {}
+    current_fem = None
+    multiline_comment = False
+
+    # Split the input string by lines and process each line
+    for line in file_content.splitlines():
+        # skip comments
+        if line.startswith('#'):
+            continue
+        if line.startswith('/*'):
+            multiline_comment = True
+            continue
+        if line.startswith('*/'):
+            multiline_comment = False
+            continue
+        if multiline_comment:
+            continue
+        if '#' in line: # remove inline comments
+            line = line.split('#')[0]
+        
+        # Look for lines indicating a new fem (e.g., 'fem X')
+        fem_match = re.search(r'fem\s+(\d+)', line)
+        if fem_match:
+            current_fem = int(fem_match.group(1))  # Get the FEM number
+            if current_fem not in values_by_fem:
+                values_by_fem[current_fem] = {}  # Initialize the FEM dictionary
+
+        # Look for lines matching 'aget X dac Y'
+        aget_match = re.search(r'aget\s+(\d+)\s+dac\s+(\w+)', line)
+        if aget_match and current_fem is not None:
+            aget_id = int(aget_match.group(1))  # Get AGET number
+            dac_value = aget_match.group(2)  # DAC value
+
+            # Initialize dictionary for this AGET if not present
+            if aget_id not in values_by_fem[current_fem]:
+                values_by_fem[current_fem][aget_id] = {}
+
+            # Store the DAC value
+            values_by_fem[current_fem][aget_id]['dac'] = dac_value
+
+        # Look for lines matching 'aget X threshold Y'
+        threshold_match = re.search(r'aget\s+(\d+)\s+threshold\s+\*\s+(\w+)', line)
+        if threshold_match and current_fem is not None:
+            aget_id = int(threshold_match.group(1))
+            threshold_value = threshold_match.group(2)
+
+            if aget_id not in values_by_fem[current_fem]:
+                values_by_fem[current_fem][aget_id] = {}
+
+            values_by_fem[current_fem][aget_id]['threshold'] = threshold_value
+
+        # Look for lines matching 'mult_thr X Y'
+        mult_thr_match = re.search(r'mult_thr\s+(\d+)\s+(\d+)', line)
+        if mult_thr_match and current_fem is not None:
+            channel_id = int(mult_thr_match.group(1))
+            mult_thr_value = mult_thr_match.group(2)
+
+            if channel_id not in values_by_fem[current_fem]:
+                values_by_fem[current_fem][channel_id] = {}
+
+            values_by_fem[current_fem][channel_id]['mult_thr'] = mult_thr_value
+
+        # Look for lines matching 'mult_limit X Y'
+        mult_limit_match = re.search(r'mult_limit\s+(\d+)\s+(\d+)', line)
+        if mult_limit_match and current_fem is not None:
+            channel_id = int(mult_limit_match.group(1))
+            mult_limit_value = mult_limit_match.group(2)
+
+            if channel_id not in values_by_fem[current_fem]:
+                values_by_fem[current_fem][channel_id] = {}
+
+            values_by_fem[current_fem][channel_id]['mult_limit'] = mult_limit_value
+
+    return values_by_fem
+
+# Usage example
+file_content = """
+fem 0
+aget 0 dac 0x1
+aget 0 threshold * 0x8
+mult_thr 0 31
+mult_limit 0 230
+fem 1
+aget 1 dac 0x2
+aget 1 threshold * 0xA
+mult_thr 1 32
+mult_limit 1 240
+"""  # Example of file content as a string
+"""
+values_by_fem = parse_run_file_by_fem(file_content)
+# Display the extracted values for each FEM
+for fem, aget_data in values_by_fem.items():
+    print(f'FEM {fem}:')
+    for aget_id, params in aget_data.items():
+        print(f'  AGET {aget_id}:')
+        for param, value in params.items():
+            print(f'    {param} = {value}')
+"""
+
 class SSHConnection:
     def __init__(self, hostname, port, username, password=None, key_filename=None):
         self.hostname = hostname
@@ -141,11 +248,16 @@ class MetricsFetcher:
     def __init__(self, url):
         self.url = url
         self.metrics = None
+        self.run_file_content = None
 
     def fetch_metrics(self):
         response = requests.get(self.url)
         response.raise_for_status()
         self.metrics = parse_prometheus_metrics(response.text)
+
+    def fetch_run_file(self):
+        with open(self.get_filename(), "r") as file:
+            self.run_file_content = file.read()
     
     def get_metric(self, metric_name, labels=None):
         if self.metrics is None:
@@ -202,8 +314,25 @@ class MetricsFetcher:
     def get_metric_value(self, metric_name, labels=None):
         return self.get_metric(metric_name, labels)
     
+    def get_filename(self):
+        try:
+            output_file_labels = self.get_metric_labels("output_root_file_size_mb")
+        except ValueError:
+            return ""
+        output_filename = ""
+        for lbl in output_file_labels:
+            if "filename=" in lbl:
+                output_filename = lbl.split("filename=")[1]
+                output_filename = output_filename.replace('"', '')
+                break
+        return output_filename
+
     def get_filename_metadata(self):
-        output_file_labels = self.get_metric_labels("output_root_file_size_mb")
+        try:
+            output_file_labels = self.get_metric_labels("output_root_file_size_mb")
+        except ValueError:
+            return {}
+        #example: filename="/storage/data//R02450_Calibration37Ar_Vm_270_Vd_90_Pr_1.1_Gain_0x0_Shape_0xF_Clock_0x4.root"}
         output_filename = ""
         for lbl in output_file_labels:
             if "filename=" in lbl:
@@ -213,9 +342,43 @@ class MetricsFetcher:
                 break
         splits_ = output_filename.split("_")
         metadata = {}
-        metadata["run_number"] = splits_[0].remove("R")
+        metadata["run_number"] = splits_[0].replace("R", "")
         metadata["run_type"] = splits_[1]
-        
+        # Get the rest of the metadata that should be in pairs with format 'key_value'
+        for i in range(2, len(splits_), 2):
+            metadata[splits_[i]] = splits_[i+1].replace(".root", "")
+        return metadata
+
+    def get_run_file_content(self):
+        if self.run_file_content is None:
+            self.fetch_run_file()
+        return self.run_file_content
+
+    def get_run_file_values_by_fem(self):
+        file_content = self.get_run_file_content()
+        if file_content is None:
+            return {}
+        return parse_run_file_by_fem(file_content)
+
+    def get_run_file_values_for_fem(self, fem_number):
+        values_by_fem = self.get_run_file_values_by_fem()
+        return values_by_fem.get(fem_number, {})
+
+    def get_run_file_values_for_aget(self, fem_number, aget_number):
+        values_by_fem = self.get_run_file_values_by_fem()
+        return values_by_fem.get(fem_number, {}).get(aget_number, {})
+
+    def get_total_threshold_for_fem_aget(self, fem_number, aget_number):
+        dac = self.get_run_file_values_for_aget(fem_number, aget_number).get('dac', None)
+        threshold = self.get_run_file_values_for_aget(fem_number, aget_number).get('threshold', None)
+        total_threshold = f"{dac} + {threshold}"
+        return total_threshold
+
+    def get_total_multiplicity_for_fem_aget(self, fem_number, aget_number):
+        mult_thr = self.get_run_file_values_for_aget(fem_number, aget_number).get('mult_thr', None)
+        mult_limit = self.get_run_file_values_for_aget(fem_number, aget_number).get('mult_limit', None)
+        total_multiplicity = f"{mult_thr}+{mult_limit}"
+        return total_multiplicity
 
 class MetricsFetcherSSH(MetricsFetcher):
     def __init__(self, url, hostname, username, password=None, key_filename=None):
@@ -227,7 +390,8 @@ class MetricsFetcherSSH(MetricsFetcher):
         self.ssh_connection = SSHConnection(self.hostname, 22, self.username, self.password, self.key_filename)
 
         self.error_output = None
-    
+        self.error_ssh_connection = None
+
     def fetch_metrics(self):
         try:
             with self.ssh_connection as ssh_con:
@@ -238,14 +402,29 @@ class MetricsFetcherSSH(MetricsFetcher):
                     if self.error_output != error_output:
                         print(f"Error: {error_output}. Is feminos-daq running?")
                         self.error_output = error_output
-                    self.metrics = None
+                    return None
                 response = stdout.read().decode()
                 self.metrics = parse_prometheus_metrics(response)
         except Exception as e:
-            if self.error_output != str(e):
+            if self.error_ssh_connection != str(e):
                 print(f"Error connecting to SSH: {e}")
-                self.error_output = str(e)
+                self.error_ssh_connection = str(e)
             self.metrics = None
+        return self.metrics
+
+    def fetch_run_file(self):
+        try:
+            run_filename = self.get_filename().replace(".root", ".run")
+            with self.ssh_connection as ssh_con:
+                with ssh_con.open_sftp() as sftp:
+                    with sftp.file(run_filename, "r") as file:
+                        self.run_file_content = file.read().decode()
+        except Exception as e:
+            if self.error_ssh_connection != str(e):
+                print(f"Error connecting to SSH: {e}")
+                self.error_ssh_connection = str(e)
+            self.run_file_content = None
+        return self.run_file_content
 
 if __name__ == "__main__":
     # Example usage of the MetricsFetcherSSH class
