@@ -121,7 +121,7 @@ class HVGUI:
         self.multidevice_frame = tk.LabelFrame(frame, text="Multi-device control", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
         self.multidevice_frame.pack(side="bottom", fill="both", expand=True)
 
-        left_frame = tk.Frame(self.multidevice_frame)
+        left_frame = tk.LabelFrame(self.multidevice_frame, text="Protocol settings", font=("", 12), labelanchor="n", padx=10, pady=10, bd=4)
         left_frame.pack(side="left", anchor="center")
         tk.Label(left_frame, text="Channel").grid(row=0, column=0)
         factor_label = tk.Label(left_frame, text="Factor")
@@ -191,7 +191,7 @@ class HVGUI:
             vset_entry.insert(0, self.channels_vset_guientries[ch_opt].get())
             self.vset_entries.append(vset_entry)
 
-        buttons_frame = tk.LabelFrame(left_frame, text="Actions")
+        buttons_frame = tk.Frame(left_frame)
         buttons_frame.grid(row=n_rows+1, column=0, columnspan=3)
 
         tk.Label(buttons_frame, text="Step(V):").grid(row=0, column=0, sticky="E", padx=0)
@@ -400,6 +400,20 @@ class HVGUI:
                 with self.channels_gui[ch_name].device_lock:
                     vmon = self.all_channels[ch_name].vmon
             return vmon
+        def have_all_channels_reached(vset, precision):
+            for ch, v in vset.items():
+                vmon = get_vmon(ch)
+                prec = precision.get(ch, 1)
+                if v - vmon > prec:
+                    return False
+            return True
+        
+        def are_all_channels_vset_above(vsets):
+            for ch, v in vsets.items():
+                vset = float(self.channels_vset_guilabel[ch].cget("text"))
+                if vset < v:
+                    return False
+            return True
 
         final_vset = {}
         factors = {}
@@ -420,7 +434,7 @@ class HVGUI:
             print("No valid voltage setpoints found")
             self.protocol_cleanup()
             return
-        
+
         # check that all channels involved are on
         for ch in final_vset.keys():
             if ch not in self.all_channels.keys():
@@ -442,16 +456,17 @@ class HVGUI:
         n_steps = int( max_vset / step ) + 1
         print(f"Number of steps: {n_steps}")
         vset = 0
-        channels_reached = 0
         for _ in range(n_steps):
             if self.protocol_stop_flag:
                 break
             vset = vset + step
             temp_vset = {k: round(vset/f) for k, f in zip(final_vset.keys(), factors.values())}
-            if any([t >= f for t, f in zip(temp_vset.values(), final_vset.values())]):
-                channels_reached += 1
             for ch, f in final_vset.items():
                 temp_vset[ch] = f if temp_vset[ch] >= f else temp_vset[ch]
+            if (are_all_channels_vset_above(temp_vset)
+                and have_all_channels_reached(temp_vset, precision)
+            ):
+                continue
             print(f"Step {_+1}: {temp_vset}")
 
             # simulate the checks results before applying the new vsets
@@ -500,13 +515,7 @@ class HVGUI:
             while not all_channels_reached:
                 if self.protocol_stop_flag:
                     break
-                all_channels_reached = True
-                for ch in temp_vset.keys():
-                    vmon = get_vmon(ch)
-                    prec = precision.get(ch, 1)
-                    if temp_vset[ch] - vmon > prec:
-                        all_channels_reached = False
-                        break
+                all_channels_reached = have_all_channels_reached(temp_vset, precision)
                 time.sleep(1) # wait 1 second before next check
                 time_waiting += 1 # use same time as the number of seconds waited
                 if time_waiting > timeout:
