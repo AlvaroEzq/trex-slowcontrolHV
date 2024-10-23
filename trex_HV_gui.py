@@ -239,11 +239,26 @@ class HVGUI:
         self.events_number_label = tk.Label(daq_frame, text="N/A")
         self.events_number_label.grid(row=4, column=1, sticky="e")
 
+        self.auto_add_var = tk.IntVar()
+        self.auto_add_var.set(0)
+        self.last_run_number_from_google_sheet = None
+        self.auto_add_var.trace("w", lambda *args : self.set_last_run_number_from_google_sheet())
+        self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var)
+        self.auto_add_to_googlesheet_checkbox.grid(row=5, column=0, columnspan=2, pady=10, sticky="nsew")
+
         self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
                                         command=self.add_run_to_googlesheet)
-        self.add_to_googlesheet_button.grid(row=5, column=0, columnspan=2, pady=10, sticky="nsew")
+        self.add_to_googlesheet_button.grid(row=6, column=0, columnspan=2, pady=10, sticky="nsew")
 
         threading.Thread(target=self.daq_metrics_loop, daemon=True).start()
+
+    def set_last_run_number_from_google_sheet(self, run_number=None):
+        def get_last_run_number_from_google_sheet():
+            self.last_run_number_from_google_sheet = utils.get_last_run_number_from_google_sheet()
+        if run_number is None and self.last_run_number_from_google_sheet is None:
+            threading.Thread(target=get_last_run_number_from_google_sheet).start()
+        elif run_number is not None:
+            self.last_run_number_from_google_sheet = run_number
 
     def daq_metrics_loop(self):
         self.metrics_fetcher = MetricsFetcherSSH(
@@ -273,6 +288,13 @@ class HVGUI:
                 self.daq_events_label.config(text="N/A")
                 self.events_number_label.config(text="N/A")
                 self.add_to_googlesheet_button.config(state="disabled")
+            if (
+                self.auto_add_var.get() == 1
+                and self.run_number_label.cget("text") != "N/A"
+                and self.last_run_number_from_google_sheet
+                and int(self.last_run_number_from_google_sheet) < int(self.run_number_label.cget("text"))
+            ):
+                self.add_run_to_googlesheet()
             time.sleep(2.5)
 
     def add_run_to_googlesheet(self):
@@ -280,6 +302,7 @@ class HVGUI:
             print("Adding run to Google Sheet...")
             self.add_to_googlesheet_button.config(state="disabled") # avoid spamming the button
             run_number = self.run_number_label.cget("text")
+            self.set_last_run_number_from_google_sheet(int(run_number))
             start_date = time.strftime("%d/%m/%Y %H:%M")
             metadata = self.metrics_fetcher.get_filename_metadata()
             run_type = metadata.get("run_type", "")

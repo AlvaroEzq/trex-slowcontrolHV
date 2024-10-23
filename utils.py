@@ -1,5 +1,6 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from logger import LOG_DIR
 
 GOOGLE_SHEET_SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 GOOGLE_SHEET_CREDENTIALS_FILENAME = "trex-slowcontrolHV-credentials.json"
@@ -14,6 +15,9 @@ def append_row_to_google_sheet(row, worksheet_number=3):
         print(f"Row appended in range {result['updates']['updatedRange']}")
     except Exception as e:
         print(f"Error while appending row to Google Sheet: {e}")
+    finally:
+        with open(LOG_DIR + "/run_list.txt", "a") as file:
+            file.write(str(row))
 
 def create_row_for_google_sheet(run_number, start_date, run_type, other_columns):
     try:
@@ -46,6 +50,20 @@ def create_row_for_google_sheet(run_number, start_date, run_type, other_columns)
         if not column_found:
             print(f"Column for channel {ch} not found in Google Sheet")
     return row
+
+def get_last_run_number_from_google_sheet(worksheet_number=3):
+    try:
+        creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEET_CREDENTIALS_FILENAME, GOOGLE_SHEET_SCOPE)
+        client = gspread.authorize(creds)
+        sheet = client.open(GOOGLE_SHEET_NAME)
+        page = sheet.get_worksheet(worksheet_number) # starts from 0
+        column_values = page.col_values(1)  # 1 refers to column A (run number)
+        run_numbers = [val for val in column_values if val]
+        print(f"Last run number from Google Sheet: {run_numbers[-1]}")
+        return run_numbers[-1]
+    except Exception as e:
+        print(f"Error while fetching last run number from Google Sheet: {e}")
+        return -1
 
     class GoogleSheetClient:
         def __init__(self, scope, credentials_filename, sheet_name):
