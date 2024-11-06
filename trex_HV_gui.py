@@ -13,7 +13,7 @@ import hvps
 import utils
 from checkframe import ChecksFrame
 from check import load_checks_from_toml_file
-from utilsgui import PrintLogger, ToolTip, enable_children
+from utilsgui import PrintLogger, ToolTip, enable_children, validate_numeric_entry_input
 from metrics_fetcher import MetricsFetcherSSH
 
 
@@ -82,6 +82,7 @@ class HVGUI:
     def create_gui(self):
         self.root = tk.Tk()
         self.root.title("TREX HV SC")
+        self.validate_numeric_input = (self.root.register(validate_numeric_entry_input), "%P")
 
         if self.caen_module is not None:
             self.caen_frame = tk.Frame(self.root)
@@ -187,17 +188,20 @@ class HVGUI:
             self.channel_optmenus.append(option_menu)
             selected_option.trace("w", lambda *args, row_number=i: option_changed(row_number, *args))
 
-            factor_entry = tk.Entry(left_frame, justify="center", width=5)
+            factor_entry = tk.Entry(left_frame, justify="center", width=5,
+                                validate="key", validatecommand=self.validate_numeric_input)
             factor_entry.grid(row=i+1, column=1, padx=5)
             factor_entry.insert(0, "1" if ch_opt != "cathode" else "0.286") # 0.286 = 80MOhm/(200+80)MOhm to get last ring voltage (cathode voltage divider)
             self.factor_entries.append(factor_entry)
 
-            precision_entry = tk.Entry(left_frame, justify="center", width=5)
+            precision_entry = tk.Entry(left_frame, justify="center", width=5,
+                                validate="key", validatecommand=self.validate_numeric_input)
             precision_entry.grid(row=i+1, column=2, padx=5)
             precision_entry.insert(0, "1" if ch_opt != "cathode" else "50")
             self.precision_entries.append(precision_entry)
 
-            vset_entry = tk.Entry(left_frame, justify="center", width=7)
+            vset_entry = tk.Entry(left_frame, justify="center", width=7,
+                                validate="key", validatecommand=self.validate_numeric_input)
             vset_entry.grid(row=i+1, column=3, padx=5)
             vset_entry.insert(0, self.channels_vset_guientries[ch_opt].get())
             self.vset_entries.append(vset_entry)
@@ -207,7 +211,8 @@ class HVGUI:
 
         tk.Label(buttons_frame, text="Step(V):").grid(row=0, column=0, sticky="E", padx=0)
         self.step_var = tk.StringVar()
-        step_entry = tk.Entry(buttons_frame, justify="right", width=5, textvariable=self.step_var)
+        step_entry = tk.Entry(buttons_frame, justify="right", width=5, textvariable=self.step_var,
+                                validate="key", validatecommand=self.validate_numeric_input)
         step_entry.grid(row=1, column=0, sticky="W", padx=0)
         step_entry.insert(0, "100")
         self.step_entry = step_entry
@@ -358,7 +363,8 @@ class HVGUI:
         self.trip_count_label.grid(row=3, column=1, sticky="e")
         self.trip_count.trace("w", lambda *args: self.trip_count_label.config(text=str(self.trip_count.get())))
         tk.Label(triprec_frame, text=" / ").grid(row=3, column=2, sticky="ew", padx=0)
-        self.max_count_entry = tk.Entry(triprec_frame, width=5, justify="left")
+        self.max_count_entry = tk.Entry(triprec_frame, width=5, justify="left",
+                                validate="key", validatecommand=self.validate_numeric_input)
         self.max_count_entry.insert(0, "3")
         self.max_count_entry.grid(row=3, column=3, sticky="w")
 

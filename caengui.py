@@ -237,7 +237,8 @@ class CaenHVPSGUI(DeviceGUI):
             set_button.grid(row=i + 2, column=3, sticky="NSW", padx=0, pady=5)
             self.set_buttons.append(set_button)
 
-            vset_entry = tk.Entry(channels_frame, width=7, justify="center")
+            vset_entry = tk.Entry(channels_frame, width=7, justify="center",
+                                validate="key", validatecommand=self.validate_numeric_input)
             vset_entry.insert(0, str(self.device.channels[i].vset))
             vset_entry.grid(row=i + 2, column=4, sticky="NSE", padx=0, pady=5)
             vset_entry.bind(

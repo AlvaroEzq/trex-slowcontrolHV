@@ -112,7 +112,8 @@ class SpellmanFrame(DeviceGUI):
         arc_text.grid(row=3, column=0, sticky='nse')
         arc_label.grid(row=3, column=1, sticky='nsw')
 
-        voltage_dac_entry = tk.Entry(marco, width=8, justify='right')
+        voltage_dac_entry = tk.Entry(marco, width=8, justify='right',
+                                validate="key", validatecommand=self.validate_numeric_input)
         voltage_dac_entry.insert(0, f"{self.device.vset:.0f}")
         voltage_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_vset)
@@ -121,7 +122,8 @@ class SpellmanFrame(DeviceGUI):
 
         voltage_dac_entry.grid(row=1, column=2, sticky='nsw', padx=0)
         voltage_dac_set.grid(row=1, column=1, sticky='nse', padx=0)
-        current_dac_entry = tk.Entry(marco, width=8, justify='right')
+        current_dac_entry = tk.Entry(marco, width=8, justify='right',
+                                validate="key", validatecommand=self.validate_numeric_input)
         current_dac_entry.insert(0, f"{self.device.iset:.5f}")
         current_dac_entry.bind(
             "<Return>", lambda event: self.issue_command(self.set_iset)
