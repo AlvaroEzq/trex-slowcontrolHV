@@ -86,4 +86,37 @@ def get_last_run_number_from_google_sheet(worksheet_number=3):
         def __exit__(self, exc_type, exc_value, traceback):
             pass
 
-    
+import requests
+import json
+import os
+import datetime as dt
+def write_to_log_file(message:str, log_filename:str, print_message:bool=True):
+    if print_message:
+        print(message)
+    if log_filename:
+        filename = LOG_DIR + "/" + log_filename
+        if not os.path.isfile(filename):
+            try:
+                # create the file if it does not exist
+                with open(filename, 'w') as file:
+                    pass
+                print("Writing to new file:", filename)
+            except:
+                raise Exception("Invalid file or directory:", filename)
+
+        with open(filename, 'a') as file:
+            time = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            file.write(time + " " + message + '\n')
+
+def send_slack_message(message:str, log_filename="", print_message=True):
+    #### webhook to Alvaro chat
+    webhook_url = ""
+    #### webhook to trex-operations channel
+    #webhook_url = ""
+    write_to_log_file(message, log_filename, print_message=print_message)
+    write_to_log_file(message, "slack.log", print_message=False) # always write to slack.log too
+    slack_data = {'text': message}
+    try:
+        requests.post(webhook_url, data=json.dumps(slack_data), headers={'Content-Type': 'application/json'})
+    except Exception as e:
+        print(e)
