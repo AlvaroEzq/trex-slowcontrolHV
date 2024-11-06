@@ -1,5 +1,14 @@
 import tkinter as tk
 
+def enable_children(parent, enabled=True):
+    for child in parent.winfo_children():
+        wtype = child.winfo_class()
+        # print(wtype)
+        if wtype not in ('Frame', 'Labelframe', 'TFrame', 'TLabelframe'):
+            child.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+        else:
+            enable_children(child, enabled)
+
 class ToolTip:
     def __init__(self, widget, text):
         self.widget = widget
