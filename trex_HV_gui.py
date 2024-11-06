@@ -380,7 +380,7 @@ class HVGUI:
         if self.protocol_thread and self.protocol_thread.is_alive():
             print("Protocol thread already running")
             return
-        self.protocol_thread = threading.Thread(target=self.raise_voltage_protocol, args=(step_number,))
+        self.protocol_thread = utils.ExceptionThread(target=self.raise_voltage_protocol, args=(step_number,))
         self.protocol_thread.start()
 
     def turn_off_protocol_thread(self, step = 100):
@@ -451,6 +451,7 @@ class HVGUI:
         if len(final_vset) < 1: # makes no sense to use this with less than 2 channels
             print("No valid voltage setpoints found")
             self.protocol_cleanup()
+            raise ValueError("No valid voltage setpoints found")
             return
 
         # check that all channels involved are on
@@ -458,11 +459,13 @@ class HVGUI:
             if ch not in self.all_channels.keys():
                 print(f"Channel {ch} not found in the list of available channels")
                 self.protocol_cleanup()
+                raise NameError(f"Channel {ch} not found in the list of available channels")
                 return
             with self.channels_gui[ch].device_lock:
                 if not self.all_channels[ch].on:
-                    print(f"Channel {ch} is off. Turn it on before running the protocol")
+                    #print(f"Channel {ch} is off. Turn it on before running the protocol")
                     self.protocol_cleanup()
+                    raise PermissionError(f"Channel {ch} is off. Turn it on before running the protocol")
                     return
 
         if self.step_entry:
@@ -495,6 +498,7 @@ class HVGUI:
             if not self.checksframe.simulate_check_conditions(parameters_values):
                 print("Step did not pass the multidevice checks.")
                 self.protocol_cleanup()
+                raise AssertionError("Step did not pass the multidevice checks.")
                 return
             # individual device checks
             for device, gui in self.all_guis.items():
@@ -502,6 +506,7 @@ class HVGUI:
                     if not gui.checksframe.simulate_check_conditions(parameters_values):
                         print(f"Step did not pass the {device} checks.")
                         self.protocol_cleanup()
+                        raise AssertionError(f"Step did not pass the {device} checks.")
                         return
                 except AttributeError:
                     pass
@@ -524,6 +529,7 @@ class HVGUI:
                 except Exception as e:
                     print(f"Error setting voltage for channel {ch}: {e}")
                     self.protocol_cleanup()
+                    raise SystemError(f"Error setting voltage for channel {ch}: {e}")
                     return
                 # self.all_channels[ch].vset = v
             
@@ -539,6 +545,8 @@ class HVGUI:
                 if time_waiting > timeout:
                     print("Timeout waiting for channels to reach the setpoints. Stopping protocol.")
                     self.protocol_stop_flag = True
+                    self.protocol_cleanup()
+                    raise TimeoutError("Timeout waiting for channels to reach the setpoints.")
             if self.protocol_stop_flag:
                 break
             time.sleep(2) # wait 3 seconds before next step

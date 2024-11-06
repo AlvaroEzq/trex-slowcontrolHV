@@ -120,3 +120,17 @@ def send_slack_message(message:str, log_filename="", print_message=True):
         requests.post(webhook_url, data=json.dumps(slack_data), headers={'Content-Type': 'application/json'})
     except Exception as e:
         print(e)
+
+import threading
+class ExceptionThread(threading.Thread):
+    def __init__(self, target=None, args=(), kwargs=None, **thread_kwargs):
+        super().__init__(target=target, args=args, kwargs=kwargs, **thread_kwargs)
+        self.exception = None
+
+    def run(self):
+        try:
+            # Run the target function, if provided
+            if self._target:
+                self._target(*self._args, **(self._kwargs or {}))
+        except Exception as e:
+            self.exception = e
