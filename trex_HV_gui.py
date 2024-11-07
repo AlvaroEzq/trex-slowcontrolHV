@@ -67,6 +67,7 @@ class HVGUI:
         self.add_to_googlesheet_thread = None
 
         # trip recovery variables
+        self.triprec_active = None
         self.trip_detected = True
         self.trip_count = None
         self.trip_count_label = None
@@ -384,55 +385,72 @@ class HVGUI:
 
         #self.triprec_thread = threading.Thread(target=self.trip_recovery_loop, daemon=True).start()
 
-    def activate_trip_recovery(self):
-        # get the channels selected for trip recovery from the protocol settings frame
-        self.triprec_channels = [ch.cget("text") for ch in self.channel_optmenus if ch.cget("text") != ""]
-        # block the protocol settings frame
-        enable_children(self.protocol_settings_frame, False)
-        self.triprec_active = True
-        self.trip_count.set(0) # reset the trip counter
-        utils.write_to_log_file("Trip recovery activated.", "trip_recovery.log")
-        self.triprec_thread = threading.Thread(target=self.trip_recovery_loop, daemon=True)
-        self.triprec_thread.start()
+    def trace_triprec_active(self, *args):
+        def activate_trip_recovery():
+            if self.triprec_thread and self.triprec_thread.is_alive():
+                utils.write_to_log_file("Trip recovery thread already running.", "trip_recovery.log")
+                return
+            # get the channels selected for trip recovery from the protocol settings frame
+            self.triprec_channels = [ch.cget("text") for ch in self.channel_optmenus if ch.cget("text") != ""]
+            # block the protocol settings frame
+            enable_children(self.protocol_settings_frame, False)
+            self.trip_count.set(0) # reset the trip counter
+            utils.write_to_log_file("Trip recovery activated.", "trip_recovery.log")
+            self.triprec_thread = threading.Thread(target=self.trip_recovery_loop, daemon=True)
+            self.triprec_thread.start()
+            self.triprec_activate_button.config(state="disabled")
+            self.triprec_desactivate_button.config(state="normal")
 
-    def desactivate_trip_recovery(self):
-        self.triprec_active = False
-        # wait for the thread to finish due to the flag self.triprec_active being set to False
-        if self.triprec_thread and self.triprec_thread.is_alive():
-            self.triprec_thread.join()
-        self.trip_count.set(0) # reset the trip counter
-        enable_children(self.protocol_settings_frame, True)
-        self.triprec_channels = []
-        utils.write_to_log_file("Trip recovery desactivated.", "trip_recovery.log")
+        def desactivate_trip_recovery():
+            self.triprec_desactivate_button.config(state="disabled") # first disable the button to avoid multiple threads
+            # wait for the thread to finish due to the flag self.triprec_active being set to False
+            if self.triprec_thread and self.triprec_thread.is_alive():
+                self.triprec_thread.join() # this could block the main thread if it is not launched in a separate thread
+            enable_children(self.protocol_settings_frame, True)
+            self.triprec_channels = []
+            utils.write_to_log_file("Trip recovery desactivated.", "trip_recovery.log")
+            self.triprec_activate_button.config(state="normal")
+
+        if self.triprec_active.get():
+            activate_trip_recovery()
+        else:
+            threading.Thread(target=desactivate_trip_recovery).start()
 
     def trip_recovery_loop(self):
         while True:
-            if not self.triprec_active:
-                break # exit the loop to end the thread running this function
             time.sleep(1)
+            if not self.triprec_active.get():
+                return # instead of break to avoid setting active to False again
             self.trip_detected = self.is_there_a_trip()
             if self.trip_detected:
                 self.trip_count.set(self.trip_count.get() + 1)
-                if self.trip_count.get() >= int(self.max_count_entry.get()):
-                    utils.send_slack_message("WARNING: Maximum trip count reached. Trip recovery desactivated.")
-                    self.triprec_active = False
+                if self.trip_count.get() > int(self.max_count_entry.get()):
+                    utils.send_slack_message("WARNING: Maximum trip count reached.")
                     break
                 utils.send_slack_message("Trip number " + str(self.trip_count.get()) + " detected. Starting recovery protocol...", "trip_recovery.log")
-                self.wait_for_channels_to_be_down(channels=self.triprec_channels)
-                #utils.send_slack_message("Channels are down. Clearing trip...")
-                time.sleep(5)
+
+                try:
+                    self.wait_for_channels_to_be_down(channels=self.triprec_channels, timeout=5*60, active_flag_attribute="triprec_active")
+                except TimeoutError as e:
+                    utils.send_slack_message(f"Error while waiting for channels to be down: {e}.", "trip_recovery.log")
+                    break
+                except KeyboardInterrupt as e:
+                    utils.send_slack_message(f"Error while waiting for channels to be down: {e}.", "trip_recovery.log")
+                    return # instead of break to avoid setting active to False again
+
                 self.clear_trip(channels=self.triprec_channels)
                 sleep_time_minutes = 0
                 if self.triprec_cooldown_entry:
                     sleep_time_minutes = float(self.triprec_cooldown_entry.get())
                 if not self.sleep_time_with_escape(sleep_time_minutes*60, "triprec_active"):
-                    break
+                    return # instead of break to avoid setting active to False again
                 self.turn_on_channels(channels=self.triprec_channels)
                 self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
+
                 protocol_finished_with_exceptions = False
                 max_attempts = 10
                 attempt = 0
-                while self.triprec_active and attempt < max_attempts:
+                while self.triprec_active.get() and attempt < max_attempts:
                     attempt += 1
                     self.raise_voltage_protocol_thread()
                     try:
@@ -451,7 +469,12 @@ class HVGUI:
                             self.turn_on_channels(channels=self.triprec_channels)
                             self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
                             continue
+                    except KeyboardInterrupt as e:
+                        utils.send_slack_message(f"Error while recovering trip: {e}.", "trip_recovery.log")
+                        protocol_finished_with_exceptions = True
+                        break
                     except Exception as e:
+                        utils.send_slack_message(f"Unexpected error while recovering trip: {e}.")
                         protocol_finished_with_exceptions = True
                         break
                 if protocol_finished_with_exceptions:
@@ -461,6 +484,7 @@ class HVGUI:
                         utils.send_slack_message("Trip recovery failed.", "trip_recovery.log")
                 else:
                     utils.send_slack_message("Trip recovery finished succesfully.", "trip_recovery.log")
+        self.triprec_active.set(False)
 
 
     def is_there_a_trip(self):
@@ -485,7 +509,10 @@ class HVGUI:
             with gui.device_lock:
                 channel.turn_on()
 
-    def wait_for_channels_to_be_down(self, channels=[], timeout=90):
+    def wait_for_channels_to_be_down(self, channels=[], timeout=90, active_flag_attribute:str = ""):
+        # check that the escape flag attribute is present in the object
+        if active_flag_attribute and not hasattr(self, active_flag_attribute):
+            raise AttributeError(f"Attribute {active_flag_attribute} not found")
         all_channels_down = False
         time_waiting = 0
         while not all_channels_down:
@@ -503,12 +530,27 @@ class HVGUI:
             time.sleep(1)
             time_waiting += 1
             if time_waiting > timeout:
-                raise TimeoutError("Timeout waiting for channels to be down.")
+                raise TimeoutError("Timeout waiting for channels to be down")
+                break
+            active_flag_value = getattr(self, active_flag_attribute) if active_flag_attribute else True
+            if isinstance(active_flag_value, tk.Variable):
+                active_flag_value = active_flag_value.get()
+            if not active_flag_value:
+                raise KeyboardInterrupt(f"Waiting for channels to be down manually stopped due to {active_flag_attribute}")
                 break
 
-    def wait_for_raise_protocol_to_finish(self):
+    def wait_for_raise_protocol_to_finish(self, active_flag_attribute:str = ""):
+        # check that the escape flag attribute is present in the object
+        if active_flag_attribute and not hasattr(self, active_flag_attribute):
+            raise AttributeError(f"Attribute {active_flag_attribute} not found")
         if self.protocol_thread:
-            self.protocol_thread.join()
+            while self.protocol_thread.is_alive():
+                time.sleep(0.1)
+                active_flag_value = getattr(self, active_flag_attribute) if active_flag_attribute else True
+                if isinstance(active_flag_value, tk.Variable):
+                    active_flag_value = active_flag_value.get()
+                if not active_flag_value:
+                    raise KeyboardInterrupt(f"Protocol manually stopped due to {active_flag_attribute}")
         if self.protocol_thread.exception:
             raise self.protocol_thread.exception
 
