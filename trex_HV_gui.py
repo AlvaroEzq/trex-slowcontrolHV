@@ -350,20 +350,34 @@ class HVGUI:
         triprec_frame = tk.LabelFrame(frame, text="Trip recovery", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
         triprec_frame.grid(row=0, column=0, sticky="nsew")
 
-        triprec_activate_button = tk.Button(triprec_frame, text="Activate", command= lambda: self.activate_trip_recovery())
-        triprec_activate_button.grid(row=1, column=0, pady=10, sticky="n")
+        upper_frame = tk.Frame(triprec_frame)
+        upper_frame.grid(row=0, column=0, sticky="nsew")
+        self.triprec_activate_button = tk.Button(upper_frame, text="Activate", command= lambda: self.triprec_active.set(True))
+        self.triprec_activate_button.grid(row=1, column=0, pady=10, sticky="n")
 
-        triprec_desactivate_button = tk.Button(triprec_frame, text="Desactivate", command = lambda: self.desactivate_trip_recovery())
-        triprec_desactivate_button.grid(row=2, column=0, pady=10, sticky="n")
+        self.triprec_desactivate_button = tk.Button(upper_frame, text="Desactivate", command = lambda: self.triprec_active.set(False))
+        self.triprec_desactivate_button.grid(row=1, column=1, pady=10, sticky="n")
 
-        tk.Label(triprec_frame, text="Trip count").grid(row=3, column=0, sticky="w")
+        self.triprec_active = tk.BooleanVar(value=False)
+        self.triprec_active.trace("w", self.trace_triprec_active)
+
+        bottom_frame = tk.Frame(triprec_frame)
+        bottom_frame.grid(row=1, column=0, sticky="nsew")
+        triprec_cooldown_label = tk.Label(bottom_frame, text="Cooldown (min): ")
+        triprec_cooldown_label.grid(row=2, column=0, columnspan=3, sticky="w")
+        self.triprec_cooldown_entry = tk.Entry(bottom_frame, width=4, justify="right",
+                                validate="key", validatecommand=self.validate_numeric_input)
+        self.triprec_cooldown_entry.insert(0, "5")
+        self.triprec_cooldown_entry.grid(row=2, column=3, sticky="w")
+
+        tk.Label(bottom_frame, text="Trip count: ").grid(row=3, column=0, sticky="w")
         self.trip_count = tk.IntVar()
         self.trip_count.set(0)
-        self.trip_count_label = tk.Label(triprec_frame, text="0")
+        self.trip_count_label = tk.Label(bottom_frame, text="0")
         self.trip_count_label.grid(row=3, column=1, sticky="e")
         self.trip_count.trace("w", lambda *args: self.trip_count_label.config(text=str(self.trip_count.get())))
-        tk.Label(triprec_frame, text=" / ").grid(row=3, column=2, sticky="ew", padx=0)
-        self.max_count_entry = tk.Entry(triprec_frame, width=5, justify="left",
+        tk.Label(bottom_frame, text=" / ").grid(row=3, column=2, sticky="ew", padx=0)
+        self.max_count_entry = tk.Entry(bottom_frame, width=4, justify="right",
                                 validate="key", validatecommand=self.validate_numeric_input)
         self.max_count_entry.insert(0, "3")
         self.max_count_entry.grid(row=3, column=3, sticky="w")
@@ -408,7 +422,11 @@ class HVGUI:
                 #utils.send_slack_message("Channels are down. Clearing trip...")
                 time.sleep(5)
                 self.clear_trip(channels=self.triprec_channels)
-                time.sleep(5)
+                sleep_time_minutes = 0
+                if self.triprec_cooldown_entry:
+                    sleep_time_minutes = float(self.triprec_cooldown_entry.get())
+                if not self.sleep_time_with_escape(sleep_time_minutes*60, "triprec_active"):
+                    break
                 self.turn_on_channels(channels=self.triprec_channels)
                 self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
                 protocol_finished_with_exceptions = False
@@ -493,6 +511,21 @@ class HVGUI:
             self.protocol_thread.join()
         if self.protocol_thread.exception:
             raise self.protocol_thread.exception
+
+    def sleep_time_with_escape(self, sleep_time_seconds, active_flag_attribute:str = ""):
+        # check that the escape flag attribute is present in the object
+        if active_flag_attribute and not hasattr(self, active_flag_attribute):
+            raise AttributeError(f"Attribute {active_flag_attribute} not found")
+        # sleep for sleep_time seconds, checking every second if the escape flag is set
+        # does not check the escape flag if it is not given
+        for _ in range(int(sleep_time_seconds)):
+            time.sleep(1)
+            active_flag_value = getattr(self, active_flag_attribute) if active_flag_attribute else True
+            if isinstance(active_flag_value, tk.Variable):
+                active_flag_value = active_flag_value.get()
+            if not active_flag_value:
+                return False
+        return True
 
     def stop_protocol(self):
         self.protocol_stop_flag = True
