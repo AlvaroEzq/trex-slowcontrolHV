@@ -452,7 +452,7 @@ class HVGUI:
                 attempt = 0
                 while self.triprec_active.get() and attempt < max_attempts:
                     attempt += 1
-                    self.raise_voltage_protocol_thread()
+                    self.raise_voltage_protocol_thread(self.step_var.get())
                     try:
                         self.wait_for_raise_protocol_to_finish()
                         break
