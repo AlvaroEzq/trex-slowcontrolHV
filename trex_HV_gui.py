@@ -107,9 +107,7 @@ class HVGUI:
             self.channels_vmon_guilabel['cathode'] = self.spellman_gui.labels['voltage_s']
             self.channels_vset_guientries['cathode'] = self.spellman_gui.labels['voltage_dac_s']
             self.channels_vset_guilabel['cathode'] = self.spellman_gui.labels['voltage_dac_label']
-            
-        if self.caen_module is not None and self.spellman_module is not None:
-            self.create_multidevice_frame(self.spellman_frame)
+
 
         scrolled_text_frame = self.caen_frame if self.caen_frame else self.root
         # State to track if the widget is hidden
@@ -126,6 +124,9 @@ class HVGUI:
         daq_frame = tk.Frame(scrolled_text_frame)
         daq_frame.pack(side="right", fill="both", expand=True)
         self.create_daq_frame(daq_frame)
+
+        if self.caen_module is not None and self.spellman_module is not None:
+            self.create_multidevice_frame(self.spellman_frame)
 
         self.root.mainloop()
         self.reset_logging()
