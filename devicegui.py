@@ -5,6 +5,7 @@ import time
 from abc import ABC, abstractmethod
 
 from logger import ChannelState
+from utilsgui import validate_numeric_entry_input
 
 class DeviceGUI(ABC):
     """
@@ -74,6 +75,7 @@ class DeviceGUI(ABC):
             start_mainloop = True
         else:
             self.root = parent_frame
+        self.validate_numeric_input = (self.root.register(validate_numeric_entry_input), "%P")
         
         self.command_queue = queue.Queue()
         self.device_lock = threading.Lock()

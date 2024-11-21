@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import tkinter as tk
 import argparse
-import datetime as dt
-import os
-
+import threading
 import hvps
 
 CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
@@ -14,34 +12,7 @@ from checkframe import ChecksFrame
 from utilsgui import ToolTip
 from logger import ChannelState, LOG_DIR
 from devicegui import DeviceGUI
-
-import requests
-import json
-def send_slack_message(message:str, log=True):
-    #### webhook to Alvaro chat
-    # webhook_url = ""
-    #### webhook to trex-operations channel
-    webhook_url = ""
-
-    slack_data = {'text': message}
-    try:
-        requests.post(webhook_url, data=json.dumps(slack_data), headers={'Content-Type': 'application/json'})
-    except Exception as e:
-        print(e)
-    if log:
-        filename = LOG_DIR + "/slack.log"
-        if not os.path.isfile(filename):
-            try:
-                # create the file if it does not exist
-                with open(filename, 'w') as file:
-                    pass
-                print("Writing to new file:", filename)
-            except:
-                print("Invalid file or directory:", filename)
-
-        with open(filename, 'a') as file:
-            time = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            file.write(time + " " + message + '\n')
+from utils import send_slack_message
 
 class CaenHVPSGUI(DeviceGUI):
     def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False):
@@ -266,7 +237,8 @@ class CaenHVPSGUI(DeviceGUI):
             set_button.grid(row=i + 2, column=3, sticky="NSW", padx=0, pady=5)
             self.set_buttons.append(set_button)
 
-            vset_entry = tk.Entry(channels_frame, width=7, justify="center")
+            vset_entry = tk.Entry(channels_frame, width=7, justify="center",
+                                validate="key", validatecommand=self.validate_numeric_input)
             vset_entry.insert(0, str(self.device.channels[i].vset))
             vset_entry.grid(row=i + 2, column=4, sticky="NSE", padx=0, pady=5)
             vset_entry.bind(

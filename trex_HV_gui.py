@@ -13,7 +13,7 @@ import hvps
 import utils
 from checkframe import ChecksFrame
 from check import load_checks_from_toml_file
-from utilsgui import PrintLogger, ToolTip
+from utilsgui import PrintLogger, ToolTip, enable_children, validate_numeric_entry_input
 from metrics_fetcher import MetricsFetcherSSH
 
 
@@ -66,11 +66,24 @@ class HVGUI:
         self.add_to_googlesheet_button = None
         self.add_to_googlesheet_thread = None
 
+        # trip recovery variables
+        self.triprec_active = None
+        self.trip_detected = True
+        self.trip_count = None
+        self.trip_count_label = None
+        self.max_count_entry = None
+        self.triprec_thread = None
+        self.triprec_activate_button = None
+        self.triprec_desactivate_button = None
+        self.triprec_channels = []
+        self.triprec_frame = None
+
         self.create_gui()
 
     def create_gui(self):
         self.root = tk.Tk()
         self.root.title("TREX HV SC")
+        self.validate_numeric_input = (self.root.register(validate_numeric_entry_input), "%P")
 
         if self.caen_module is not None:
             self.caen_frame = tk.Frame(self.root)
@@ -176,17 +189,20 @@ class HVGUI:
             self.channel_optmenus.append(option_menu)
             selected_option.trace("w", lambda *args, row_number=i: option_changed(row_number, *args))
 
-            factor_entry = tk.Entry(left_frame, justify="center", width=5)
+            factor_entry = tk.Entry(left_frame, justify="center", width=5,
+                                validate="key", validatecommand=self.validate_numeric_input)
             factor_entry.grid(row=i+1, column=1, padx=5)
             factor_entry.insert(0, "1" if ch_opt != "cathode" else "0.286") # 0.286 = 80MOhm/(200+80)MOhm to get last ring voltage (cathode voltage divider)
             self.factor_entries.append(factor_entry)
 
-            precision_entry = tk.Entry(left_frame, justify="center", width=5)
+            precision_entry = tk.Entry(left_frame, justify="center", width=5,
+                                validate="key", validatecommand=self.validate_numeric_input)
             precision_entry.grid(row=i+1, column=2, padx=5)
             precision_entry.insert(0, "1" if ch_opt != "cathode" else "50")
             self.precision_entries.append(precision_entry)
 
-            vset_entry = tk.Entry(left_frame, justify="center", width=7)
+            vset_entry = tk.Entry(left_frame, justify="center", width=7,
+                                validate="key", validatecommand=self.validate_numeric_input)
             vset_entry.grid(row=i+1, column=3, padx=5)
             vset_entry.insert(0, self.channels_vset_guientries[ch_opt].get())
             self.vset_entries.append(vset_entry)
@@ -196,7 +212,8 @@ class HVGUI:
 
         tk.Label(buttons_frame, text="Step(V):").grid(row=0, column=0, sticky="E", padx=0)
         self.step_var = tk.StringVar()
-        step_entry = tk.Entry(buttons_frame, justify="right", width=5, textvariable=self.step_var)
+        step_entry = tk.Entry(buttons_frame, justify="right", width=5, textvariable=self.step_var,
+                                validate="key", validatecommand=self.validate_numeric_input)
         step_entry.grid(row=1, column=0, sticky="W", padx=0)
         step_entry.insert(0, "100")
         self.step_entry = step_entry
@@ -210,9 +227,11 @@ class HVGUI:
         self.protocol_stop_button = tk.Button(buttons_frame, text="Stop", command= lambda: threading.Thread(target=self.stop_protocol).start(), fg="red4")
         self.protocol_stop_button.grid(row=0, column=2, rowspan=2, sticky="nsew")
         self.protocol_stop_button.grid_remove()
+        self.protocol_settings_frame = left_frame
 
         right_frame = tk.Frame(self.multidevice_frame, padx=10, pady=10)
-        right_frame.pack(side="left", anchor="center", padx=20)
+        right_frame.pack(side="right", anchor="center", padx=20)
+        self.create_trip_recovery_frame(right_frame)
         all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
         self.checksframe = ChecksFrame(right_frame, checks=self.checks, channels=self.all_channels, locks=all_devices_locks)
     def create_daq_frame(self, frame):
@@ -328,6 +347,228 @@ class HVGUI:
         self.add_to_googlesheet_thread = threading.Thread(target=add_run)
         self.add_to_googlesheet_thread.start()
 
+    def create_trip_recovery_frame(self, frame):
+        triprec_frame = tk.LabelFrame(frame, text="Trip recovery", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
+        triprec_frame.grid(row=0, column=0, sticky="nsew")
+
+        upper_frame = tk.Frame(triprec_frame)
+        upper_frame.grid(row=0, column=0, sticky="nsew")
+        self.triprec_activate_button = tk.Button(upper_frame, text="Activate", command= lambda: self.triprec_active.set(True))
+        self.triprec_activate_button.grid(row=1, column=0, pady=10, sticky="n")
+
+        self.triprec_desactivate_button = tk.Button(upper_frame, text="Desactivate", command = lambda: self.triprec_active.set(False))
+        self.triprec_desactivate_button.grid(row=1, column=1, pady=10, sticky="n")
+
+        self.triprec_active = tk.BooleanVar(value=False)
+        self.triprec_active.trace("w", self.trace_triprec_active)
+
+        bottom_frame = tk.Frame(triprec_frame)
+        bottom_frame.grid(row=1, column=0, sticky="nsew")
+        triprec_cooldown_label = tk.Label(bottom_frame, text="Cooldown (min): ")
+        triprec_cooldown_label.grid(row=2, column=0, columnspan=3, sticky="w")
+        self.triprec_cooldown_entry = tk.Entry(bottom_frame, width=4, justify="right",
+                                validate="key", validatecommand=self.validate_numeric_input)
+        self.triprec_cooldown_entry.insert(0, "5")
+        self.triprec_cooldown_entry.grid(row=2, column=3, sticky="w")
+
+        tk.Label(bottom_frame, text="Trip count: ").grid(row=3, column=0, sticky="w")
+        self.trip_count = tk.IntVar()
+        self.trip_count.set(0)
+        self.trip_count_label = tk.Label(bottom_frame, text="0")
+        self.trip_count_label.grid(row=3, column=1, sticky="e")
+        self.trip_count.trace("w", lambda *args: self.trip_count_label.config(text=str(self.trip_count.get())))
+        tk.Label(bottom_frame, text=" / ").grid(row=3, column=2, sticky="ew", padx=0)
+        self.max_count_entry = tk.Entry(bottom_frame, width=4, justify="right",
+                                validate="key", validatecommand=self.validate_numeric_input)
+        self.max_count_entry.insert(0, "3")
+        self.max_count_entry.grid(row=3, column=3, sticky="w")
+
+        #self.triprec_thread = threading.Thread(target=self.trip_recovery_loop, daemon=True).start()
+
+    def trace_triprec_active(self, *args):
+        def activate_trip_recovery():
+            if self.triprec_thread and self.triprec_thread.is_alive():
+                utils.write_to_log_file("Trip recovery thread already running.", "trip_recovery.log")
+                return
+            # get the channels selected for trip recovery from the protocol settings frame
+            self.triprec_channels = [ch.cget("text") for ch in self.channel_optmenus if ch.cget("text") != ""]
+            # block the protocol settings frame
+            enable_children(self.protocol_settings_frame, False)
+            self.trip_count.set(0) # reset the trip counter
+            utils.write_to_log_file("Trip recovery activated.", "trip_recovery.log")
+            self.triprec_thread = threading.Thread(target=self.trip_recovery_loop, daemon=True)
+            self.triprec_thread.start()
+            self.triprec_activate_button.config(state="disabled")
+            self.triprec_desactivate_button.config(state="normal")
+
+        def desactivate_trip_recovery():
+            self.triprec_desactivate_button.config(state="disabled") # first disable the button to avoid multiple threads
+            # wait for the thread to finish due to the flag self.triprec_active being set to False
+            if self.triprec_thread and self.triprec_thread.is_alive():
+                self.triprec_thread.join() # this could block the main thread if it is not launched in a separate thread
+            enable_children(self.protocol_settings_frame, True)
+            self.triprec_channels = []
+            utils.write_to_log_file("Trip recovery desactivated.", "trip_recovery.log")
+            self.triprec_activate_button.config(state="normal")
+
+        if self.triprec_active.get():
+            activate_trip_recovery()
+        else:
+            threading.Thread(target=desactivate_trip_recovery).start()
+
+    def trip_recovery_loop(self):
+        while True:
+            time.sleep(1)
+            if not self.triprec_active.get():
+                return # instead of break to avoid setting active to False again
+            self.trip_detected = self.is_there_a_trip()
+            if self.trip_detected:
+                self.trip_count.set(self.trip_count.get() + 1)
+                if self.trip_count.get() > int(self.max_count_entry.get()):
+                    utils.send_slack_message("WARNING: Maximum trip count reached.")
+                    break
+                utils.send_slack_message("Trip number " + str(self.trip_count.get()) + " detected. Starting recovery protocol...", "trip_recovery.log")
+
+                try:
+                    self.wait_for_channels_to_be_down(channels=self.triprec_channels, timeout=5*60, active_flag_attribute="triprec_active")
+                except TimeoutError as e:
+                    utils.send_slack_message(f"Error while waiting for channels to be down: {e}.", "trip_recovery.log")
+                    break
+                except KeyboardInterrupt as e:
+                    utils.send_slack_message(f"Error while waiting for channels to be down: {e}.", "trip_recovery.log")
+                    return # instead of break to avoid setting active to False again
+
+                self.clear_trip(channels=self.triprec_channels)
+                sleep_time_minutes = 0
+                if self.triprec_cooldown_entry:
+                    sleep_time_minutes = float(self.triprec_cooldown_entry.get())
+                if not self.sleep_time_with_escape(sleep_time_minutes*60, "triprec_active"):
+                    return # instead of break to avoid setting active to False again
+                self.turn_on_channels(channels=self.triprec_channels)
+                self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
+
+                protocol_finished_with_exceptions = False
+                max_attempts = 10
+                attempt = 0
+                while self.triprec_active.get() and attempt < max_attempts:
+                    attempt += 1
+                    self.raise_voltage_protocol_thread(self.step_var.get())
+                    try:
+                        self.wait_for_raise_protocol_to_finish()
+                        break
+                    except (ValueError, NameError, AssertionError) as e:
+                        utils.send_slack_message(f"Critical error while recovering trip: {e}.")
+                        protocol_finished_with_exceptions = True
+                        break
+                    except (PermissionError, TimeoutError) as e:
+                        utils.send_slack_message(f"Error while recovering trip: {e}. Attempt {attempt}/{max_attempts}.")
+                        if self.is_there_a_trip():
+                            protocol_finished_with_exceptions = True
+                            break # restart the trip recovery protocol from the beginning because it tripped again
+                        else:
+                            self.turn_on_channels(channels=self.triprec_channels)
+                            self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
+                            continue
+                    except KeyboardInterrupt as e:
+                        utils.send_slack_message(f"Error while recovering trip: {e}.", "trip_recovery.log")
+                        protocol_finished_with_exceptions = True
+                        break
+                    except Exception as e:
+                        utils.send_slack_message(f"Unexpected error while recovering trip: {e}.")
+                        protocol_finished_with_exceptions = True
+                        break
+                if protocol_finished_with_exceptions:
+                    if attempt >= max_attempts:
+                        utils.send_slack_message("Trip recovery failed. Maximum attempts reached.", "trip_recovery.log")
+                    else:
+                        utils.send_slack_message("Trip recovery failed.", "trip_recovery.log")
+                else:
+                    utils.send_slack_message("Trip recovery finished succesfully.", "trip_recovery.log")
+        self.triprec_active.set(False)
+
+
+    def is_there_a_trip(self):
+        if self.caen_gui.alarm_detected or self.caen_gui.ilk_detected:
+            return True
+    def clear_trip(self, channels=[]):
+        # set vset of all channels to 0
+        for ch, gui in self.channels_gui.items():
+            if not ch in channels:
+                continue
+            channel = self.all_channels[ch]
+            with gui.device_lock:
+                channel.vset = 0
+
+        self.caen_gui.issue_command(self.caen_gui.clear_alarm)
+    def turn_on_channels(self, channels=[]):
+        # turn on channels (and iset of spellman)
+        for ch, gui in self.channels_gui.items():
+            if not ch in channels:
+                continue
+            channel = self.all_channels[ch]
+            with gui.device_lock:
+                channel.turn_on()
+
+    def wait_for_channels_to_be_down(self, channels=[], timeout=90, active_flag_attribute:str = ""):
+        # check that the escape flag attribute is present in the object
+        if active_flag_attribute and not hasattr(self, active_flag_attribute):
+            raise AttributeError(f"Attribute {active_flag_attribute} not found")
+        all_channels_down = False
+        time_waiting = 0
+        while not all_channels_down:
+            all_channels_down = True
+            for ch, vmon_label in self.channels_vmon_guilabel.items():
+                if not ch in channels:
+                    continue
+                vmon = float(vmon_label.cget("text"))
+                if ch == "cathode": # TODO: add precision for each channel here to avoid special cases
+                    if vmon<50:
+                        continue
+                if vmon > 5.0:
+                    all_channels_down = False
+                    break
+            time.sleep(1)
+            time_waiting += 1
+            if time_waiting > timeout:
+                raise TimeoutError("Timeout waiting for channels to be down")
+                break
+            active_flag_value = getattr(self, active_flag_attribute) if active_flag_attribute else True
+            if isinstance(active_flag_value, tk.Variable):
+                active_flag_value = active_flag_value.get()
+            if not active_flag_value:
+                raise KeyboardInterrupt(f"Waiting for channels to be down manually stopped due to {active_flag_attribute}")
+                break
+
+    def wait_for_raise_protocol_to_finish(self, active_flag_attribute:str = ""):
+        # check that the escape flag attribute is present in the object
+        if active_flag_attribute and not hasattr(self, active_flag_attribute):
+            raise AttributeError(f"Attribute {active_flag_attribute} not found")
+        if self.protocol_thread:
+            while self.protocol_thread.is_alive():
+                time.sleep(0.1)
+                active_flag_value = getattr(self, active_flag_attribute) if active_flag_attribute else True
+                if isinstance(active_flag_value, tk.Variable):
+                    active_flag_value = active_flag_value.get()
+                if not active_flag_value:
+                    raise KeyboardInterrupt(f"Protocol manually stopped due to {active_flag_attribute}")
+        if self.protocol_thread.exception:
+            raise self.protocol_thread.exception
+
+    def sleep_time_with_escape(self, sleep_time_seconds, active_flag_attribute:str = ""):
+        # check that the escape flag attribute is present in the object
+        if active_flag_attribute and not hasattr(self, active_flag_attribute):
+            raise AttributeError(f"Attribute {active_flag_attribute} not found")
+        # sleep for sleep_time seconds, checking every second if the escape flag is set
+        # does not check the escape flag if it is not given
+        for _ in range(int(sleep_time_seconds)):
+            time.sleep(1)
+            active_flag_value = getattr(self, active_flag_attribute) if active_flag_attribute else True
+            if isinstance(active_flag_value, tk.Variable):
+                active_flag_value = active_flag_value.get()
+            if not active_flag_value:
+                return False
+        return True
+
     def stop_protocol(self):
         self.protocol_stop_flag = True
         print("Stopping protocol...")
@@ -337,7 +578,9 @@ class HVGUI:
 
     def protocol_cleanup(self):
         if self.step_entry:
-            self.step_entry.config(state="normal")
+            # avoid enabling it if the whole frame is disabled (use channel_optmenus to check)
+            if self.channel_optmenus and self.channel_optmenus[0].cget("state") == "normal":
+                self.step_entry.config(state="normal")
         if self.protocol_stop_button:
             self.protocol_stop_button.grid_remove()
         self.protocol_stop_flag = False
@@ -380,7 +623,7 @@ class HVGUI:
         if self.protocol_thread and self.protocol_thread.is_alive():
             print("Protocol thread already running")
             return
-        self.protocol_thread = threading.Thread(target=self.raise_voltage_protocol, args=(step_number,))
+        self.protocol_thread = utils.ExceptionThread(target=self.raise_voltage_protocol, args=(step_number,))
         self.protocol_thread.start()
 
     def turn_off_protocol_thread(self, step = 100):
@@ -451,6 +694,7 @@ class HVGUI:
         if len(final_vset) < 1: # makes no sense to use this with less than 2 channels
             print("No valid voltage setpoints found")
             self.protocol_cleanup()
+            raise ValueError("No valid voltage setpoints found")
             return
 
         # check that all channels involved are on
@@ -458,11 +702,13 @@ class HVGUI:
             if ch not in self.all_channels.keys():
                 print(f"Channel {ch} not found in the list of available channels")
                 self.protocol_cleanup()
+                raise NameError(f"Channel {ch} not found in the list of available channels")
                 return
             with self.channels_gui[ch].device_lock:
                 if not self.all_channels[ch].on:
-                    print(f"Channel {ch} is off. Turn it on before running the protocol")
+                    #print(f"Channel {ch} is off. Turn it on before running the protocol")
                     self.protocol_cleanup()
+                    raise PermissionError(f"Channel {ch} is off. Turn it on before running the protocol")
                     return
 
         if self.step_entry:
@@ -495,6 +741,7 @@ class HVGUI:
             if not self.checksframe.simulate_check_conditions(parameters_values):
                 print("Step did not pass the multidevice checks.")
                 self.protocol_cleanup()
+                raise AssertionError("Step did not pass the multidevice checks.")
                 return
             # individual device checks
             for device, gui in self.all_guis.items():
@@ -502,6 +749,7 @@ class HVGUI:
                     if not gui.checksframe.simulate_check_conditions(parameters_values):
                         print(f"Step did not pass the {device} checks.")
                         self.protocol_cleanup()
+                        raise AssertionError(f"Step did not pass the {device} checks.")
                         return
                 except AttributeError:
                     pass
@@ -524,6 +772,7 @@ class HVGUI:
                 except Exception as e:
                     print(f"Error setting voltage for channel {ch}: {e}")
                     self.protocol_cleanup()
+                    raise SystemError(f"Error setting voltage for channel {ch}: {e}")
                     return
                 # self.all_channels[ch].vset = v
             
@@ -539,6 +788,8 @@ class HVGUI:
                 if time_waiting > timeout:
                     print("Timeout waiting for channels to reach the setpoints. Stopping protocol.")
                     self.protocol_stop_flag = True
+                    self.protocol_cleanup()
+                    raise TimeoutError("Timeout waiting for channels to reach the setpoints.")
             if self.protocol_stop_flag:
                 break
             time.sleep(2) # wait 3 seconds before next step

@@ -1,4 +1,20 @@
 import tkinter as tk
+import re
+
+def enable_children(parent, enabled=True):
+    for child in parent.winfo_children():
+        wtype = child.winfo_class()
+        # print(wtype)
+        if wtype not in ('Frame', 'Labelframe', 'TFrame', 'TLabelframe'):
+            child.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+        else:
+            enable_children(child, enabled)
+
+def validate_numeric_entry_input(new_value):
+    # Allow only if the input matches the regex for a decimal number
+    if re.match(r"^\d*\.?\d*$", new_value):
+        return True
+    return False
 
 class ToolTip:
     def __init__(self, widget, text):
