@@ -2,13 +2,14 @@
 
 This repository contains software for remote control and monitoring of high voltage (HV) power supplies, primarily used for the TREX-DM experiment.
 
-![CAEN HV power supply GUI.](docs/maingui_withfailedcheck.png)
+![CAEN HV power supply GUI.](docs/maingui.png)
 
 ## Features
 - Graphical User Interface (GUI) for individual and multiple HV power supply devices. Including:
    - Security checks for individual and multiple devices.
    - Register of voltage and current monitor values of the channels of each device.
    - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
+   - Trip recovery system to automatically detect, handle and recover a trip. It uses the multidevice raising of voltages to recover a trip. Also, a configurable cooldown time is applied before recovering the trip.
    - Alert message to slack webhook when the CAEN device is in alarm state (to do so, copy your slack webhook in the function `send_slack_message` of [caengui.py](caengui.py)).
    - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication.
    - Button to add the current run information (run number, date and voltages) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `utils.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
