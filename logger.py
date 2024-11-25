@@ -3,6 +3,20 @@ import os
 
 LOG_DIR = "logs"
 
+def create_directory_recursive(path):
+    try:
+        directory = os.path.dirname(path)
+        os.makedirs(directory, exist_ok=True)
+    except Exception as e:
+        print(f"Error occurred while creating directory '{path}': {e}")
+
+def get_path_from_date(dt_obj):
+    return LOG_DIR + "/" + dt_obj.strftime("%Y/%m/%d")
+def get_full_filename_from_date(dt_obj, suffix="", extension="dat"):
+    path = get_path_from_date(dt_obj)
+    return f"{path}/{dt_obj.strftime('%Y%m%d')}_{suffix}.{extension}"
+
+
 class State:
     def __init__(self, vmon=0, imon=0, stat=None):
         if stat is None:
@@ -26,6 +40,7 @@ class State:
         print("vmon: {:.2f}V, imon: {:.2f}uA, stat: {}".format(self.vmon, self.imon, self.stat))
 
     def write_to_file(self, filename, delimiter=' ', precision_vmon=1, precision_imon=3):
+        create_directory_recursive(filename)
         if not os.path.isfile(filename):
             try:
                 # create the file if it does not exist
@@ -64,8 +79,6 @@ class ChannelState:
         self.precision_vmon = precision_vmon
         self.precision_imon = precision_imon
 
-        self.filename = LOG_DIR + "/Log_" + self.channel_name.replace(" ", "") + ".dat"
-
     def __str__(self):
         return self.channel_name + ": " + str(self.current)
 
@@ -96,10 +109,11 @@ class ChannelState:
         return (abs(self.current.vmon - self.last_saved.vmon) >= self.diff_vmon) or (abs(self.current.imon - self.last_saved.imon) >= self.diff_imon)
 
     def save_state(self, force=False, save_previous=True):
+        filename = get_full_filename_from_date(self.current.time, suffix=self.channel_name.replace(" ", ""))
         if self.is_different() or force:
             if self.last_saved != self.previous and save_previous:
-                self.previous.write_to_file(self.filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
-            self.current.write_to_file(self.filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
+                self.previous.write_to_file(filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
+            self.current.write_to_file(filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
             self.last_saved.assign(self.current)
 
 
