@@ -10,9 +10,7 @@ CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
 from check import Check
 from checkframe import ChecksFrame
 from utilsgui import ToolTip
-from logger import ChannelState, LOG_DIR
 from devicegui import DeviceGUI
-from utils import send_slack_message
 
 class CaenHVPSGUI(DeviceGUI):
     def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False):
@@ -407,7 +405,7 @@ class CaenHVPSGUI(DeviceGUI):
         cancel_button.grid(row=len(properties), column=0, padx=10, pady=10, sticky="e")
 
         def apply_changes():
-            print("Setting:")
+            self.logger.debug("Setting:")
             for p, entry in entries.items():
                 if entry.winfo_class() == "Menubutton":
                     value = entry.cget("text")
@@ -418,9 +416,8 @@ class CaenHVPSGUI(DeviceGUI):
                 except ValueError:
                     pass
                 setattr(ch, p, value)
-                print(f"  {p}\t-> {value}")
+                self.logger.debug(f"  {p}\t-> {value}")
             new_window.destroy()
-            print()
 
         apply_button = tk.Button(
             new_window,
@@ -601,15 +598,11 @@ class CaenHVPSGUI(DeviceGUI):
                 message += f"  {k}"
                 if 'CH' in k:
                     message += f" ({self.channels_name[int(k[-1])]})"
-        print(message)
-        if not self.silence_alarm:
-            threading.Thread(target=send_slack_message, args=(message,)).start() # to avoid blocking the GUI (it can be slow)
+        self.logger.warning(message)
 
     def action_when_interlock(self):
         message = f"Interlock detected in module {self.device.name}."
-        print(message)
-        if not self.silence_alarm:
-            threading.Thread(target=send_slack_message, args=(message,)).start() # to avoid blocking the GUI (it can be slow)
+        self.logger.warning(message)
 
 
 if __name__ == "__main__":
