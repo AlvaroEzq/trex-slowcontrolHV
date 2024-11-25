@@ -608,7 +608,7 @@ class HVGUI:
             if isinstance(active_flag_value, tk.Variable):
                 active_flag_value = active_flag_value.get()
             if not active_flag_value:
-                raise KeyboardInterrupt(f"Waiting for channels to be down manually stopped due to {active_flag_attribute}")
+                raise KeyboardInterrupt(f"'wait_for_channels_to_be_down' manually stopped due to {active_flag_attribute}")
                 break
 
     def wait_for_raise_protocol_to_finish(self, active_flag_attribute:str = ""):
