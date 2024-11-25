@@ -53,7 +53,10 @@ class CaenHVPSGUI(DeviceGUI):
                 if i >= len(channel_names):
                     channel_names[i] = f"Channel {i}"
 
-        super().__init__(module, channel_names, parent_frame, logging_enabled=log)
+        super().__init__(module, channel_names, parent_frame,
+                        logging_enabled=log,
+                        channel_state_save_previous=False,
+                        )
 
 
     def create_gui(self):
