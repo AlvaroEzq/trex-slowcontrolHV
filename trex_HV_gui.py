@@ -4,6 +4,7 @@ import time
 import argparse
 import threading
 import sys
+import logging
 
 import caengui
 import spellmangui
@@ -15,6 +16,7 @@ from checkframe import ChecksFrame
 from check import load_checks_from_toml_file
 from utilsgui import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
 from metrics_fetcher import MetricsFetcherSSH
+import logger
 
 
 class HVGUI:
@@ -78,6 +80,8 @@ class HVGUI:
         self.triprec_channels = []
         self.triprec_frame = None
 
+        self.logger = logger.configure_basic_logger("app", log_level=logging.DEBUG)
+
         self.create_gui()
 
     def create_gui(self):
@@ -121,6 +125,10 @@ class HVGUI:
         self.scrolled_text.pack(side="left", fill="both", expand=True, padx=0)
         if self.scrolled_text:
             self.redirect_logging(self.scrolled_text)
+            # redirect also the StreamHandler to the scrolled text using the TextWidgetHandler
+            while self.logger.hasHandlers() and any([type(h) is logging.StreamHandler for h in self.logger.handlers]):
+                self.logger.removeHandler([h for h in self.logger.handlers if type(h) is logging.StreamHandler][0])
+            self.logger.addHandler(logger.TextWidgetHandler(self.scrolled_text))
         daq_frame = tk.Frame(scrolled_text_frame)
         daq_frame.pack(side="right", fill="both", expand=True)
         self.create_daq_frame(daq_frame)
@@ -384,19 +392,26 @@ class HVGUI:
         self.max_count_entry.insert(0, "3")
         self.max_count_entry.grid(row=3, column=3, sticky="w")
 
+        self.triprec_logger = logging.getLogger("app.triprec")
+        self.triprec_logger.setLevel(logging.DEBUG)
+        file_handler = logging.FileHandler(f"{logger.LOG_DIR}/trip_recovery.log")
+        file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+        file_handler.setLevel(logging.INFO)
+        self.triprec_logger.addHandler(file_handler)
+
         #self.triprec_thread = threading.Thread(target=self.trip_recovery_loop, daemon=True).start()
 
     def trace_triprec_active(self, *args):
         def activate_trip_recovery():
             if self.triprec_thread and self.triprec_thread.is_alive():
-                utils.write_to_log_file("Trip recovery thread already running.", "trip_recovery.log")
+                self.triprec_logger.debug("Trip recovery thread already running.")
                 return
             # get the channels selected for trip recovery from the protocol settings frame
             self.triprec_channels = [ch.cget("text") for ch in self.channel_optmenus if ch.cget("text") != ""]
             # block the protocol settings frame
             enable_children(self.protocol_settings_frame, False)
             self.trip_count.set(0) # reset the trip counter
-            utils.write_to_log_file("Trip recovery activated.", "trip_recovery.log")
+            self.triprec_logger.info("Trip recovery activated.")
             self.triprec_thread = threading.Thread(target=self.trip_recovery_loop, daemon=True)
             self.triprec_thread.start()
             self.triprec_activate_button.config(state="disabled")
@@ -409,7 +424,7 @@ class HVGUI:
                 self.triprec_thread.join() # this could block the main thread if it is not launched in a separate thread
             enable_children(self.protocol_settings_frame, True)
             self.triprec_channels = []
-            utils.write_to_log_file("Trip recovery desactivated.", "trip_recovery.log")
+            self.triprec_logger.info("Trip recovery desactivated.")
             self.triprec_activate_button.config(state="normal")
 
         if self.triprec_active.get():
@@ -425,18 +440,20 @@ class HVGUI:
             self.trip_detected = self.is_there_a_trip()
             if self.trip_detected:
                 self.trip_count.set(self.trip_count.get() + 1)
+                self.triprec_logger.info(
+                    f"Trip number {str(self.trip_count.get())} detected."
+                )
                 if self.trip_count.get() > int(self.max_count_entry.get()):
-                    utils.send_slack_message("WARNING: Maximum trip count reached.")
+                    self.triprec_logger.error("Maximum trip count reached.")
                     break
-                utils.send_slack_message("Trip number " + str(self.trip_count.get()) + " detected. Starting recovery protocol...", "trip_recovery.log")
-
+                self.triprec_logger.debug("Starting trip recovery protocol.")
                 try:
                     self.wait_for_channels_to_be_down(channels=self.triprec_channels, timeout=5*60, active_flag_attribute="triprec_active")
                 except TimeoutError as e:
-                    utils.send_slack_message(f"Error while waiting for channels to be down: {e}.", "trip_recovery.log")
+                    self.triprec_logger.critical(f"Error while waiting for channels to be down: {e}.")
                     break
                 except KeyboardInterrupt as e:
-                    utils.send_slack_message(f"Error while waiting for channels to be down: {e}.", "trip_recovery.log")
+                    self.triprec_logger.info(f"Error while waiting for channels to be down: {e}.")
                     return # instead of break to avoid setting active to False again
 
                 self.clear_trip(channels=self.triprec_channels)
@@ -458,11 +475,11 @@ class HVGUI:
                         self.wait_for_raise_protocol_to_finish()
                         break
                     except (ValueError, NameError, AssertionError) as e:
-                        utils.send_slack_message(f"Critical error while recovering trip: {e}.")
+                        self.triprec_logger.critical(f"Critical error while recovering trip: {e}.")
                         protocol_finished_with_exceptions = True
                         break
                     except (PermissionError, TimeoutError) as e:
-                        utils.send_slack_message(f"Error while recovering trip: {e}. Attempt {attempt}/{max_attempts}.")
+                        self.triprec_logger.debug(f"Error while recovering trip: {e}. Attempt {attempt}/{max_attempts}.")
                         if self.is_there_a_trip():
                             protocol_finished_with_exceptions = True
                             break # restart the trip recovery protocol from the beginning because it tripped again
@@ -471,20 +488,22 @@ class HVGUI:
                             self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
                             continue
                     except KeyboardInterrupt as e:
-                        utils.send_slack_message(f"Error while recovering trip: {e}.", "trip_recovery.log")
+                        self.triprec_logger.error(f"Error while recovering trip: {e}.")
                         protocol_finished_with_exceptions = True
                         break
                     except Exception as e:
-                        utils.send_slack_message(f"Unexpected error while recovering trip: {e}.")
+                        self.triprec_logger.error(f"Unexpected error while recovering trip: {e}.")
                         protocol_finished_with_exceptions = True
                         break
                 if protocol_finished_with_exceptions:
                     if attempt >= max_attempts:
-                        utils.send_slack_message("Trip recovery failed. Maximum attempts reached.", "trip_recovery.log")
+                        self.triprec_logger.critical("Trip recovery failed. Maximum attempts reached.")
+                    elif self.is_there_a_trip():
+                        self.triprec_logger.debug("Trip recovery failed. Trip detected when raising voltage.")
                     else:
-                        utils.send_slack_message("Trip recovery failed.", "trip_recovery.log")
+                        self.triprec_logger.critical("Trip recovery failed.")
                 else:
-                    utils.send_slack_message("Trip recovery finished succesfully.", "trip_recovery.log")
+                    self.triprec_logger.info("Trip recovery finished succesfully.")
         self.triprec_active.set(False)
 
 
