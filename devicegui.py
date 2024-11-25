@@ -2,9 +2,10 @@ import tkinter as tk
 import queue
 import threading
 import time
+import logging
 from abc import ABC, abstractmethod
 
-from logger import ChannelState
+from logger import ChannelState, configure_basic_logger
 from utilsgui import validate_numeric_entry_input
 
 class DeviceGUI(ABC):
@@ -80,6 +81,15 @@ class DeviceGUI(ABC):
         self.command_queue = queue.Queue()
         self.device_lock = threading.Lock()
 
+        #Initialize logger
+        logger_name = f"app.{self.device.name}"
+        self.logger = logging.getLogger(logger_name)
+        if self.logger.parent.name == "root": # if it is not embedded in another GUI with its own logger
+            self.logger = configure_basic_logger(logger_name)
+        else:
+            pass # use the logger from the parent GUI (because it propagates)
+
+        # Create GUI
         self.create_gui()
         self.start_background_threads()
 

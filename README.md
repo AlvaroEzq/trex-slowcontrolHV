@@ -10,9 +10,16 @@ This repository contains software for remote control and monitoring of high volt
    - Register of voltage and current monitor values of the channels of each device.
    - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
    - Trip recovery system to automatically detect, handle and recover a trip. It uses the multidevice raising of voltages to recover a trip. Also, a configurable cooldown time is applied before recovering the trip.
-   - Alert message to slack webhook when the CAEN device is in alarm state (to do so, copy your slack webhook in the function `send_slack_message` of [caengui.py](caengui.py)).
+   - Alert message to slack webhook (to do so, copy your slack webhook in the global variable SLACK_WEBHOOK_URL of [logger.py](logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
+      * CRITICAL: unexpected error happens which require the user to fix.
+      * ERROR: expected error happens which require the users attention.
+      * WARNING: expected event as trips.
+      * INFO: information on the normal functioning of the program.
+      * DEBUG: debugging information.
+
+      It is recommended to set the slack logging level to warning if you want to receive messages when trips happen or error if you want to ignore the messages of trips.
    - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication.
-   - Button to add the current run information (run number, date and voltages) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `utils.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
+   - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold in the .run file) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `utils.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
 - CAEN and Spellman SL30 simulators for testing without hardware.
 
 ## Usage
@@ -48,12 +55,12 @@ This repository contains software for remote control and monitoring of high volt
       - `caengui.py`: GUI for CAEN HV devices.
       - `spellmangui.py`: GUI for Spellman HV devices.
    - `checksframe.py`: Implementation of the ChecksFrame class to display and manage the checks.
-   - `utilsgui.py`: Implementation of GUI utility classes such as ToolTip and PrintLogger.
+   - `utilsgui.py`: Implementation of GUI utility classes such as ToolTip and PrintToTextWidget.
 - Device modules
    - `spellmanClass.py`: Class for managing the Spellman HV supply.
    - `simulators.py`: CAEN and Spellman device simulator classes.
 - Support modules
    - `check.py`: Implementation of the checks classes.
-   - `logger.py`: Implementation of the ChannelState class.
+   - `logger.py`: Implementation of the ChannelState class and logging helper functions and classes.
    - `metrics_fetcher.py`: Implementation of MetricsFetcher and MetricsFetchcerSSH to extract the prometheus metrics of the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) acquisition program.
    - `utils.py`: Other useful functions. For now, it includes the necessary functions for adding rows to the Google Sheet run list.

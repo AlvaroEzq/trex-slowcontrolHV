@@ -57,7 +57,7 @@ class ToolTip:
         if self.tooltip:  # If the tooltip is visible, update its text
             self.label.config(text=self.text)
 
-class PrintLogger(object):
+class PrintToTextWidget(object):
 
     def __init__(self, textbox):  # pass reference to text widget
         self.textbox = textbox
