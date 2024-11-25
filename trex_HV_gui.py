@@ -554,7 +554,9 @@ class HVGUI:
                         self.triprec_logger.critical("Trip recovery failed.")
                 else:
                     self.triprec_logger.info("Trip recovery finished succesfully.")
-        self.triprec_active.set(False)
+
+        if self.triprec_active.get():
+            self.triprec_active.set(False)
 
 
     def is_there_a_trip(self):
