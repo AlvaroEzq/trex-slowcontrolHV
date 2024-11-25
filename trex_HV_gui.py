@@ -136,8 +136,57 @@ class HVGUI:
         if self.caen_module is not None and self.spellman_module is not None:
             self.create_multidevice_frame(self.spellman_frame)
 
+        self.menu_bar = tk.Menu(self.root)
+        self.menu_config = tk.Menu(self.menu_bar, tearoff=0)
+        # self.menu_config.add_command(label="Load checks") # TODO: implement load checks
+        self.menu_config.add_command(label="Verbose", command=self.open_verbose_window)
+        self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
+        self.root.config(menu=self.menu_bar)
+
         self.root.mainloop()
         self.reset_logging()
+
+    def open_verbose_window(self):
+        new_window = tk.Toplevel(self.root)
+        new_window.title("Verbose")
+
+        loggers = logger.get_children_loggers("app", include_parent=True)
+        for l in loggers:
+            if not l.handlers:
+                loggers.remove(l)
+
+        verbose_levels = logger.get_level_names()
+        loggers_optmenus = {}
+        row = 0
+        for l in loggers:
+            row += 1
+            opt_menus = []
+            label = tk.Label(new_window, text=f"{l.name}", font=("", 12, "bold"), justify="left")
+            label.grid(row=row, column=0, sticky="w")
+            for h in l.handlers:
+                row += 1
+                label = tk.Label(new_window, text=str(h))
+                label.grid(row=row, column=0)
+
+                selected_level = tk.StringVar(new_window)
+                selected_level.set(logging.getLevelName(h.level))
+                opt_menu = tk.OptionMenu(new_window, selected_level, *verbose_levels)
+                opt_menu.grid(row=row, column=2)
+                opt_menus.append(opt_menu)
+            loggers_optmenus[l] = opt_menus
+
+        cancel_button = tk.Button(new_window, text="Cancel", command=new_window.destroy)
+        cancel_button.grid(row=row+1, column=1)
+
+        apply_button = tk.Button(new_window, text="Apply", command=lambda: set_verbose_levels())
+        apply_button.grid(row=row+1, column=2)
+
+        def set_verbose_levels():
+            for l, opt_menus in loggers_optmenus.items():
+                for h, opt_menu in zip(l.handlers, opt_menus):
+                    value = opt_menu.cget("text")
+                    h.setLevel(value)
+            new_window.destroy()
 
     def create_multidevice_frame(self, frame):
         self.multidevice_frame = tk.LabelFrame(frame, text="Multi-device control", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
