@@ -13,7 +13,7 @@ import hvps
 import utils
 from checkframe import ChecksFrame
 from check import load_checks_from_toml_file
-from utilsgui import PrintLogger, ToolTip, enable_children, validate_numeric_entry_input
+from utilsgui import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
 from metrics_fetcher import MetricsFetcherSSH
 
 
@@ -602,7 +602,7 @@ class HVGUI:
         sys.stderr = sys.__stderr__
 
     def redirect_logging(self, widget):
-        logger = PrintLogger(widget)
+        logger = PrintToTextWidget(widget)
         sys.stdout = logger
         sys.stderr = logger
 
