@@ -17,7 +17,7 @@ def append_row_to_google_sheet(row, worksheet_number=3):
         print(f"Error while appending row to Google Sheet: {e}")
     finally:
         with open(LOG_DIR + "/run_list.txt", "a") as file:
-            file.write(str(row))
+            file.write(str(row)+"\n")
 
 def create_row_for_google_sheet(run_number, start_date, run_type, other_columns):
     try:
