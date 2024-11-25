@@ -494,7 +494,7 @@ class CaenHVPSGUI(DeviceGUI):
 
     def clear_alarm(self):
         self.device.clear_alarm_signal()
-        self.alarm_detected = False
+        self.alarm_detected = ""
 
     def toggle_channel(self, channel_number):
         ch = self.device.channels[channel_number]
@@ -577,25 +577,32 @@ class CaenHVPSGUI(DeviceGUI):
 
         if any([v for k, v in bas.items()]):
             if not self.alarm_detected:
-                self.alarm_detected = True
+                message = ""
+                for k, v in bas.items():
+                    if v:
+                        message += f"{k}"
+                        if 'CH' in k:
+                            message += f" ({self.channels_name[int(k[-1])]})"
+                        message += ", "
+                self.alarm_detected = message
                 self.action_when_alarm()
         else:
-            self.alarm_detected = False
+            self.alarm_detected = ""
 
         if ilk:
             if not self.ilk_detected:
-                self.ilk_detected = True
+                self.ilk_detected = "ILK"
                 self.action_when_interlock()
         else:
-            self.ilk_detected = False
+            self.ilk_detected = ""
 
     def action_when_alarm(self, board_alarm_status = None):
         if board_alarm_status is None:
             board_alarm_status = self.device.board_alarm_status.copy()
-        message = f"Alarm detected in module {self.device.name}:\n"
+        message = f"Alarm detected in module {self.device.name}:"
         for k, v in board_alarm_status.items():
             if v:
-                message += f"  {k}"
+                message += f" {k}"
                 if 'CH' in k:
                     message += f" ({self.channels_name[int(k[-1])]})"
         self.logger.warning(message)

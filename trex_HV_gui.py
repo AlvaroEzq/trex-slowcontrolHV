@@ -490,7 +490,8 @@ class HVGUI:
             if self.trip_detected:
                 self.trip_count.set(self.trip_count.get() + 1)
                 self.triprec_logger.info(
-                    f"Trip number {str(self.trip_count.get())} detected."
+                    f"Trip number {str(self.trip_count.get())} detected: "
+                    f"{self.caen_gui.alarm_detected}{self.caen_gui.ilk_detected}"
                 )
                 if self.trip_count.get() > int(self.max_count_entry.get()):
                     self.triprec_logger.error("Maximum trip count reached.")
