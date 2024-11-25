@@ -123,9 +123,10 @@ def send_slack_message(message:str, log_filename="", print_message=True):
 
 import threading
 class ExceptionThread(threading.Thread):
-    def __init__(self, target=None, args=(), kwargs=None, **thread_kwargs):
+    def __init__(self, target=None, args=(), kwargs=None, print_exception=True, **thread_kwargs):
         super().__init__(target=target, args=args, kwargs=kwargs, **thread_kwargs)
         self.exception = None
+        self.print_exception = print_exception
 
     def run(self):
         try:
@@ -134,3 +135,5 @@ class ExceptionThread(threading.Thread):
                 self._target(*self._args, **(self._kwargs or {}))
         except Exception as e:
             self.exception = e
+            if self.print_exception:
+                print(e)
