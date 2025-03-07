@@ -2,7 +2,6 @@ import re
 from collections import defaultdict
 import paramiko
 import requests
-import re
 import os
 
 def parse_prometheus_metrics(metrics_data):
