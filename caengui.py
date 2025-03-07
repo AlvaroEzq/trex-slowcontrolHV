@@ -73,7 +73,6 @@ class CaenHVPSGUI(DeviceGUI):
             self.multichannel_frame = self.create_multichannel_frame(self.channel_frame)
         self.security_frame = self.create_security_frame(self.main_frame)
 
-        self.start_background_threads()
 
         if start_mainloop:
             self.root.mainloop()

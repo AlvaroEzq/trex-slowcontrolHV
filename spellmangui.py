@@ -46,7 +46,6 @@ class SpellmanFrame(DeviceGUI):
         self.makecalc(self.main_frame, self.labels)
         self.security_frame = self.create_security_frame(self.main_frame)
 
-        self.start_background_threads()
 
     def makeremotebar_s(self, win, botones, labels):
         marco = tk.Frame(win)
