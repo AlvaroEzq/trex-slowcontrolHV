@@ -133,7 +133,7 @@ class HVGUI:
         daq_frame.pack(side="right", fill="both", expand=True)
         self.create_daq_frame(daq_frame)
 
-        if self.caen_module is not None and self.spellman_module is not None:
+        if self.caen_module is not None or self.spellman_module is not None:
             self.create_multidevice_frame(self.spellman_frame)
 
         self.menu_bar = tk.Menu(self.root)
