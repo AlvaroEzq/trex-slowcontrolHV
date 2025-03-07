@@ -10,9 +10,7 @@ CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
 from check import Check
 from checkframe import ChecksFrame
 from utilsgui import ToolTip
-from logger import ChannelState, LOG_DIR
 from devicegui import DeviceGUI
-from utils import send_slack_message
 
 class CaenHVPSGUI(DeviceGUI):
     def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False):
@@ -55,7 +53,10 @@ class CaenHVPSGUI(DeviceGUI):
                 if i >= len(channel_names):
                     channel_names[i] = f"Channel {i}"
 
-        super().__init__(module, channel_names, parent_frame, logging_enabled=log)
+        super().__init__(module, channel_names, parent_frame,
+                        logging_enabled=log,
+                        channel_state_save_previous=False,
+                        )
 
 
     def create_gui(self):
@@ -72,7 +73,6 @@ class CaenHVPSGUI(DeviceGUI):
             self.multichannel_frame = self.create_multichannel_frame(self.channel_frame)
         self.security_frame = self.create_security_frame(self.main_frame)
 
-        self.start_background_threads()
 
         if start_mainloop:
             self.root.mainloop()
@@ -407,7 +407,7 @@ class CaenHVPSGUI(DeviceGUI):
         cancel_button.grid(row=len(properties), column=0, padx=10, pady=10, sticky="e")
 
         def apply_changes():
-            print("Setting:")
+            self.logger.debug("Setting:")
             for p, entry in entries.items():
                 if entry.winfo_class() == "Menubutton":
                     value = entry.cget("text")
@@ -418,9 +418,8 @@ class CaenHVPSGUI(DeviceGUI):
                 except ValueError:
                     pass
                 setattr(ch, p, value)
-                print(f"  {p}\t-> {value}")
+                self.logger.debug(f"  {p}\t-> {value}")
             new_window.destroy()
-            print()
 
         apply_button = tk.Button(
             new_window,
@@ -497,7 +496,7 @@ class CaenHVPSGUI(DeviceGUI):
 
     def clear_alarm(self):
         self.device.clear_alarm_signal()
-        self.alarm_detected = False
+        self.alarm_detected = ""
 
     def toggle_channel(self, channel_number):
         ch = self.device.channels[channel_number]
@@ -580,36 +579,39 @@ class CaenHVPSGUI(DeviceGUI):
 
         if any([v for k, v in bas.items()]):
             if not self.alarm_detected:
-                self.alarm_detected = True
+                message = ""
+                for k, v in bas.items():
+                    if v:
+                        message += f"{k}"
+                        if 'CH' in k:
+                            message += f" ({self.channels_name[int(k[-1])]})"
+                        message += ", "
+                self.alarm_detected = message
                 self.action_when_alarm()
         else:
-            self.alarm_detected = False
+            self.alarm_detected = ""
 
         if ilk:
             if not self.ilk_detected:
-                self.ilk_detected = True
+                self.ilk_detected = "ILK"
                 self.action_when_interlock()
         else:
-            self.ilk_detected = False
+            self.ilk_detected = ""
 
     def action_when_alarm(self, board_alarm_status = None):
         if board_alarm_status is None:
             board_alarm_status = self.device.board_alarm_status.copy()
-        message = f"Alarm detected in module {self.device.name}:\n"
+        message = f"Alarm detected in module {self.device.name}:"
         for k, v in board_alarm_status.items():
             if v:
-                message += f"  {k}"
+                message += f" {k}"
                 if 'CH' in k:
                     message += f" ({self.channels_name[int(k[-1])]})"
-        print(message)
-        if not self.silence_alarm:
-            threading.Thread(target=send_slack_message, args=(message,)).start() # to avoid blocking the GUI (it can be slow)
+        self.logger.warning(message)
 
     def action_when_interlock(self):
         message = f"Interlock detected in module {self.device.name}."
-        print(message)
-        if not self.silence_alarm:
-            threading.Thread(target=send_slack_message, args=(message,)).start() # to avoid blocking the GUI (it can be slow)
+        self.logger.warning(message)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ class Spellman:
 
     def send_recv(self, message, tOp=0, tOut=1):
         """ Send a message and wait for the response. """
+        msg = message
         if isinstance(message, str):
             message = message.encode('ascii')
 
@@ -39,6 +40,10 @@ class Spellman:
                 resp += chunk
                 if b'\x03' in resp:
                     break
+        except Exception as e:
+            #print(f"Unexpected error with message {msg}: {e}")
+            so.close()
+            raise
         finally:
             so.close()
         return resp.decode('ascii')
@@ -144,8 +149,8 @@ class Spellman:
         cmd = 10 + i
         command_message = self.build_message(cmd, n)
         try:
-            ans = self.send_recv(command_message).strip(self.STX + self.ETX + ',').split(',')
-            return ans[0], ans[1]
+            ans = self.send_recv(command_message)
+            return ans
         except Exception:
             return ''
 
@@ -226,7 +231,7 @@ class Spellman:
         arg = 1
         command_message = self.build_message(cmd,arg)
         try:
-            ans = self.send_recv(command_message, self.server_host).strip(STX+ETX+',').split(',')
+            ans = self.send_recv(command_message).strip(self.STX+self.ETX+',').split(',')
             return ans[0],ans[1]
         except Exception:
             return ''
@@ -238,7 +243,7 @@ class Spellman:
         arg = 0
         command_message = self.build_message(cmd,arg)
         try:
-            ans = self.send_recv(command_message, self.server_host).strip(STX+ETX+',').split(',')
+            ans = self.send_recv(command_message).strip(self.STX+self.ETX+',').split(',')
             return ans[0],ans[1]
         except Exception:
             return ''
@@ -250,7 +255,7 @@ class Spellman:
         arg = 1
         command_message = self.build_message(cmd,arg)
         try:
-            ans = self.send_recv(command_message, self.server_host).strip(STX+ETX+',').split(',')
+            ans = self.send_recv(command_message).strip(self.STX+self.ETX+',').split(',')
             return ans[0],ans[1]
         except Exception:
             return ''
@@ -262,7 +267,7 @@ class Spellman:
         arg = 0
         command_message = self.build_message(cmd,arg)
         try:
-            ans = self.send_recv(command_message, self.server_host).strip(STX+ETX+',').split(',')
+            ans = self.send_recv(command_message).strip(self.STX+self.ETX+',').split(',')
             return ans[0],ans[1]
         except Exception:
             return ''

@@ -1,7 +1,181 @@
 import datetime as dt
 import os
+import logging
+import queue
+import threading
+import requests
+import json
 
 LOG_DIR = "logs"
+SLACK_WEBHOOK_URL = "" # add here the webkook url
+
+def create_directory_recursive(path):
+    try:
+        directory = os.path.dirname(path)
+        os.makedirs(directory, exist_ok=True)
+    except Exception as e:
+        print(f"Error occurred while creating directory '{path}': {e}")
+
+def get_path_from_date(dt_obj):
+    return LOG_DIR + "/" + dt_obj.strftime("%Y/%m/%d")
+def get_full_filename_from_date(dt_obj, suffix="", extension="dat"):
+    path = get_path_from_date(dt_obj)
+    return f"{path}/{dt_obj.strftime('%Y%m%d')}_{suffix}.{extension}"
+
+class ThreadedHandler(logging.Handler):
+    def __init__(self):
+        self.log_queue = queue.Queue()
+        super().__init__()
+        self.worker = threading.Thread(target=self._process_queue)
+        self.worker.daemon = True  # Ensures the thread exits with the main program
+        self.worker.start()
+
+    def emit(self, record):
+        # Add the log record to the queue
+        self.log_queue.put(self.format(record))
+
+    def logging_logic(self, log_message):
+        raise NotImplementedError
+
+    def _process_queue(self):
+        while True:
+            log_message = self.log_queue.get()
+            if log_message is None:  # Sentinel to shut down the thread
+                break
+            self.logging_logic(log_message)
+
+    def close(self):
+        self.log_queue.put(None)  # Send sentinel
+        self.worker.join()  # Wait for the thread to finish
+        super().close()
+
+class SlackHandler(ThreadedHandler):
+    def __init__(self, webhook_url:str):
+        super().__init__()
+        self.webhook_url = webhook_url
+    
+    def logging_logic(self, message):
+        try:
+            # Enviar mensaje a Slack
+            slack_data = {'text': message}
+            requests.post(self.webhook_url, data=json.dumps(slack_data), headers={'Content-Type': 'application/json'})
+        except Exception as e:
+            print(e)
+    """
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.webhook_url})"
+    """
+
+# Custom handler for logging to a Text widget
+class TextWidgetHandler(logging.Handler):
+    def __init__(self, text_widget):
+        super().__init__()
+        self.text_widget = text_widget
+
+    def emit(self, record):
+        log_entry = self.format(record)
+        # use after() to avoid segmentation faults
+        if self.text_widget:
+            self.text_widget.after(0, self._write_log, log_entry)
+
+    def _write_log(self, log_entry):
+        self.text_widget.configure(state="normal")
+        self.text_widget.insert("end", log_entry + "\n")
+        self.text_widget.configure(state="disabled")
+        self.text_widget.see("end")
+    """
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.text_widget})"
+    """
+
+def configure_basic_logger(logger_name:str, log_level=logging.DEBUG):
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(log_level)
+
+    logger = configure_slack_logger(
+        logger_name,
+        log_filename=f"{LOG_DIR}/slack_{logger_name}.log",
+        slack_webhook_url=SLACK_WEBHOOK_URL,
+        log_level=logging.WARNING
+    )
+    logger = configure_streamer_logger(
+        logger_name,
+        log_filename=f"{LOG_DIR}/stream_{logger_name}.log",
+        log_level=logging.DEBUG
+    )
+
+    return logger
+
+def configure_slack_logger(logger_name:str, log_filename:str, slack_webhook_url:str, log_level=logging.ERROR):
+    logger = logging.getLogger(logger_name)
+    # logger.setLevel(logging.DEBUG)
+    if slack_webhook_url:
+        slack_handler = SlackHandler(slack_webhook_url)
+        slack_handler.setLevel(log_level)
+        file_slack_handler = logging.FileHandler(log_filename)
+        file_slack_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+        file_slack_handler.setLevel(slack_handler.level)
+        logger.addHandler(slack_handler)
+        logger.addHandler(file_slack_handler)
+    return logger
+
+def configure_streamer_logger(logger_name:str, text_widget=None, log_filename:str=None, log_level=logging.DEBUG):
+    logger = logging.getLogger(logger_name)
+    # logger.setLevel(logging.DEBUG)
+    if text_widget:
+        text_handler = TextWidgetHandler(text_widget)
+        text_handler.setLevel(log_level)
+        logger.addHandler(text_handler)
+    else:
+        stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(log_level)
+        logger.addHandler(stream_handler)
+
+    if log_filename:
+        file_handler = logging.FileHandler(log_filename)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+        logger.addHandler(file_handler)
+    return logger
+
+def get_children_loggers(parent_name, include_parent=False):
+    """
+    Get all direct child loggers of a given logger name. Method made for compatibility with Python<3.12
+    which does not have the logging.Logger.getChildren() method.
+    
+    :param parent_name: The name of the parent logger.
+    :param include_parent: Whether to include the parent logger in the list of children.
+    :return: A list of child logger names.
+    """
+    parent_logger = logging.getLogger(parent_name)
+    children = []
+    if include_parent:
+        children.append(parent_logger)
+    try:
+        c = parent_logger.getChildren() # Python>=3.12
+        children.extend(c)
+    except AttributeError:
+        all_loggers = logging.Logger.manager.loggerDict
+        children_names = [
+            name for name in all_loggers
+            if name.startswith(f"{parent_name}.") and name != parent_name
+        ]
+        c = {logging.getLogger(name) for name in children_names}
+        children.extend(c)
+
+    return children
+
+
+def get_level_names():
+    """
+    Retrieve all logging level names from the `logging` module. Method made for compatibility with Python<3.11
+
+    :return: A list of level names.
+    """
+    try:
+        return list(logging.getLevelNamesMapping().keys()) # Python>=3.11
+    except AttributeError:
+        return list(logging._nameToLevel.keys())
+    return []
 
 class State:
     def __init__(self, vmon=0, imon=0, stat=None):
@@ -26,6 +200,7 @@ class State:
         print("vmon: {:.2f}V, imon: {:.2f}uA, stat: {}".format(self.vmon, self.imon, self.stat))
 
     def write_to_file(self, filename, delimiter=' ', precision_vmon=1, precision_imon=3):
+        create_directory_recursive(filename)
         if not os.path.isfile(filename):
             try:
                 # create the file if it does not exist
@@ -64,8 +239,6 @@ class ChannelState:
         self.precision_vmon = precision_vmon
         self.precision_imon = precision_imon
 
-        self.filename = LOG_DIR + "/Log_" + self.channel_name.replace(" ", "") + ".dat"
-
     def __str__(self):
         return self.channel_name + ": " + str(self.current)
 
@@ -96,10 +269,11 @@ class ChannelState:
         return (abs(self.current.vmon - self.last_saved.vmon) >= self.diff_vmon) or (abs(self.current.imon - self.last_saved.imon) >= self.diff_imon)
 
     def save_state(self, force=False, save_previous=True):
+        filename = get_full_filename_from_date(self.current.time, suffix=self.channel_name.replace(" ", ""))
         if self.is_different() or force:
             if self.last_saved != self.previous and save_previous:
-                self.previous.write_to_file(self.filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
-            self.current.write_to_file(self.filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
+                self.previous.write_to_file(filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
+            self.current.write_to_file(filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
             self.last_saved.assign(self.current)
 
 
