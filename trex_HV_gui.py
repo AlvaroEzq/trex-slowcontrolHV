@@ -523,6 +523,7 @@ class HVGUI:
                     self.raise_voltage_protocol_thread(self.step_var.get())
                     try:
                         self.wait_for_raise_protocol_to_finish()
+                        protocol_finished_with_exceptions = False
                         break
                     except (ValueError, NameError, AssertionError) as e:
                         self.triprec_logger.critical(f"Critical error while recovering trip: {e}.")
@@ -530,8 +531,8 @@ class HVGUI:
                         break
                     except (PermissionError, TimeoutError) as e:
                         self.triprec_logger.debug(f"Error while recovering trip: {e}. Attempt {attempt}/{max_attempts}.")
+                        protocol_finished_with_exceptions = True
                         if self.is_there_a_trip():
-                            protocol_finished_with_exceptions = True
                             break # restart the trip recovery protocol from the beginning because it tripped again
                         else:
                             self.turn_on_channels(channels=self.triprec_channels)
