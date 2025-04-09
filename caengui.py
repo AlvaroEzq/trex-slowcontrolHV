@@ -295,7 +295,7 @@ class CaenHVPSGUI(DeviceGUI):
 
         self.set_multichannel_button = tk.Button(
             checkbox_frame,
-            text="Set multichannel",
+            text="Set & turn on multichannel",
             font=("Arial", 10),
             bg="navy",
             fg="white",
