@@ -25,7 +25,33 @@ class ChecksFrame:
         self.checks_tooltips = []
         self.edit_checks_button = None
 
+        self.config_params = {
+            "show_warning_window": True,
+            "seconds_between_checks": 2,
+        }
+
         self.create_security_frame()
+
+    def set_config_param(self, key : str, value):
+        if key in self.config_params:
+            self.config_params[key] = value
+        else:
+            print(f"Warning: {key} is not a valid config parameter.")
+        return self.config_params.get(key, None)
+
+    def set_config_params(self, config_params : dict):
+        for key, value in config_params.items():
+            if key in self.config_params:
+                self.config_params[key] = value
+            else:
+                print(f"Warning: {key} is not a valid config parameter.")
+        return self.config_params
+
+    def get_config_param(self, key : str):
+        return self.config_params.get(key, None)
+
+    def get_config_params(self):
+        return self.config_params
 
     def set_checks(self, checks : list):
         if checks is None:
@@ -220,11 +246,12 @@ class ChecksFrame:
                     failed_checks.append(check)
         if failed_checks:
             message = "\n".join([f"Check '{check.name}' failed." for check in failed_checks])
-            threading.Thread(
-                target=lambda: messagebox.showwarning(
-                    "Warning", message, parent=self.root
-                )
-            ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
+            if self.config_params["show_warning_window"]:
+                threading.Thread(
+                    target=lambda: messagebox.showwarning(
+                        "Warning", message, parent=self.root
+                    )
+                ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
         return failed_checks == []
     
     def simulate_check_conditions(self, parameters_values : dict):
@@ -254,17 +281,18 @@ class ChecksFrame:
                     failed_checks.append(check)
         if failed_checks:
             message = "\n".join([f"Simulated check '{check.name}' failed." for check in failed_checks])
-            threading.Thread(
-                target=lambda: messagebox.showwarning(
-                    "Warning", message, parent=self.root
-                )
-            ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
+            if self.config_params["show_warning_window"]:
+                threading.Thread(
+                    target=lambda: messagebox.showwarning(
+                        "Warning", message, parent=self.root
+                    )
+                ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
         return failed_checks == []
 
     def check_loop(self):
         while True:
             self.check_conditions()
-            time.sleep(2) # better to sleep for a while to avoid locking the devices with too many checks
+            time.sleep(self.config_params.get("seconds_between_checks", 2)) # better to sleep for a while to avoid locking the devices with too many checks
 
     def start_background_threads(self):
         threading.Thread(target=self.check_loop, daemon=True).start()
