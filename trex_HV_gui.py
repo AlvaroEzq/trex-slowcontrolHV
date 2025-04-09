@@ -48,7 +48,7 @@ class HVGUI:
 
         self.logging_enabled = log
         self.multidevice_frame = None
-        self.checksframe = None
+        self.checks_frame = None
         self.channel_optmenus = None
         self.vset_entries = None
         self.factor_entries = None
@@ -291,7 +291,7 @@ class HVGUI:
         right_frame.pack(side="right", anchor="center", padx=20)
         self.create_trip_recovery_frame(right_frame)
         all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
-        self.checksframe = ChecksFrame(right_frame, checks=self.checks, channels=self.all_channels, locks=all_devices_locks)
+        self.checks_frame = ChecksFrame(right_frame, checks=self.checks, channels=self.all_channels, locks=all_devices_locks)
     def create_daq_frame(self, frame):
         daq_frame = tk.LabelFrame(frame, text="DAQ metrics", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
         daq_frame.pack()
@@ -811,7 +811,7 @@ class HVGUI:
             for ch, v in temp_vset.items():
                 parameters_values[ch.replace(" ", "") + ".vset"] = v
             # multidevice checks
-            if not self.checksframe.simulate_check_conditions(parameters_values):
+            if not self.checks_frame.simulate_check_conditions(parameters_values):
                 print("Step did not pass the multidevice checks.")
                 self.protocol_cleanup()
                 raise AssertionError("Step did not pass the multidevice checks.")
@@ -932,7 +932,7 @@ class HVGUI:
             for ch, v in temp_vset.items():
                 parameters_values[ch.replace(" ", "") + ".vset"] = v
             # multidevice checks
-            if not self.checksframe.simulate_check_conditions(parameters_values):
+            if not self.checks_frame.simulate_check_conditions(parameters_values):
                 print("Step did not pass the multidevice checks.")
                 self.protocol_cleanup()
                 return
