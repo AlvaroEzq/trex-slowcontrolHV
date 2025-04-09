@@ -140,6 +140,7 @@ class HVGUI:
         self.menu_config = tk.Menu(self.menu_bar, tearoff=0)
         # self.menu_config.add_command(label="Load checks") # TODO: implement load checks
         self.menu_config.add_command(label="Verbose", command=self.open_verbose_window)
+        self.menu_config.add_command(label="Checks", command=self.open_checks_window)
         self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
         self.root.config(menu=self.menu_bar)
 
@@ -186,6 +187,64 @@ class HVGUI:
                 for h, opt_menu in zip(l.handlers, opt_menus):
                     value = opt_menu.cget("text")
                     h.setLevel(value)
+            new_window.destroy()
+
+    def open_checks_window(self):
+        new_window = tk.Toplevel(self.root)
+        new_window.title("Checks")
+
+        row = 0
+        checks_configuration = {}
+        all_guis = self.all_guis.copy()
+        all_guis["multidevice"] = self
+        for name, gui in all_guis.items():
+            if gui.checks_frame is None: # TODO: check if it even exists as member of the class ??
+                continue
+            tk.Label(new_window, text=name, font=("", 12, "bold")).grid(row=row, column=0, sticky="w")
+
+            checksframe_config_widgets = {}
+            for key, value in gui.checks_frame.get_config_params().items():
+                print(f"key: {key}, value: {value}")
+                row += 1
+                tk.Label(new_window, text=key).grid(row=row, column=1, sticky="w")
+                var = None
+                if isinstance(value, bool):
+                    var = tk.BooleanVar()
+                    var.set(value)
+                    widget = tk.Checkbutton(new_window, variable=var)
+                elif isinstance(value, int):
+                    var = tk.IntVar()
+                    var.set(value)
+                    widget = tk.Entry(new_window, justify="center", width=5,
+                                validate="key", validatecommand=self.validate_numeric_input,
+                                textvariable=var)
+                elif isinstance(value, float):
+                    var = tk.DoubleVar()
+                    var.set(value)
+                    widget = tk.Entry(new_window, justify="center", width=5,
+                                validate="key", validatecommand=self.validate_numeric_input,
+                                textvariable=var)
+                elif isinstance(value, str):
+                    var = tk.StringVar()
+                    var.set(value)
+                    widget = tk.Entry(new_window, justify="center", width=5,
+                                validate="key", textvariable=var)
+                else:
+                    continue
+
+                widget.grid(row=row, column=2, sticky="w")
+                checksframe_config_widgets[key] = var
+            checks_configuration[name] = checksframe_config_widgets
+            row += 1
+
+        apply_button = tk.Button(new_window, text="Apply", command=lambda: apply_warning_settings())
+        apply_button.grid(row=row, column=1, sticky="w", pady=5)
+
+        def apply_warning_settings():
+            for name, conf in checks_configuration.items():
+                for key, var in conf.items():
+                    print(f"key: {key}, value: {var.get()}")
+                    all_guis[name].checks_frame.set_config_param(key, var.get())
             new_window.destroy()
 
     def create_multidevice_frame(self, frame):
