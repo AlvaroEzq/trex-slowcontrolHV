@@ -387,7 +387,11 @@ class HVGUI:
             self.add_to_googlesheet_button.config(state="disabled") # avoid spamming the button
             run_number = self.run_number_label.cget("text")
             self.set_last_run_number_from_google_sheet(int(run_number))
-            start_date = time.strftime("%d/%m/%Y %H:%M")
+            start_date = ""
+            try:
+                start_date = self.metrics_fetcher.get_run_file_time()
+            except:
+                start_date = time.strftime("%d/%m/%Y %H:%M")
             metadata = self.metrics_fetcher.get_filename_metadata()
             run_type = metadata.get("run_type", "")
             metadata.pop("run_type", None)
