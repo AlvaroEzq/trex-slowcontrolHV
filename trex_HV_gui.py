@@ -363,17 +363,21 @@ class HVGUI:
         self.run_filename_label = tk.Label(daq_frame, text="N/A")
         self.run_filename_label.grid(row=1, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="Speed (MB/s)").grid(row=2, column=0, sticky="w")
-        self.daq_speed_label = tk.Label(daq_frame, text="N/A")
-        self.daq_speed_label.grid(row=2, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Speed (events/s)").grid(row=3, column=0, sticky="w")
+        tk.Label(daq_frame, text="Speed (events/s)").grid(row=2, column=0, sticky="w")
         self.daq_events_label = tk.Label(daq_frame, text="N/A")
-        self.daq_events_label.grid(row=3, column=1, sticky="e")
+        self.daq_events_label.grid(row=2, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="Number of events").grid(row=4, column=0, sticky="w")
+        tk.Label(daq_frame, text="Number of events").grid(row=3, column=0, sticky="w")
         self.events_number_label = tk.Label(daq_frame, text="N/A")
-        self.events_number_label.grid(row=4, column=1, sticky="e")
+        self.events_number_label.grid(row=3, column=1, sticky="e")
+
+        tk.Label(daq_frame, text="Queue fill level").grid(row=4, column=0, sticky="w")
+        self.queue_fill_label = tk.Label(daq_frame, text="N/A")
+        self.queue_fill_label.grid(row=4, column=1, sticky="e")
+
+        tk.Label(daq_frame, text="Disk free space (GB)").grid(row=5, column=0, sticky="w")
+        self.disk_space_label = tk.Label(daq_frame, text="N/A")
+        self.disk_space_label.grid(row=5, column=1, sticky="e")
 
         self.auto_add_var = tk.IntVar()
         self.auto_add_var.set(0)
@@ -381,11 +385,11 @@ class HVGUI:
         self.auto_add_var.trace("w", lambda *args : self.set_last_run_number_from_google_sheet())
         self.auto_add_var.set(1)
         self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var, selectcolor="gray")
-        self.auto_add_to_googlesheet_checkbox.grid(row=5, column=0, columnspan=2, pady=10, sticky="nsew")
+        self.auto_add_to_googlesheet_checkbox.grid(row=6, column=0, columnspan=2, pady=10, sticky="nsew")
 
         self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
                                         command=self.add_run_to_googlesheet)
-        self.add_to_googlesheet_button.grid(row=6, column=0, columnspan=2, pady=10, sticky="nsew")
+        self.add_to_googlesheet_button.grid(row=7, column=0, columnspan=2, pady=10, sticky="nsew")
 
         threading.Thread(target=self.daq_metrics_loop, daemon=True).start()
 
@@ -416,14 +420,18 @@ class HVGUI:
                     else:
                         self.add_to_googlesheet_button.config(state="normal")
                 self.run_filename_label.config(text=run_type)
-                self.daq_speed_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_mb_per_sec_now"):.2f}')
+                disk_space_gb = self.metrics_fetcher.get_metric("free_disk_space_gb")['path="/"']
+                self.disk_space_label.config(text=f'{disk_space_gb:.0f}')
                 self.daq_events_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_events_per_sec_now"):.1f}')
                 self.events_number_label.config(text=f'{self.metrics_fetcher.get_metric("number_of_events"):,.0f}')
+                queue_fill_level = self.metrics_fetcher.get_metric("daq_frames_queue_fill_level_sum")
+                self.queue_fill_label.config(text=f'{queue_fill_level:.3f}')
             else:
                 self.run_number_label.config(text="N/A")
-                self.daq_speed_label.config(text="N/A")
+                self.disk_space_label.config(text="N/A")
                 self.daq_events_label.config(text="N/A")
                 self.events_number_label.config(text="N/A")
+                self.queue_fill_label.config(text="N/A")
                 self.add_to_googlesheet_button.config(state="disabled")
             if (
                 self.auto_add_var.get() == 1
