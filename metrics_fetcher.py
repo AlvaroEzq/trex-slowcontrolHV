@@ -3,6 +3,7 @@ from collections import defaultdict
 import paramiko
 import requests
 import os
+import datetime
 
 def parse_prometheus_metrics(metrics_data):
     """
@@ -262,6 +263,12 @@ class MetricsFetcher:
         with open(run_filename, "r") as file:
             self.run_file_content = file.read()
     
+    def get_run_file_time(self):
+        run_filename = self.get_filename().replace(".root", ".run")
+        timestamp = os.path.getmtime(run_filename)
+        date = datetime.datetime.fromtimestamp(timestamp)
+        return date.strftime("%d/%m/%Y %H:%M")
+
     def get_metric(self, metric_name, labels=None):
         if self.metrics is None:
             self.fetch_metrics()
