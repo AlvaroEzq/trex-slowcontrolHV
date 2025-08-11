@@ -250,12 +250,16 @@ class MetricsFetcher:
         self.run_file_content = None
 
     def fetch_metrics(self):
-        response = requests.get(self.url)
-        response.raise_for_status()
-        self.metrics = parse_prometheus_metrics(response.text)
+        try:
+            response = requests.get(self.url)
+            response.raise_for_status()
+            self.metrics = parse_prometheus_metrics(response.text)
+        except:
+            self.metrics = None
 
     def fetch_run_file(self):
-        with open(self.get_filename(), "r") as file:
+        run_filename = self.get_filename().replace(".root", ".run")
+        with open(run_filename, "r") as file:
             self.run_file_content = file.read()
     
     def get_metric(self, metric_name, labels=None):
@@ -278,9 +282,7 @@ class MetricsFetcher:
         return list(self.metrics.keys())
     
     def get_metrics(self):
-        if self.metrics is None:
-            self.fetch_metrics()
-        
+        self.fetch_metrics()
         return self.metrics
     
     def get_metric_help(self, metric_name):
@@ -349,8 +351,7 @@ class MetricsFetcher:
         return metadata
 
     def get_run_file_content(self):
-        if self.run_file_content is None:
-            self.fetch_run_file()
+        self.fetch_run_file()
         return self.run_file_content
 
     def get_run_file_values_by_fem(self):
