@@ -435,15 +435,9 @@ class MetricsFetcherSSH(MetricsFetcher):
 
 if __name__ == "__main__":
     # Example usage of the MetricsFetcherSSH class
-    metrics_fetcher = MetricsFetcherSSH(
-                            url="http://localhost:8080/metrics",
-                            hostname="192.168.3.80",
-                            username="usertrex",
-                            key_filename="/home/usertrex/.ssh/id_rsa"
-                            )
+    metrics_fetcher = MetricsFetcher(url="http://localhost:8080/metrics")
     metrics_fetcher.fetch_metrics()
 
     # Get a list of available metrics
     print("Available metrics (SSH):")
     print(metrics_fetcher.get_metrics_list())
-
