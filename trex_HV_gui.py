@@ -114,11 +114,12 @@ class HVGUI:
 
 
         scrolled_text_frame = self.caen_frame if self.caen_frame else self.root
-        # State to track if the widget is hidden
-        self.text_visible = False
-
+        daq_frame = tk.Frame(scrolled_text_frame)
+        daq_frame.pack(side="right", expand=False, fill='both', padx=20, pady=5)
+        self.create_daq_frame(daq_frame)
         # Create the toggle button with a downward triangle (initially visible text)
-        self.toggle_button = tk.Button(scrolled_text_frame, text="\u25BC Show terminal output", command=self.toggle_scrolled_text,
+        self.text_visible = True # State to track if the widget is hidden
+        self.toggle_button = tk.Button(scrolled_text_frame, text="\u25B2 Hide terminal output", command=self.toggle_scrolled_text,
                                         font=("Arial", 9), relief="raised", bd=0)
         self.toggle_button.pack(side="top", anchor="nw", pady=0, padx=5)
         self.scrolled_text = ScrolledText(scrolled_text_frame, font=("Arial", "9", "normal"), state="disabled", height=9)
@@ -129,9 +130,6 @@ class HVGUI:
             while self.logger.hasHandlers() and any([type(h) is logging.StreamHandler for h in self.logger.handlers]):
                 self.logger.removeHandler([h for h in self.logger.handlers if type(h) is logging.StreamHandler][0])
             self.logger.addHandler(logger.TextWidgetHandler(self.scrolled_text))
-        daq_frame = tk.Frame(scrolled_text_frame)
-        daq_frame.pack(side="right", fill="both", expand=True)
-        self.create_daq_frame(daq_frame)
 
         if self.caen_module is not None or self.spellman_module is not None:
             self.create_multidevice_frame(self.spellman_frame)
@@ -664,7 +662,7 @@ class HVGUI:
             self.scrolled_text.pack_forget()  # Hide the widget
             self.toggle_button.config(text="\u25BC Show terminal output")
         else:
-            self.scrolled_text.pack(side="bottom", fill="both", expand=False, padx=5)
+            self.scrolled_text.pack(side="bottom", fill="both", expand=True, padx=0)
             self.toggle_button.config(text="\u25B2 Hide terminal output")
 
         self.text_visible = not self.text_visible
