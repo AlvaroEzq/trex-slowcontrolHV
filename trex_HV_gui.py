@@ -318,7 +318,8 @@ class HVGUI:
         self.auto_add_var.set(0)
         self.last_run_number_from_google_sheet = None
         self.auto_add_var.trace("w", lambda *args : self.set_last_run_number_from_google_sheet())
-        self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var)
+        self.auto_add_var.set(1)
+        self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var, selectcolor="gray")
         self.auto_add_to_googlesheet_checkbox.grid(row=5, column=0, columnspan=2, pady=10, sticky="nsew")
 
         self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
