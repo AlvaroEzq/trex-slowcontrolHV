@@ -243,7 +243,7 @@ class HVGUI:
             option_menu = tk.OptionMenu(left_frame, selected_option, *channel_options)
             option_menu.grid(row=i+1, column=0, sticky="ew", padx=5)
             self.channel_optmenus.append(option_menu)
-            selected_option.trace("w", lambda *args, row_number=i: option_changed(row_number, *args))
+            selected_option.trace_add("write", lambda *args, row_number=i: option_changed(row_number, *args))
 
             factor_entry = tk.Entry(left_frame, justify="center", width=5,
                                 validate="key", validatecommand=self.validate_numeric_input)
@@ -321,7 +321,7 @@ class HVGUI:
         self.auto_add_var = tk.IntVar()
         self.auto_add_var.set(0)
         self.last_run_number_from_google_sheet = None
-        self.auto_add_var.trace("w", lambda *args : self.set_last_run_number_from_google_sheet())
+        self.auto_add_var.trace_add("write", lambda *args : self.set_last_run_number_from_google_sheet())
         self.auto_add_var.set(1)
         self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var, selectcolor="gray")
         self.auto_add_to_googlesheet_checkbox.grid(row=6, column=0, columnspan=2, pady=10, sticky="nsew")
@@ -429,7 +429,7 @@ class HVGUI:
         self.triprec_desactivate_button.grid(row=1, column=1, pady=10, sticky="n")
 
         self.triprec_active = tk.BooleanVar(value=False)
-        self.triprec_active.trace("w", self.trace_triprec_active)
+        self.triprec_active.trace_add("write", self.trace_triprec_active)
 
         bottom_frame = tk.Frame(triprec_frame)
         bottom_frame.grid(row=1, column=0, sticky="nsew")
@@ -445,7 +445,7 @@ class HVGUI:
         self.trip_count.set(0)
         self.trip_count_label = tk.Label(bottom_frame, text="0")
         self.trip_count_label.grid(row=3, column=1, sticky="e")
-        self.trip_count.trace("w", lambda *args: self.trip_count_label.config(text=str(self.trip_count.get())))
+        self.trip_count.trace_add("write", lambda *args: self.trip_count_label.config(text=str(self.trip_count.get())))
         tk.Label(bottom_frame, text=" / ").grid(row=3, column=2, sticky="ew", padx=0)
         self.max_count_entry = tk.Entry(bottom_frame, width=4, justify="right",
                                 validate="key", validatecommand=self.validate_numeric_input)
