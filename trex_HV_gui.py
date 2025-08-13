@@ -197,9 +197,11 @@ class HVGUI:
         row = 0
         checks_configuration = {}
         all_guis = self.all_guis.copy()
-        all_guis["multidevice"] = self
+        all_guis["multidevice"] = self # the multidevice.checks_frame is self.checks_frame
         for name, gui in all_guis.items():
-            if gui.checks_frame is None: # TODO: check if it even exists as member of the class ??
+            if not hasattr(gui, "checks_frame"):
+                continue
+            if gui.checks_frame is None:
                 continue
             tk.Label(new_window, text=name, font=("", 12, "bold")).grid(row=row, column=0, sticky="w")
 
@@ -238,10 +240,10 @@ class HVGUI:
             checks_configuration[name] = checksframe_config_widgets
             row += 1
 
-        apply_button = tk.Button(new_window, text="Apply", command=lambda: apply_warning_settings())
+        apply_button = tk.Button(new_window, text="Apply", command=lambda: apply_settings())
         apply_button.grid(row=row, column=1, sticky="w", pady=5)
 
-        def apply_warning_settings():
+        def apply_settings():
             for name, conf in checks_configuration.items():
                 for key, var in conf.items():
                     print(f"key: {key}, value: {var.get()}")
