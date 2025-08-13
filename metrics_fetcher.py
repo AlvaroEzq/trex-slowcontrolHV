@@ -3,6 +3,7 @@ from collections import defaultdict
 import paramiko
 import requests
 import os
+import datetime
 
 def parse_prometheus_metrics(metrics_data):
     """
@@ -250,14 +251,24 @@ class MetricsFetcher:
         self.run_file_content = None
 
     def fetch_metrics(self):
-        response = requests.get(self.url)
-        response.raise_for_status()
-        self.metrics = parse_prometheus_metrics(response.text)
+        try:
+            response = requests.get(self.url)
+            response.raise_for_status()
+            self.metrics = parse_prometheus_metrics(response.text)
+        except:
+            self.metrics = None
 
     def fetch_run_file(self):
-        with open(self.get_filename(), "r") as file:
+        run_filename = self.get_filename().replace(".root", ".run")
+        with open(run_filename, "r") as file:
             self.run_file_content = file.read()
     
+    def get_run_file_time(self):
+        run_filename = self.get_filename().replace(".root", ".run")
+        timestamp = os.path.getmtime(run_filename)
+        date = datetime.datetime.fromtimestamp(timestamp)
+        return date.strftime("%d/%m/%Y %H:%M")
+
     def get_metric(self, metric_name, labels=None):
         if self.metrics is None:
             self.fetch_metrics()
@@ -278,9 +289,7 @@ class MetricsFetcher:
         return list(self.metrics.keys())
     
     def get_metrics(self):
-        if self.metrics is None:
-            self.fetch_metrics()
-        
+        self.fetch_metrics()
         return self.metrics
     
     def get_metric_help(self, metric_name):
@@ -349,8 +358,7 @@ class MetricsFetcher:
         return metadata
 
     def get_run_file_content(self):
-        if self.run_file_content is None:
-            self.fetch_run_file()
+        self.fetch_run_file()
         return self.run_file_content
 
     def get_run_file_values_by_fem(self):
@@ -427,15 +435,9 @@ class MetricsFetcherSSH(MetricsFetcher):
 
 if __name__ == "__main__":
     # Example usage of the MetricsFetcherSSH class
-    metrics_fetcher = MetricsFetcherSSH(
-                            url="http://localhost:8080/metrics",
-                            hostname="192.168.3.80",
-                            username="usertrex",
-                            key_filename="/home/usertrex/.ssh/id_rsa"
-                            )
+    metrics_fetcher = MetricsFetcher(url="http://localhost:8080/metrics")
     metrics_fetcher.fetch_metrics()
 
     # Get a list of available metrics
     print("Available metrics (SSH):")
     print(metrics_fetcher.get_metrics_list())
-

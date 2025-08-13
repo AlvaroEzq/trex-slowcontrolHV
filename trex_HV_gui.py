@@ -114,11 +114,12 @@ class HVGUI:
 
 
         scrolled_text_frame = self.caen_frame if self.caen_frame else self.root
-        # State to track if the widget is hidden
-        self.text_visible = False
-
+        daq_frame = tk.Frame(scrolled_text_frame)
+        daq_frame.pack(side="right", expand=False, fill='both', padx=20, pady=5)
+        self.create_daq_frame(daq_frame)
         # Create the toggle button with a downward triangle (initially visible text)
-        self.toggle_button = tk.Button(scrolled_text_frame, text="\u25BC Show terminal output", command=self.toggle_scrolled_text,
+        self.text_visible = True # State to track if the widget is hidden
+        self.toggle_button = tk.Button(scrolled_text_frame, text="\u25B2 Hide terminal output", command=self.toggle_scrolled_text,
                                         font=("Arial", 9), relief="raised", bd=0)
         self.toggle_button.pack(side="top", anchor="nw", pady=0, padx=5)
         self.scrolled_text = ScrolledText(scrolled_text_frame, font=("Arial", "9", "normal"), state="disabled", height=9)
@@ -129,9 +130,6 @@ class HVGUI:
             while self.logger.hasHandlers() and any([type(h) is logging.StreamHandler for h in self.logger.handlers]):
                 self.logger.removeHandler([h for h in self.logger.handlers if type(h) is logging.StreamHandler][0])
             self.logger.addHandler(logger.TextWidgetHandler(self.scrolled_text))
-        daq_frame = tk.Frame(scrolled_text_frame)
-        daq_frame.pack(side="right", fill="both", expand=True)
-        self.create_daq_frame(daq_frame)
 
         if self.caen_module is not None or self.spellman_module is not None:
             self.create_multidevice_frame(self.spellman_frame)
@@ -245,7 +243,7 @@ class HVGUI:
             option_menu = tk.OptionMenu(left_frame, selected_option, *channel_options)
             option_menu.grid(row=i+1, column=0, sticky="ew", padx=5)
             self.channel_optmenus.append(option_menu)
-            selected_option.trace("w", lambda *args, row_number=i: option_changed(row_number, *args))
+            selected_option.trace_add("write", lambda *args, row_number=i: option_changed(row_number, *args))
 
             factor_entry = tk.Entry(left_frame, justify="center", width=5,
                                 validate="key", validatecommand=self.validate_numeric_input)
@@ -304,28 +302,33 @@ class HVGUI:
         self.run_filename_label = tk.Label(daq_frame, text="N/A")
         self.run_filename_label.grid(row=1, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="Speed (MB/s)").grid(row=2, column=0, sticky="w")
-        self.daq_speed_label = tk.Label(daq_frame, text="N/A")
-        self.daq_speed_label.grid(row=2, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Speed (events/s)").grid(row=3, column=0, sticky="w")
+        tk.Label(daq_frame, text="Speed (events/s)").grid(row=2, column=0, sticky="w")
         self.daq_events_label = tk.Label(daq_frame, text="N/A")
-        self.daq_events_label.grid(row=3, column=1, sticky="e")
+        self.daq_events_label.grid(row=2, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="Number of events").grid(row=4, column=0, sticky="w")
+        tk.Label(daq_frame, text="Number of events").grid(row=3, column=0, sticky="w")
         self.events_number_label = tk.Label(daq_frame, text="N/A")
-        self.events_number_label.grid(row=4, column=1, sticky="e")
+        self.events_number_label.grid(row=3, column=1, sticky="e")
+
+        tk.Label(daq_frame, text="Queue fill level").grid(row=4, column=0, sticky="w")
+        self.queue_fill_label = tk.Label(daq_frame, text="N/A")
+        self.queue_fill_label.grid(row=4, column=1, sticky="e")
+
+        tk.Label(daq_frame, text="Disk free space (GB)").grid(row=5, column=0, sticky="w")
+        self.disk_space_label = tk.Label(daq_frame, text="N/A")
+        self.disk_space_label.grid(row=5, column=1, sticky="e")
 
         self.auto_add_var = tk.IntVar()
         self.auto_add_var.set(0)
         self.last_run_number_from_google_sheet = None
-        self.auto_add_var.trace("w", lambda *args : self.set_last_run_number_from_google_sheet())
-        self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var)
-        self.auto_add_to_googlesheet_checkbox.grid(row=5, column=0, columnspan=2, pady=10, sticky="nsew")
+        self.auto_add_var.trace_add("write", lambda *args : self.set_last_run_number_from_google_sheet())
+        self.auto_add_var.set(1)
+        self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var, selectcolor="gray")
+        self.auto_add_to_googlesheet_checkbox.grid(row=6, column=0, columnspan=2, pady=10, sticky="nsew")
 
         self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
                                         command=self.add_run_to_googlesheet)
-        self.add_to_googlesheet_button.grid(row=6, column=0, columnspan=2, pady=10, sticky="nsew")
+        self.add_to_googlesheet_button.grid(row=7, column=0, columnspan=2, pady=10, sticky="nsew")
 
         threading.Thread(target=self.daq_metrics_loop, daemon=True).start()
 
@@ -356,14 +359,18 @@ class HVGUI:
                     else:
                         self.add_to_googlesheet_button.config(state="normal")
                 self.run_filename_label.config(text=run_type)
-                self.daq_speed_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_mb_per_sec_now"):.2f}')
+                disk_space_gb = self.metrics_fetcher.get_metric("free_disk_space_gb")['path="/"']
+                self.disk_space_label.config(text=f'{disk_space_gb:.0f}')
                 self.daq_events_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_events_per_sec_now"):.1f}')
                 self.events_number_label.config(text=f'{self.metrics_fetcher.get_metric("number_of_events"):,.0f}')
+                queue_fill_level = self.metrics_fetcher.get_metric("daq_frames_queue_fill_level_sum")
+                self.queue_fill_label.config(text=f'{queue_fill_level:.3f}')
             else:
                 self.run_number_label.config(text="N/A")
-                self.daq_speed_label.config(text="N/A")
+                self.disk_space_label.config(text="N/A")
                 self.daq_events_label.config(text="N/A")
                 self.events_number_label.config(text="N/A")
+                self.queue_fill_label.config(text="N/A")
                 self.add_to_googlesheet_button.config(state="disabled")
             if (
                 self.auto_add_var.get() == 1
@@ -380,7 +387,11 @@ class HVGUI:
             self.add_to_googlesheet_button.config(state="disabled") # avoid spamming the button
             run_number = self.run_number_label.cget("text")
             self.set_last_run_number_from_google_sheet(int(run_number))
-            start_date = time.strftime("%d/%m/%Y %H:%M")
+            start_date = ""
+            try:
+                start_date = self.metrics_fetcher.get_run_file_time()
+            except:
+                start_date = time.strftime("%d/%m/%Y %H:%M")
             metadata = self.metrics_fetcher.get_filename_metadata()
             run_type = metadata.get("run_type", "")
             metadata.pop("run_type", None)
@@ -418,7 +429,7 @@ class HVGUI:
         self.triprec_desactivate_button.grid(row=1, column=1, pady=10, sticky="n")
 
         self.triprec_active = tk.BooleanVar(value=False)
-        self.triprec_active.trace("w", self.trace_triprec_active)
+        self.triprec_active.trace_add("write", self.trace_triprec_active)
 
         bottom_frame = tk.Frame(triprec_frame)
         bottom_frame.grid(row=1, column=0, sticky="nsew")
@@ -434,7 +445,7 @@ class HVGUI:
         self.trip_count.set(0)
         self.trip_count_label = tk.Label(bottom_frame, text="0")
         self.trip_count_label.grid(row=3, column=1, sticky="e")
-        self.trip_count.trace("w", lambda *args: self.trip_count_label.config(text=str(self.trip_count.get())))
+        self.trip_count.trace_add("write", lambda *args: self.trip_count_label.config(text=str(self.trip_count.get())))
         tk.Label(bottom_frame, text=" / ").grid(row=3, column=2, sticky="ew", padx=0)
         self.max_count_entry = tk.Entry(bottom_frame, width=4, justify="right",
                                 validate="key", validatecommand=self.validate_numeric_input)
@@ -664,7 +675,7 @@ class HVGUI:
             self.scrolled_text.pack_forget()  # Hide the widget
             self.toggle_button.config(text="\u25BC Show terminal output")
         else:
-            self.scrolled_text.pack(side="bottom", fill="both", expand=False, padx=5)
+            self.scrolled_text.pack(side="bottom", fill="both", expand=True, padx=0)
             self.toggle_button.config(text="\u25B2 Hide terminal output")
 
         self.text_visible = not self.text_visible
