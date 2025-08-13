@@ -141,6 +141,7 @@ class HVGUI:
         # self.menu_config.add_command(label="Load checks") # TODO: implement load checks
         self.menu_config.add_command(label="Verbose", command=self.open_verbose_window)
         self.menu_config.add_command(label="Checks", command=self.open_checks_window)
+        self.menu_config.add_command(label="Device GUI configuration", command=self.open_devicegui_config_window)
         self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
         self.root.config(menu=self.menu_bar)
 
@@ -246,6 +247,25 @@ class HVGUI:
                     print(f"key: {key}, value: {var.get()}")
                     all_guis[name].checks_frame.set_config_param(key, var.get())
             new_window.destroy()
+
+    def open_devicegui_config_window(self):
+        new_window = tk.Toplevel(self.root)
+        new_window.title("Device GUI Configuration")
+
+        row = 0
+        checks_configuration = {}
+        all_guis = self.all_guis.copy()
+        #all_guis["multidevice"] = self # the multidevice.checks_frame is self.checks_frame
+        for name, gui in all_guis.items():
+            print(f"Checking GUI: {name}")
+            if not hasattr(gui, "config_params"):
+                continue
+            if gui.config_params is None:
+                continue
+            device_frame = tk.LabelFrame(new_window, text=name, font=("", 12, "bold"))
+            device_frame.grid(row=row, column=0, sticky="w", padx=10, pady=5)
+            gui.make_config_menu(device_frame)
+            row += 1
 
     def create_multidevice_frame(self, frame):
         self.multidevice_frame = tk.LabelFrame(frame, text="Multi-device control", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)

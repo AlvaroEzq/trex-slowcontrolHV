@@ -75,6 +75,13 @@ class DeviceGUI(ABC):
         if parent_frame is None:
             self.root = tk.Tk()
             self.root.title(f"{device.name} GUI")
+            # menu bar only if it is the main gui
+            self.menu_bar = tk.Menu(self.root)
+            self.menu_config = tk.Menu(self.menu_bar, tearoff=0)
+            # self.menu_config.add_command(label="Load checks") # TODO: implement load checks
+            self.menu_config.add_command(label="Advanced options", command=self.open_config_menu)
+            self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
+            self.root.config(menu=self.menu_bar)
             start_mainloop = True
         else:
             self.root = parent_frame
@@ -155,6 +162,55 @@ class DeviceGUI(ABC):
     def get_config_params(self):
         return self.config_params
 
+    def open_config_menu(self):
+        new_window = tk.Toplevel(self.root)
+        new_window.title("Configuration")
+
+        self.make_config_menu(new_window)
+
+    def make_config_menu(self, frame):
+        row = 0
+        config_widgets = {}
+        for key, value in self.config_params.items():
+            print(f"key: {key}, value: {value}")
+            row += 1
+            tk.Label(frame, text=key).grid(row=row, column=1, sticky="w")
+            var = None
+            if isinstance(value, bool):
+                var = tk.BooleanVar()
+                var.set(value)
+                widget = tk.Checkbutton(frame, variable=var)
+            elif isinstance(value, int):
+                var = tk.IntVar()
+                var.set(value)
+                widget = tk.Entry(frame, justify="center", width=5,
+                            validate="key", validatecommand=self.validate_numeric_input,
+                            textvariable=var)
+            elif isinstance(value, float):
+                var = tk.DoubleVar()
+                var.set(value)
+                widget = tk.Entry(frame, justify="center", width=5,
+                            validate="key", validatecommand=self.validate_numeric_input,
+                            textvariable=var)
+            elif isinstance(value, str):
+                var = tk.StringVar()
+                var.set(value)
+                widget = tk.Entry(frame, justify="center", width=5,
+                            validate="key", textvariable=var)
+            else:
+                continue
+
+            widget.grid(row=row, column=2, sticky="w")
+            config_widgets[key] = var
+        row += 1
+        apply_button = tk.Button(frame, text="Apply", command=lambda: apply_settings())
+        apply_button.grid(row=row, column=1, sticky="w", pady=5)
+
+        def apply_settings():
+            for key, var in config_widgets.items():
+                print(f"key: {key}, value: {var.get()}")
+                self.set_config_param(key, var.get())
+            #new_window.destroy()
     
     @abstractmethod
     def read_values(self):
