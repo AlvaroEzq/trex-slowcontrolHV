@@ -172,7 +172,7 @@ class DeviceGUI(ABC):
         row = 0
         config_widgets = {}
         for key, value in self.config_params.items():
-            print(f"key: {key}, value: {value}")
+            #print(f"key: {key}, value: {value}")
             row += 1
             tk.Label(frame, text=key).grid(row=row, column=1, sticky="w")
             var = None
@@ -208,7 +208,7 @@ class DeviceGUI(ABC):
 
         def apply_settings():
             for key, var in config_widgets.items():
-                print(f"key: {key}, value: {var.get()}")
+                #print(f"key: {key}, value: {var.get()}")
                 self.set_config_param(key, var.get())
             #new_window.destroy()
     

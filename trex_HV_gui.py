@@ -207,7 +207,7 @@ class HVGUI:
 
             checksframe_config_widgets = {}
             for key, value in gui.checks_frame.get_config_params().items():
-                print(f"key: {key}, value: {value}")
+                #print(f"key: {key}, value: {value}")
                 row += 1
                 tk.Label(new_window, text=key).grid(row=row, column=1, sticky="w")
                 var = None
@@ -246,7 +246,7 @@ class HVGUI:
         def apply_settings():
             for name, conf in checks_configuration.items():
                 for key, var in conf.items():
-                    print(f"key: {key}, value: {var.get()}")
+                    #print(f"key: {key}, value: {var.get()}")
                     all_guis[name].checks_frame.set_config_param(key, var.get())
             new_window.destroy()
 
@@ -259,7 +259,7 @@ class HVGUI:
         all_guis = self.all_guis.copy()
         #all_guis["multidevice"] = self # the multidevice.checks_frame is self.checks_frame
         for name, gui in all_guis.items():
-            print(f"Checking GUI: {name}")
+            #print(f"DeviceGUI: {name}")
             if not hasattr(gui, "config_params"):
                 continue
             if gui.config_params is None:
