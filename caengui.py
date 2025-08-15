@@ -29,8 +29,7 @@ class CaenHVPSGUI(DeviceGUI):
         self.vset_entries = None
         self.vset_labels = None
         self.checks = checks
-        self.checks_vars = None
-        self.checks_checkboxes = None
+        self.checks_frame = None
 
         self.alarm_frame = None
         self.security_frame = None
@@ -295,7 +294,7 @@ class CaenHVPSGUI(DeviceGUI):
 
         self.set_multichannel_button = tk.Button(
             checkbox_frame,
-            text="Set multichannel",
+            text="Set & turn on multichannel",
             font=("Arial", 10),
             bg="navy",
             fg="white",
@@ -322,7 +321,7 @@ class CaenHVPSGUI(DeviceGUI):
         security_frame.grid(row=2, column=0, padx=10, pady=10, sticky="NWE")
         channels = {self.channels_name[i] : self.device.channels[i] for i in range(self.device.number_of_channels)}
         locks = tuple([self.device_lock])
-        self.checksframe = ChecksFrame(security_frame, checks=self.checks, channels=channels, locks=locks)
+        self.checks_frame = ChecksFrame(security_frame, checks=self.checks, channels=channels, locks=locks)
         return security_frame
 
     def open_channel_property_window(self, channel_number):
@@ -444,9 +443,9 @@ class CaenHVPSGUI(DeviceGUI):
 
         # simulate the checks with the change in the vset value
         parameters_values = {self.channels_name[channel_number].replace(" ", "")+".vset": vset_value}
-        if check and self.checksframe is not None:
+        if check and self.checks_frame is not None:
             self.vset_entries[channel_number].config(state="readonly") # to avoid the user to change the value while the checks are being simulated
-            if not self.checksframe.simulate_check_conditions(parameters_values):
+            if not self.checks_frame.simulate_check_conditions(parameters_values):
                 self.vset_entries[channel_number].config(fg="red")
                 self.vset_entries[channel_number].config(state="normal")
                 return False
@@ -475,9 +474,9 @@ class CaenHVPSGUI(DeviceGUI):
                     return False
                 parameters_values[self.channels_name[i].replace(" ", "")+".vset"] = vset_value
 
-        if check and self.checksframe is not None:
+        if check and self.checks_frame is not None:
             change_entries_state("readonly") # to avoid the user to change the values while the checks are being simulated
-            if not self.checksframe.simulate_check_conditions(parameters_values):
+            if not self.checks_frame.simulate_check_conditions(parameters_values):
                 change_entries_state("normal")
                 return False
             change_entries_state("normal")

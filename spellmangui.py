@@ -20,6 +20,7 @@ class SpellmanFrame(DeviceGUI):
         self.state_indicator = None
         self.state_tooltip = None
         self.security_frame = None
+        self.checks_frame = None
 
         super().__init__(spellman, ['cathode'], parent,
                         logging_enabled=log,
@@ -190,7 +191,7 @@ class SpellmanFrame(DeviceGUI):
         security_frame.grid(row=3, column=1, sticky='ew', padx=5, pady=5)
         channels = {self.channels_name[0] : self.device}
         locks = tuple([self.device_lock])
-        self.checksframe = ChecksFrame(security_frame, checks=self.checks, channels=channels, locks=locks)
+        self.checks_frame = ChecksFrame(security_frame, checks=self.checks, channels=channels, locks=locks)
         return security_frame
 
     def turn_remote_on(self):
@@ -217,9 +218,9 @@ class SpellmanFrame(DeviceGUI):
 
         # simulate the checks with the change in the vset value
         parameters_values = {self.channels_name[0].replace(" ", "") +".vset" : vset_value}
-        if check and self.checksframe is not None:
+        if check and self.checks_frame is not None:
             self.labels['voltage_dac_s'].config(state='readonly') # to avoid manual changes while checking
-            if not self.checksframe.simulate_check_conditions(parameters_values):
+            if not self.checks_frame.simulate_check_conditions(parameters_values):
                 self.labels['voltage_dac_s'].config(fg='red')
                 self.labels['voltage_dac_s'].config(state='normal')
                 return False
@@ -243,9 +244,9 @@ class SpellmanFrame(DeviceGUI):
 
         # simulate the checks with the change in the iset value
         parameters_values = {self.channels_name[0].replace(" ", "") +".iset" : iset_value}
-        if self.checksframe is not None:
+        if self.checks_frame is not None:
             self.labels['current_dac_s'].config(state='readonly')
-            if not self.checksframe.simulate_check_conditions(parameters_values):
+            if not self.checks_frame.simulate_check_conditions(parameters_values):
                 self.labels['current_dac_s'].config(fg='red')
                 self.labels['current_dac_s'].config(state='normal')
                 return False
