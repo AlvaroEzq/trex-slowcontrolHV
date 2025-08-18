@@ -8,6 +8,7 @@ import json
 
 LOG_DIR = "logs"
 SLACK_WEBHOOK_URL = "" # add here the webkook url
+MATTERMOST_WEBHOOK_URL = ""
 
 def create_directory_recursive(path):
     try:
@@ -32,7 +33,7 @@ class ThreadedHandler(logging.Handler):
 
     def emit(self, record):
         # Add the log record to the queue
-        self.log_queue.put(self.format(record))
+        self.log_queue.put(record)
 
     def logging_logic(self, log_message):
         raise NotImplementedError
@@ -50,14 +51,26 @@ class ThreadedHandler(logging.Handler):
         super().close()
 
 class SlackHandler(ThreadedHandler):
+
+    LEVEL_EMOJIS = {
+        logging.DEBUG: ":bug:",
+        logging.INFO: ":information_source:",
+        logging.WARNING: ":warning:",
+        logging.ERROR: ":red_circle::exclamation:",
+        logging.CRITICAL: ":rotating_light::exclamation:"
+    }
+
     def __init__(self, webhook_url:str):
         super().__init__()
         self.webhook_url = webhook_url
     
-    def logging_logic(self, message):
+    def logging_logic(self, record):
         try:
             # Enviar mensaje a Slack
-            slack_data = {'text': message}
+            message = record.getMessage()
+            log_level = record.levelno
+            emoji = self.LEVEL_EMOJIS.get(log_level, "") + " "
+            slack_data = {'text': f"{emoji}{message}"}
             requests.post(self.webhook_url, data=json.dumps(slack_data), headers={'Content-Type': 'application/json'})
         except Exception as e:
             print(e)
@@ -65,6 +78,57 @@ class SlackHandler(ThreadedHandler):
     def __repr__(self):
         return f"{self.__class__.__name__}({self.webhook_url})"
     """
+
+
+class MattermostHandler(ThreadedHandler):
+    LEVEL_EMOJIS = {
+        logging.DEBUG: ":bug:",
+        logging.INFO: ":information_source:",
+        logging.WARNING: ":warning:",
+        logging.ERROR: ":red_circle::exclamation:",
+        logging.CRITICAL: ":rotating_light::exclamation:"
+    }
+
+    LEVEL_COLORS = {
+        #logging.WARNING: "#FFD700",   # gold
+        logging.ERROR: "#FF6347",     # tomato red
+        logging.CRITICAL: "#DC143C"   # crimson
+    }
+
+    def __init__(self, webhook_url: str):
+        super().__init__()
+        self.webhook_url = webhook_url
+
+    def logging_logic(self, record):
+        try:
+            message = record.getMessage()
+            log_level = record.levelno
+            emoji = self.LEVEL_EMOJIS.get(log_level, "") + " "
+            text = f"{emoji}{message}"
+
+            mm_data = {}
+
+            # For WARNING/ERROR/CRITICAL, use attachment with background color
+            if record.levelno in self.LEVEL_COLORS:
+                mm_data["attachments"] = [{
+                    "fallback": message,
+                    "color": self.LEVEL_COLORS[record.levelno],
+                    "text": text
+                }]
+            else:
+                mm_data["text"] = text
+
+            response = requests.post(
+                self.webhook_url,
+                data=json.dumps(mm_data),
+                headers={'Content-Type': 'application/json'}
+            )
+
+            if response.status_code != 200:
+                print(f"Mattermost webhook failed: {response.status_code}, {response.text}")
+
+        except Exception as e:
+            print(f"Error sending message to Mattermost: {e}")
 
 # Custom handler for logging to a Text widget
 class TextWidgetHandler(logging.Handler):
@@ -98,6 +162,12 @@ def configure_basic_logger(logger_name:str, log_level=logging.DEBUG):
         slack_webhook_url=SLACK_WEBHOOK_URL,
         log_level=logging.WARNING
     )
+    logger = configure_mattermost_logger(
+        logger_name,
+        log_filename=f"{LOG_DIR}/mattermost_{logger_name}.log",
+        mattermost_webhook_url=MATTERMOST_WEBHOOK_URL,
+        log_level=logging.WARNING
+    )
     logger = configure_streamer_logger(
         logger_name,
         log_filename=f"{LOG_DIR}/stream_{logger_name}.log",
@@ -117,6 +187,19 @@ def configure_slack_logger(logger_name:str, log_filename:str, slack_webhook_url:
         file_slack_handler.setLevel(slack_handler.level)
         logger.addHandler(slack_handler)
         logger.addHandler(file_slack_handler)
+    return logger
+
+def configure_mattermost_logger(logger_name:str, log_filename:str, mattermost_webhook_url:str, log_level=logging.ERROR):
+    logger = logging.getLogger(logger_name)
+    # logger.setLevel(logging.DEBUG)
+    if mattermost_webhook_url:
+        mattermost_handler = MattermostHandler(mattermost_webhook_url)
+        mattermost_handler.setLevel(log_level)
+        file_mattermost_handler = logging.FileHandler(log_filename)
+        file_mattermost_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+        file_mattermost_handler.setLevel(mattermost_handler.level)
+        logger.addHandler(mattermost_handler)
+        logger.addHandler(file_mattermost_handler)
     return logger
 
 def configure_streamer_logger(logger_name:str, text_widget=None, log_filename:str=None, log_level=logging.DEBUG):
