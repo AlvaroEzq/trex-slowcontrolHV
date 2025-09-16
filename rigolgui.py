@@ -4,6 +4,17 @@ import tkinter as tk
 import argparse
 
 CHANNEL_NAMES = [
+                'Channel 1',
+                'Channel 2',
+                'Channel 3',
+                ]
+
+CHANNEL_NAMES_LEFT = [
+                'Left 1',
+                'Left 2',
+                ]
+
+CHANNEL_NAMES_RIGHT = [
                 'Right 1',
                 'Right 2',
                 'TCM',
@@ -22,9 +33,9 @@ class RigolGUI(DeviceGUI):
     Inherits from DeviceGUI and provides specific functionality for the BGA244 device.
     """
 
-    def __init__(self, device, parent_frame=None, channels_names=None, log=True):
-        if channels_names is None:
-            channels_names = []
+    def __init__(self, device, parent_frame=None, channel_names=None, log=True):
+        if channel_names is None:
+            channel_names = CHANNEL_NAMES
 
         #self.channels_labels = []
         self.state_labels = []
@@ -32,7 +43,7 @@ class RigolGUI(DeviceGUI):
         self.current_labels = []
         self.power_labels = []
 
-        super().__init__(device, CHANNEL_NAMES, parent_frame,
+        super().__init__(device, channel_names, parent_frame,
                         logging_enabled=log,
                         channel_state_save_previous=False,
                         channel_state_diff_vmon=0.05,
@@ -136,6 +147,9 @@ if __name__ == "__main__":
         rigol_device = RigolSimulator()
     else:
         # Initialize the Rigol power supply
+        if args.resource is None:
+            print("Please provide a resource name using --resource")
+            exit(1)
         rigol_device = RigolPowerSupply(resource_name=args.resource)
     
     RigolGUI(device=rigol_device, channels_names=CHANNEL_NAMES)
