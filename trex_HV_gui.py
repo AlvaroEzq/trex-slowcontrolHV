@@ -167,12 +167,12 @@ class HVGUI:
         new_window = tk.Toplevel(self.root)
         new_window.title("Verbose")
 
-        loggers = self.logger.get_children_loggers("app", include_parent=True)
+        loggers = logger.get_children_loggers("app", include_parent=True)
         for l in loggers:
             if not l.handlers:
                 loggers.remove(l)
 
-        verbose_levels = self.logger.get_level_names()
+        verbose_levels = logger.get_level_names()
         loggers_optmenus = {}
         row = 0
         for l in loggers:
