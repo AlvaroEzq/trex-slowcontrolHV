@@ -8,8 +8,11 @@ import logging
 
 import caengui
 import spellmangui
-import spellmanClass as spll
+import rigolgui
+
 import hvps
+import spellmanClass as spll
+import rigolClass as rgl
 
 import utils
 from checkframe import ChecksFrame
@@ -20,7 +23,7 @@ import logger
 
 
 class HVGUI:
-    def __init__(self, caen_module=None, spellman_module=None, checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True):
+    def __init__(self, caen_module=None, spellman_module=None, rigol_module_1=None, rigol_module_2=None, checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True):
         if checks_caen is None:
             checks_caen = []
         if checks_spellman is None:
@@ -37,6 +40,13 @@ class HVGUI:
         self.spellman_frame = None
         self.spellman_gui = None
         self.spellman_checks = checks_spellman
+
+        self.rigol_module_1 = rigol_module_1
+        self.rigol_frame_1 = None
+        self.rigol_gui_1 = None
+        self.rigol_module_2 = rigol_module_2
+        self.rigol_frame_2 = None
+        self.rigol_gui_2 = None
 
         self.checks = checks_multidevice
         self.all_channels = {}
@@ -103,7 +113,7 @@ class HVGUI:
 
         if self.spellman_module is not None:
             self.spellman_frame = tk.Frame(self.root)
-            self.spellman_frame.pack(side="right", fill=tk.BOTH, expand=True)
+            self.spellman_frame.pack(side="right", fill="x", anchor="n", expand=False)
             self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame, checks=self.spellman_checks, log=self.logging_enabled) # TODO: implement individual spellman checks
             self.all_channels = {'cathode' : self.spellman_module, **self.all_channels} # add the spellman module as cathode at the front of the dict
             self.channels_gui['cathode'] = self.spellman_gui
@@ -113,23 +123,30 @@ class HVGUI:
             self.channels_vset_guilabel['cathode'] = self.spellman_gui.labels['voltage_dac_label']
 
 
-        scrolled_text_frame = self.caen_frame if self.caen_frame else self.root
-        daq_frame = tk.Frame(scrolled_text_frame)
-        daq_frame.pack(side="right", expand=False, fill='both', padx=20, pady=5)
+        electronics_frame = self.caen_frame if self.caen_frame else self.root
+        daq_frame = tk.Frame(electronics_frame)
+        daq_frame.pack(side="right", expand=False, fill='both', padx=20)
         self.create_daq_frame(daq_frame)
+        if self.rigol_module_1 is not None:
+            self.rigol_frame_1 = tk.Frame(electronics_frame)
+            self.rigol_frame_1.pack(side="top", fill="x", anchor="n", expand=True)
+            self.rigol_gui_1 = rigolgui.RigolGUI(device=self.rigol_module_1, parent_frame=self.rigol_frame_1, channel_names=rigolgui.CHANNEL_NAMES_LEFT, log=self.logging_enabled)
+            self.all_guis['rigol left'] = self.rigol_gui_1
+        if self.rigol_module_2 is not None:
+            self.rigol_frame_2 = tk.Frame(electronics_frame)
+            self.rigol_frame_2.pack(side="top", fill="x", anchor="n", expand=True)
+            self.rigol_gui_2 = rigolgui.RigolGUI(device=self.rigol_module_2, parent_frame=self.rigol_frame_2, channel_names=rigolgui.CHANNEL_NAMES_RIGHT, log=self.logging_enabled)
+            self.all_guis['rigol right'] = self.rigol_gui_2
+        
         # Create the toggle button with a downward triangle (initially visible text)
+        if self.rigol_gui_1 is None and self.rigol_gui_2 is None:
+            scrolled_text_frame = electronics_frame # place the text left from the DAQ metris frame
+        else:
+            scrolled_text_frame = tk.Frame(self.root)
+            scrolled_text_frame.pack(side="bottom", fill="both", expand=True)
+        scrolled_text_frame = electronics_frame if (self.rigol_gui_1 is None or self.rigol_gui_2 is None) else self.rigol_frame_2
         self.text_visible = True # State to track if the widget is hidden
-        self.toggle_button = tk.Button(scrolled_text_frame, text="\u25B2 Hide terminal output", command=self.toggle_scrolled_text,
-                                        font=("Arial", 9), relief="raised", bd=0)
-        self.toggle_button.pack(side="top", anchor="nw", pady=0, padx=5)
-        self.scrolled_text = ScrolledText(scrolled_text_frame, font=("Arial", "9", "normal"), state="disabled", height=9)
-        self.scrolled_text.pack(side="left", fill="both", expand=True, padx=0)
-        if self.scrolled_text:
-            self.redirect_logging(self.scrolled_text)
-            # redirect also the StreamHandler to the scrolled text using the TextWidgetHandler
-            while self.logger.hasHandlers() and any([type(h) is logging.StreamHandler for h in self.logger.handlers]):
-                self.logger.removeHandler([h for h in self.logger.handlers if type(h) is logging.StreamHandler][0])
-            self.logger.addHandler(logger.TextWidgetHandler(self.scrolled_text))
+        self.create_scrolled_text(scrolled_text_frame)
 
         if self.caen_module is not None or self.spellman_module is not None:
             self.create_multidevice_frame(self.spellman_frame)
@@ -150,12 +167,12 @@ class HVGUI:
         new_window = tk.Toplevel(self.root)
         new_window.title("Verbose")
 
-        loggers = logger.get_children_loggers("app", include_parent=True)
+        loggers = self.logger.get_children_loggers("app", include_parent=True)
         for l in loggers:
             if not l.handlers:
                 loggers.remove(l)
 
-        verbose_levels = logger.get_level_names()
+        verbose_levels = self.logger.get_level_names()
         loggers_optmenus = {}
         row = 0
         for l in loggers:
@@ -269,7 +286,7 @@ class HVGUI:
 
     def create_multidevice_frame(self, frame):
         self.multidevice_frame = tk.LabelFrame(frame, text="Multi-device control", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
-        self.multidevice_frame.pack(side="bottom", fill="both", expand=True)
+        self.multidevice_frame.pack(side="bottom", fill="both", expand=False)
 
         left_frame = tk.LabelFrame(self.multidevice_frame, text="Protocol settings", font=("", 12), labelanchor="n", padx=10, pady=10, bd=4)
         left_frame.pack(side="left", anchor="center")
@@ -412,6 +429,19 @@ class HVGUI:
         self.add_to_googlesheet_button.grid(row=7, column=0, columnspan=2, pady=10, sticky="nsew")
 
         threading.Thread(target=self.daq_metrics_loop, daemon=True).start()
+
+    def create_scrolled_text(self, frame):
+        self.toggle_button = tk.Button(frame, text="\u25B2 Hide terminal output", command=self.toggle_scrolled_text,
+                                        font=("Arial", 9), relief="raised", bd=0)
+        self.toggle_button.pack(side="top", anchor="nw", pady=0, padx=5)
+        self.scrolled_text = ScrolledText(frame, font=("Arial", "9", "normal"), state="disabled", height=9)
+        self.scrolled_text.pack(side="left", fill="both", expand=True, padx=0)
+        if self.scrolled_text:
+            self.redirect_logging(self.scrolled_text)
+            # redirect also the StreamHandler to the scrolled text using the TextWidgetHandler
+            while self.logger.hasHandlers() and any([type(h) is logging.StreamHandler for h in self.logger.handlers]):
+                self.logger.removeHandler([h for h in self.logger.handlers if type(h) is logging.StreamHandler][0])
+            self.logger.addHandler(logger.TextWidgetHandler(self.scrolled_text))
 
     def set_last_run_number_from_google_sheet(self, run_number=None):
         def get_last_run_number_from_google_sheet():
@@ -1108,12 +1138,32 @@ if __name__ == "__main__":
             print("baudrate:", caen.baudrate)
             m = caen.module(0)
             spellman = spll.Spellman()
-            app = HVGUI(caen_module=m, spellman_module=spellman, checks_caen=checks_caen, checks_spellman=checks_spellman, checks_multidevice=checks_multidevice)
+            rigol1 = rgl.RigolPowerSupply(name="Rigol Left", resource_name="USB0::bla::bla::bla::INSTR")
+            rigol2 = rgl.RigolPowerSupply(name="Rigol Right", resource_name="USB0::bla::bla::bla2::INSTR")
+            app = HVGUI(
+                    caen_module=m,
+                    spellman_module=spellman,                    
+                    rigol_module_1=rigol1,
+                    rigol_module_2=rigol2,
+                    checks_caen=checks_caen,
+                    checks_spellman=checks_spellman,
+                    checks_multidevice=checks_multidevice
+                )
 
     else:
-        from simulators import ModuleSimulator, SpellmanSimulator
+        from simulators import ModuleSimulator, SpellmanSimulator, RigolSimulator
         caen_module = ModuleSimulator(4, trip_probability=0)
         spellman_module = SpellmanSimulator()
-        app = HVGUI(caen_module=caen_module, spellman_module=spellman_module, checks_caen=checks_caen, checks_spellman=checks_spellman, checks_multidevice=checks_multidevice, log=False)
+        rigol_module_1 = RigolSimulator()
+        rigol_module_2 = RigolSimulator()
+        app = HVGUI(caen_module=caen_module,
+                    spellman_module=spellman_module,
+                    rigol_module_1=rigol_module_1,
+                    rigol_module_2=rigol_module_2,
+                    checks_caen=checks_caen,
+                    checks_spellman=checks_spellman,
+                    checks_multidevice=checks_multidevice,
+                    log=False
+                )
 
 
