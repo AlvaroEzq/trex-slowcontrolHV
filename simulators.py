@@ -196,7 +196,7 @@ class SpellmanSimulator:
             return
 
         if self.stat['HV']:
-            self.vmon = random.gauss(self.vset, 0.1)
+            self.vmon = random.gauss(self.vset, 3)
             Rleft = 200 + 80 # MOhm
             Rright = 200 + 50 # Mohm
             imon_mean = self.vmon * (1 / Rleft + 1 / Rright) *1e-3 # mA
@@ -257,3 +257,77 @@ class SpellmanSimulator:
     
     def vset(self, voltage):
         self.set_vset(voltage)
+
+
+class RigolChannelSimulator:
+    def __init__(self, channel_number, trip_probability=0.01):
+        self.channel_number = channel_number
+        self.trip_probability = trip_probability
+        self.vset = 5.0  # V
+        self.iset = 0.6  # A
+        self.vmon = self.vset
+        self.imon = self.vset / 10e3  # (A) lets say there is a resistance of 10 Ohm
+        self.powermon = self.vmon * self.imon 
+        self.on = True
+
+    def _randomize(self):
+        if not self.on:
+            self.vmon = 0
+            self.imon = 0
+            self.powermon = 0
+            return
+
+        self.vmon = random.gauss(self.vset, 0.1)  # 0.1 V standard deviation
+        self.imon = random.gauss(1, 0.1)
+        self.powermon = self.vmon * self.imon  # W
+
+    def turn_on(self):
+        self.on = True
+
+    def turn_off(self):
+        self.on = False
+
+class RigolSimulator:
+    def __init__(self, name="Rigol DP832 SIMULATOR"):
+        self.name = name
+        self.number_of_channels = 3
+        self.channels = [RigolChannelSimulator(channel_number=i) for i in range(self.number_of_channels)]
+        self.instrument = True  # Simulate an open connection
+
+    def __enter__(self):
+        # Simulate opening a connection
+        self.instrument = True
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Simulate closing a connection
+        self.instrument = None
+
+    def turn_on_channel(self, channel_number):
+        if 0 <= channel_number < self.number_of_channels:
+            self.channels[channel_number].turn_on()
+        else:
+            raise ValueError("Invalid channel number")
+
+    def turn_off_channel(self, channel_number):
+        if 0 <= channel_number < self.number_of_channels:
+            self.channels[channel_number].turn_off()
+        else:
+            raise ValueError("Invalid channel number")
+        
+    def measure_all(self, channel_number):
+        if 0 <= channel_number < self.number_of_channels:
+            self.channels[channel_number]._randomize()
+            return {
+                "voltage": round(self.channels[channel_number].vmon, 2),
+                "current": round(self.channels[channel_number].imon, 3),
+                "power": round(self.channels[channel_number].powermon, 2),
+            }
+        else:
+            raise ValueError("Invalid channel number")
+    
+    def get_output_state(self, channel_number):
+        if 0 <= channel_number < self.number_of_channels:
+            return "ON" if self.channels[channel_number].on else "OFF"
+        else:
+            raise ValueError("Invalid channel number")
