@@ -5,3 +5,4 @@ requests
 paramiko
 gspread
 oauth2client
+pyvisa-py
