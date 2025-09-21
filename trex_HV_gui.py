@@ -1138,8 +1138,8 @@ if __name__ == "__main__":
             print("baudrate:", caen.baudrate)
             m = caen.module(0)
             spellman = spll.Spellman()
-            rigol1 = rgl.RigolPowerSupply(name="Rigol Left", resource_name="USB0::bla::bla::bla::INSTR")
-            rigol2 = rgl.RigolPowerSupply(name="Rigol Right", resource_name="USB0::bla::bla::bla2::INSTR")
+            rigol1 = rgl.RigolPowerSupply(name="Rigol Left", resource_name='USB0::6833::42152::DP9D263500831::0::INSTR')
+            rigol2 = rgl.RigolPowerSupply(name="Rigol Right", resource_name='USB0::6833::42152::DP9D263500827::0::INSTR')
             app = HVGUI(
                     caen_module=m,
                     spellman_module=spellman,                    

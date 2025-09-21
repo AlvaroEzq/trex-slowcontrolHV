@@ -69,7 +69,13 @@ class RigolPowerSupply:
 
     def get_output_state(self, channel_number):
         """Get the output state of a channel (enabled/disabled)."""
-        return self.query(f":OUTP? CH{channel_number}").strip()
+        value_str = self.query(f":OUTP? CH{channel_number}").strip() # '0' or '1'
+        if value_str == '1':
+            return 'ON'
+        elif value_str == '0':
+            return 'OFF'
+        else:
+            return '??'
 
     def set_voltage_protection(self, channel_number, voltage):
         """Set the over-voltage protection (OVP) limit for a channel."""

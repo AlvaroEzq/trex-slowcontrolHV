@@ -106,11 +106,11 @@ class RigolGUI(DeviceGUI):
             #ratio = self.device.get_ratio(primary_gas=True, unit='%')
 
             for i, channel in enumerate(self.channels_name):
-                measurements = self.device.measure_all(i) # voltage, current, power
+                measurements = self.device.measure_all(i+1) # voltage, current, power. First channel in rigol is 1
                 voltage = measurements.get("voltage", -1)
                 current = measurements.get("current", -1)
                 power = measurements.get("power", -1)
-                state = self.device.get_output_state(i)
+                state = self.device.get_output_state(i+1) # first channel in rigol is 1
                 self.channels_state[i].set_state(voltage, current)
                 self.voltage_labels[i].config(text=f"{voltage:.3f} V")
                 self.current_labels[i].config(text=f"{current:.3f} A")
@@ -125,15 +125,17 @@ class RigolGUI(DeviceGUI):
         if channel_name not in self.channels_name:
             print(f"Channel {channel_name} not found.")
             return
-        channel_index = self.channels_name.index(channel_name)
-        self.device.turn_on_channel(channel_index)
+        channel_index = self.channels_name.index(channel_name)+1
+        with self.device:
+            self.device.turn_on_channel(channel_index)
     
     def turn_off_channel(self, channel_name):
         if channel_name not in self.channels_name:
             print(f"Channel {channel_name} not found.")
             return
-        channel_index = self.channels_name.index(channel_name)
-        self.device.turn_off_channel(channel_index)
+        channel_index = self.channels_name.index(channel_name)+1
+        with self.device:
+            self.device.turn_off_channel(channel_index)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BGA244 GUI Control")
@@ -152,4 +154,4 @@ if __name__ == "__main__":
             exit(1)
         rigol_device = RigolPowerSupply(resource_name=args.resource)
     
-    RigolGUI(device=rigol_device, channels_names=CHANNEL_NAMES)
+    RigolGUI(device=rigol_device, channel_names=CHANNEL_NAMES)
