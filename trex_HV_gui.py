@@ -647,6 +647,54 @@ class HVGUI:
             threading.Thread(target=desactivate_trip_recovery).start()
 
     def trip_recovery_loop(self):
+        def start_and_manage_raise_protocol():
+            protocol_finished_with_exceptions = False
+            max_attempts = 10
+            attempt = 0
+            while self.triprec_active.get() and attempt < max_attempts:
+                attempt += 1
+                self.raise_voltage_protocol_thread(self.step_var.get())
+                try:
+                    self.wait_for_raise_protocol_to_finish()
+                    protocol_finished_with_exceptions = False
+                    break
+                except (ValueError, NameError, AssertionError) as e:
+                    self.triprec_logger.critical(f"Critical error while recovering trip: {e}.")
+                    protocol_finished_with_exceptions = True
+                    break
+                except (PermissionError, TimeoutError) as e:
+                    self.triprec_logger.debug(f"Error while recovering trip: {e}. Attempt {attempt}/{max_attempts}.")
+                    protocol_finished_with_exceptions = True
+                    if self.is_there_a_trip():
+                        break # restart the trip recovery protocol from the beginning because it tripped again
+                    else:
+                        self.turn_on_channels(channels=self.triprec_channels)
+                        self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
+                        continue
+                except KeyboardInterrupt as e:
+                    self.triprec_logger.error(f"Error while recovering trip: {e}.")
+                    protocol_finished_with_exceptions = True
+                    break
+                except Exception as e:
+                    self.triprec_logger.error(f"Unexpected error while recovering trip: {e}.")
+                    protocol_finished_with_exceptions = True
+                    break
+            if protocol_finished_with_exceptions:
+                if attempt >= max_attempts:
+                    self.triprec_logger.critical("Trip recovery failed. Maximum attempts reached.")
+                elif self.is_there_a_trip():
+                    self.triprec_logger.debug("Trip recovery failed. Trip detected when raising voltage.")
+                else:
+                    self.triprec_logger.critical("Trip recovery failed.")
+            else:
+                self.triprec_logger.info("Trip recovery finished succesfully.")
+
+        # start with a raise protocol to ensure that the voltage is at the desired setpoint
+        # this way you can activate the trip recovery without the voltages already being at the setpoint
+        self.trip_detected = self.is_there_a_trip()
+        if not self.trip_detected:
+            start_and_manage_raise_protocol()
+
         while True:
             time.sleep(1)
             if not self.triprec_active.get():
@@ -679,47 +727,8 @@ class HVGUI:
                     return # instead of break to avoid setting active to False again
                 self.turn_on_channels(channels=self.triprec_channels)
                 self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
+                start_and_manage_raise_protocol()
 
-                protocol_finished_with_exceptions = False
-                max_attempts = 10
-                attempt = 0
-                while self.triprec_active.get() and attempt < max_attempts:
-                    attempt += 1
-                    self.raise_voltage_protocol_thread(self.step_var.get())
-                    try:
-                        self.wait_for_raise_protocol_to_finish()
-                        protocol_finished_with_exceptions = False
-                        break
-                    except (ValueError, NameError, AssertionError) as e:
-                        self.triprec_logger.critical(f"Critical error while recovering trip: {e}.")
-                        protocol_finished_with_exceptions = True
-                        break
-                    except (PermissionError, TimeoutError) as e:
-                        self.triprec_logger.debug(f"Error while recovering trip: {e}. Attempt {attempt}/{max_attempts}.")
-                        protocol_finished_with_exceptions = True
-                        if self.is_there_a_trip():
-                            break # restart the trip recovery protocol from the beginning because it tripped again
-                        else:
-                            self.turn_on_channels(channels=self.triprec_channels)
-                            self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
-                            continue
-                    except KeyboardInterrupt as e:
-                        self.triprec_logger.error(f"Error while recovering trip: {e}.")
-                        protocol_finished_with_exceptions = True
-                        break
-                    except Exception as e:
-                        self.triprec_logger.error(f"Unexpected error while recovering trip: {e}.")
-                        protocol_finished_with_exceptions = True
-                        break
-                if protocol_finished_with_exceptions:
-                    if attempt >= max_attempts:
-                        self.triprec_logger.critical("Trip recovery failed. Maximum attempts reached.")
-                    elif self.is_there_a_trip():
-                        self.triprec_logger.debug("Trip recovery failed. Trip detected when raising voltage.")
-                    else:
-                        self.triprec_logger.critical("Trip recovery failed.")
-                else:
-                    self.triprec_logger.info("Trip recovery finished succesfully.")
 
         if self.triprec_active.get():
             self.triprec_active.set(False)
