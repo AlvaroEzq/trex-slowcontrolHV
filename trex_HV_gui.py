@@ -5,6 +5,7 @@ import argparse
 import threading
 import sys
 import logging
+import datetime
 
 import caengui
 import spellmangui
@@ -77,6 +78,11 @@ class HVGUI:
         self.events_number_label = None
         self.add_to_googlesheet_button = None
         self.add_to_googlesheet_thread = None
+        self.auto_add_var = None
+        self.check_entries_var = None
+        self.number_of_entries = None
+        self.datetime_last_entries_change = None
+        self.alarm_level_sent = logging.NOTSET
 
         # trip recovery variables
         self.triprec_active = None
@@ -416,17 +422,24 @@ class HVGUI:
         self.disk_space_label = tk.Label(daq_frame, text="N/A")
         self.disk_space_label.grid(row=5, column=1, sticky="e")
 
+        self.check_entries_var = tk.IntVar()
+        self.check_entries_var.set(0)
+        self.check_entries_change_checkbox = tk.Checkbutton(daq_frame, text="Check entries (TCM)", variable=self.check_entries_var, selectcolor="gray")
+        self.check_entries_var.set(1) # enable by default
+        self.check_entries_change_checkbox.grid(row=6, column=0, columnspan=2, pady=5, sticky="nsew")
+
         self.auto_add_var = tk.IntVar()
         self.auto_add_var.set(0)
         self.last_run_number_from_google_sheet = None
         self.auto_add_var.trace_add("write", lambda *args : self.set_last_run_number_from_google_sheet())
         self.auto_add_var.set(1)
         self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var, selectcolor="gray")
-        self.auto_add_to_googlesheet_checkbox.grid(row=6, column=0, columnspan=2, pady=10, sticky="nsew")
+        self.auto_add_to_googlesheet_checkbox.grid(row=7, column=0, columnspan=2, pady=0, sticky="nsew")
+
 
         self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
                                         command=self.add_run_to_googlesheet)
-        self.add_to_googlesheet_button.grid(row=7, column=0, columnspan=2, pady=10, sticky="nsew")
+        self.add_to_googlesheet_button.grid(row=8, column=0, columnspan=2, pady=10, sticky="nsew")
 
         threading.Thread(target=self.daq_metrics_loop, daemon=True).start()
 
@@ -473,7 +486,36 @@ class HVGUI:
                 disk_space_gb = self.metrics_fetcher.get_metric("free_disk_space_gb")['path="/"']
                 self.disk_space_label.config(text=f'{disk_space_gb:.0f}')
                 self.daq_events_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_events_per_sec_now"):.1f}')
-                self.events_number_label.config(text=f'{self.metrics_fetcher.get_metric("number_of_events"):,.0f}')
+                number_of_events = self.metrics_fetcher.get_metric("number_of_events")
+                self.events_number_label.config(text=f'{number_of_events:,.0f}')
+
+                # Checking if the number of entries is changing is done as an indirect way to check if the TCM is running fine
+                if self.check_entries_var.get() == 1:
+                    if self.number_of_entries is None or number_of_events != self.number_of_entries:
+                        self.number_of_entries = number_of_events
+                        self.datetime_last_entries_change = datetime.datetime.now()
+                        self.alarm_level_sent = logging.NOTSET # reset alarm level sent
+                    else:
+                        time_diff = datetime.datetime.now() - self.datetime_last_entries_change
+                        if time_diff.total_seconds() > 3600*24: # 24 hours without new entries
+                            # Send alarm only if lower level was sent
+                            if self.alarm_level_sent < logging.CRITICAL:
+                                self.logger.critical("No new entries in the DAQ for more than 24 hours! Check TCM state...")
+                                self.alarm_level_sent = logging.CRITICAL
+                        elif time_diff.total_seconds() > 3600*10: # 10 hours without new entries
+                            if self.alarm_level_sent < logging.ERROR:
+                                self.logger.error("No new entries in the DAQ for more than 10 hours. Check TCM state...")
+                                self.alarm_level_sent = logging.ERROR
+                        elif time_diff.total_seconds() > 3600: # 1 hour without new entries
+                            if self.alarm_level_sent < logging.WARNING:
+                                self.logger.warning("No new entries in the DAQ for more than 1 hour. Check TCM state...")
+                                self.alarm_level_sent = logging.WARNING
+                else:
+                    # reset
+                    self.number_of_entries = None
+                    self.datetime_last_entries_change = None
+                    self.alarm_level_sent = logging.NOTSET
+
                 queue_fill_level = self.metrics_fetcher.get_metric("daq_frames_queue_fill_level_sum")
                 self.queue_fill_label.config(text=f'{queue_fill_level:.3f}')
             else:
@@ -483,6 +525,7 @@ class HVGUI:
                 self.events_number_label.config(text="N/A")
                 self.queue_fill_label.config(text="N/A")
                 self.add_to_googlesheet_button.config(state="disabled")
+                # don't reset here the number of entries and datetime_last_entries_change, just in case the metrics server is down for a while
             if (
                 self.auto_add_var.get() == 1
                 and self.run_number_label.cget("text") != "N/A"
