@@ -1123,7 +1123,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
-    parser.add_argument("--port", type=str, help="Select port", default="/dev/ttyUSB0")
+    parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB0")
     parser.add_argument("--checks", type=str, help="Select checks configuration file", default="checks_config.toml")
 
     args = parser.parse_args()
@@ -1138,13 +1138,13 @@ if __name__ == "__main__":
             print("baudrate:", caen.baudrate)
             m = caen.module(0)
             spellman = spll.Spellman()
-            rigol1 = rgl.RigolPowerSupply(name="Rigol Left", resource_name='USB0::6833::42152::DP9D263500831::0::INSTR')
-            rigol2 = rgl.RigolPowerSupply(name="Rigol Right", resource_name='USB0::6833::42152::DP9D263500827::0::INSTR')
+            #rigol1 = rgl.RigolPowerSupply(name="Rigol Left", resource_name='USB0::6833::42152::DP9D263500831::0::INSTR')
+            #rigol2 = rgl.RigolPowerSupply(name="Rigol Right", resource_name='USB0::6833::42152::DP9D263500827::0::INSTR')
             app = HVGUI(
                     caen_module=m,
                     spellman_module=spellman,                    
-                    rigol_module_1=rigol1,
-                    rigol_module_2=rigol2,
+                    #rigol_module_1=rigol1,
+                    #rigol_module_2=rigol2,
                     checks_caen=checks_caen,
                     checks_spellman=checks_spellman,
                     checks_multidevice=checks_multidevice
@@ -1158,8 +1158,8 @@ if __name__ == "__main__":
         rigol_module_2 = RigolSimulator()
         app = HVGUI(caen_module=caen_module,
                     spellman_module=spellman_module,
-                    rigol_module_1=rigol_module_1,
-                    rigol_module_2=rigol_module_2,
+                    #rigol_module_1=rigol_module_1,
+                    #rigol_module_2=rigol_module_2,
                     checks_caen=checks_caen,
                     checks_spellman=checks_spellman,
                     checks_multidevice=checks_multidevice,
