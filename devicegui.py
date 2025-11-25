@@ -19,6 +19,7 @@ class DeviceGUI(ABC):
     - **kwargs: for more customization options:
         - log (bool): Whether to log the channels (default: True).
         - channel_state_save_previous (bool): Whether to save the previous channel state (default: True).
+        - channel_state_save_force (bool): Whether to force saving all the channel state (default: False).
         - channel_state_diff_vmon (float): Voltage log monitoring threshold (default: 0.5).
         - channel_state_diff_imon (float): Current log monitoring threshold (default: 0.01).
         - channel_state_prec_vmon (int): Voltage precision (default: 1).
@@ -34,6 +35,7 @@ class DeviceGUI(ABC):
         self.config_params = {
             "logging_enabled" : kwargs.get("logging_enabled", True),
             "channel_state_save_previous" : kwargs.get("channel_state_save_previous", True),
+            "channel_state_save_force" : kwargs.get("channel_state_save_force", False),
             "channel_state_diff_vmon" : kwargs.get("channel_state_diff_vmon", 0.5),
             "channel_state_diff_imon" : kwargs.get("channel_state_diff_imon", 0.01),
             "channel_state_prec_vmon" : kwargs.get("channel_state_prec_vmon", 1),
@@ -138,7 +140,10 @@ class DeviceGUI(ABC):
             self.issue_command(self.read_values)
             if self.config_params["logging_enabled"]:
                 for chstate in self.channels_state:
-                    chstate.save_state(save_previous=self.config_params["channel_state_save_previous"])
+                    chstate.save_state(
+                        save_previous=self.config_params["channel_state_save_previous"],
+                        force=self.config_params["channel_state_save_force"],
+                    )
             time.sleep(self.config_params["read_loop_time"])
 
     def set_config_param(self, key : str, value):
