@@ -648,6 +648,7 @@ class HVGUI:
 
     def trip_recovery_loop(self):
         def start_and_manage_raise_protocol():
+            success = True
             protocol_finished_with_exceptions = False
             max_attempts = 10
             attempt = 0
@@ -682,19 +683,29 @@ class HVGUI:
             if protocol_finished_with_exceptions:
                 if attempt >= max_attempts:
                     self.triprec_logger.critical("Trip recovery failed. Maximum attempts reached.")
+                    success = False
                 elif self.is_there_a_trip():
                     self.triprec_logger.debug("Trip recovery failed. Trip detected when raising voltage.")
+                    success = True # nothing really wrong, just restart the trip recovery
                 else:
                     self.triprec_logger.critical("Trip recovery failed.")
+                    success = False
             else:
                 self.triprec_logger.info("Trip recovery finished succesfully.")
+                success = True
+            return success
 
         # start with a raise protocol to ensure that the voltage is at the desired setpoint
         # this way you can activate the trip recovery without the voltages already being at the setpoint
         self.trip_detected = self.is_there_a_trip()
         if not self.trip_detected:
-            start_and_manage_raise_protocol()
+            success_raising = start_and_manage_raise_protocol()
+            if not success_raising: # desactivate and stop the trip recovery
+                if self.triprec_active.get():
+                    self.triprec_active.set(False)
+                return
 
+        # loop that checks for trips and recovers them
         while True:
             time.sleep(1)
             if not self.triprec_active.get():
@@ -727,7 +738,10 @@ class HVGUI:
                     return # instead of break to avoid setting active to False again
                 self.turn_on_channels(channels=self.triprec_channels)
                 self.spellman_gui.issue_command(self.spellman_gui.set_iset) # iset entry should be well adjusted manually
-                start_and_manage_raise_protocol()
+
+                success_raising = start_and_manage_raise_protocol()
+                if not success_raising:
+                    break
 
 
         if self.triprec_active.get():
