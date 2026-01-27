@@ -1,5 +1,6 @@
 import tkinter as tk
 import re
+import datetime as dt
 
 def enable_children(parent, enabled=True):
     for child in parent.winfo_children():
@@ -68,7 +69,8 @@ class PrintToTextWidget(object):
 
     def _append_text(self, text):
         self.textbox.configure(state="normal")
-        self.textbox.insert("end", text)
+        text_with_timestamp = f"[{dt.datetime.now().strftime('%Y-%m-%d %H:%M')}] {text}"
+        self.textbox.insert("end", text_with_timestamp)
         self.textbox.see("end")
         self.textbox.configure(state="disabled")
 
