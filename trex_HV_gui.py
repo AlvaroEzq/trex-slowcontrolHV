@@ -734,6 +734,7 @@ class HVGUI:
                 sleep_time_minutes = 0
                 if self.triprec_cooldown_entry:
                     sleep_time_minutes = float(self.triprec_cooldown_entry.get())
+                self.triprec_logger.debug(f"Cooling down for {sleep_time_minutes} minutes...")
                 if not self.sleep_time_with_escape(sleep_time_minutes*60, "triprec_active"):
                     return # instead of break to avoid setting active to False again
                 self.turn_on_channels(channels=self.triprec_channels)
