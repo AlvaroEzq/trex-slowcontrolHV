@@ -533,7 +533,7 @@ class HVGUI:
                 and int(self.last_run_number_from_google_sheet) < int(self.run_number_label.cget("text"))
             ):
                 self.add_run_to_googlesheet()
-            time.sleep(2.5)
+            time.sleep(10)
 
     def add_run_to_googlesheet(self):
         def add_run():
