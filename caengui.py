@@ -100,7 +100,7 @@ class CaenHVPSGUI(DeviceGUI):
             fg="black",
         )
         intlck_label.grid(row=1, column=1)
-        ToolTip(intlck_label, f"Interlock mode: {self.device.interlock_mode}")
+        ToolTip(intlck_label, f"Interlock mode:") # {self.device.interlock_mode}, causes error, i dont know why
 
         self.alarm_indicator = tk.Canvas(
             alarm_frame, width=30, height=30, bg="gray", highlightthickness=0
