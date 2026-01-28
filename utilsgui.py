@@ -69,7 +69,10 @@ class PrintToTextWidget(object):
 
     def _append_text(self, text):
         self.textbox.configure(state="normal")
-        text_with_timestamp = f"[{dt.datetime.now().strftime('%Y-%m-%d %H:%M')}] {text}"
+        if text == "\n":
+            text_with_timestamp = text
+        else:
+            text_with_timestamp = f"[{dt.datetime.now().strftime('%Y-%m-%d %H:%M')}] {text}"
         self.textbox.insert("end", text_with_timestamp)
         self.textbox.see("end")
         self.textbox.configure(state="disabled")
