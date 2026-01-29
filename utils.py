@@ -5,7 +5,10 @@ from logger import LOG_DIR
 GOOGLE_SHEET_SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 GOOGLE_SHEET_CREDENTIALS_FILENAME = "trex-slowcontrolHV-credentials.json"
 GOOGLE_SHEET_NAME = "TREX-DM run lists"
-def append_row_to_google_sheet(row, worksheet_number=3):
+
+WORKSHEET_NUMBER = 4 # starts from 0
+
+def append_row_to_google_sheet(row, worksheet_number=WORKSHEET_NUMBER):
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEET_CREDENTIALS_FILENAME, GOOGLE_SHEET_SCOPE)
         client = gspread.authorize(creds)
@@ -19,12 +22,12 @@ def append_row_to_google_sheet(row, worksheet_number=3):
         with open(LOG_DIR + "/run_list.txt", "a") as file:
             file.write(str(row)+"\n")
 
-def create_row_for_google_sheet(run_number, start_date, run_type, other_columns):
+def create_row_for_google_sheet(run_number, start_date, run_type, other_columns, worksheet_number=WORKSHEET_NUMBER):
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEET_CREDENTIALS_FILENAME, GOOGLE_SHEET_SCOPE)
         client = gspread.authorize(creds)
         sheet = client.open(GOOGLE_SHEET_NAME)
-        page = sheet.get_worksheet(3) # starts from 0
+        page = sheet.get_worksheet(worksheet_number) # starts from 0
         column_names = page.row_values(2)
     except Exception as e:
         column_names = ['Run', 'Date', 'Type', 'Time', 'Vmesh Left (V)', 'Eg-mm (V/cm*bar)', 'Vgem(top-bott) (V)',
@@ -51,7 +54,7 @@ def create_row_for_google_sheet(run_number, start_date, run_type, other_columns)
             print(f"Column for channel {ch} not found in Google Sheet")
     return row
 
-def get_last_run_number_from_google_sheet(worksheet_number=3):
+def get_last_run_number_from_google_sheet(worksheet_number=WORKSHEET_NUMBER):
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEET_CREDENTIALS_FILENAME, GOOGLE_SHEET_SCOPE)
         client = gspread.authorize(creds)

@@ -144,7 +144,8 @@ class TextWidgetHandler(logging.Handler):
 
     def _write_log(self, log_entry):
         self.text_widget.configure(state="normal")
-        self.text_widget.insert("end", log_entry + "\n")
+        log_entry_with_timestamp = f"[{dt.datetime.now().strftime('%Y-%m-%d %H:%M')}] {log_entry}"
+        self.text_widget.insert("end", log_entry_with_timestamp + "\n")
         self.text_widget.configure(state="disabled")
         self.text_widget.see("end")
     """
