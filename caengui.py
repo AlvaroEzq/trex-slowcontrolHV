@@ -21,7 +21,6 @@ class CaenHVPSGUI(DeviceGUI):
 
         self.channel_vars = None
         self.set_buttons = None
-        self.turn_buttons = None
         self.state_tooltips = None
         self.state_indicators = None
         self.imon_labels = None
@@ -188,7 +187,6 @@ class CaenHVPSGUI(DeviceGUI):
         self.imon_labels = []
         self.state_indicators = []
         self.state_tooltips = []
-        self.turn_buttons = []
         self.set_buttons = []
         for i in range(self.device.number_of_channels):
             channel_button = tk.Button(
@@ -214,16 +212,28 @@ class CaenHVPSGUI(DeviceGUI):
             self.state_indicators.append(state_indicator)
             self.state_tooltips.append(ToolTip(state_indicator, "State:"))
 
-            turn_button = tk.Button(
-                channels_frame,
-                text="--------",
+            turn_frame = tk.Frame(channels_frame, bg="darkblue")
+            turn_frame.grid(row=i + 2, column=2, padx=10, pady=5)
+
+            turn_on_button = tk.Button(
+                turn_frame,
+                text="ON",
                 font=("Arial", 9),
                 bg="navy",
                 fg="white",
-                command=lambda x=i: self.issue_command(self.toggle_channel, x),
+                command=lambda x=i: self.issue_command(self.turn_on_channel, x),
             )
-            turn_button.grid(row=i + 2, column=2, padx=35, pady=5)
-            self.turn_buttons.append(turn_button)
+            turn_on_button.grid(row=0, column=0, padx=0)
+
+            turn_off_button = tk.Button(
+                turn_frame,
+                text="OFF",
+                font=("Arial", 9),
+                bg="navy",
+                fg="white",
+                command=lambda x=i: self.issue_command(self.turn_off_channel, x),
+            )
+            turn_off_button.grid(row=0, column=1, padx=0)
 
             set_button = tk.Button(
                 channels_frame,
@@ -497,13 +507,13 @@ class CaenHVPSGUI(DeviceGUI):
         self.device.clear_alarm_signal()
         self.alarm_detected = ""
 
-    def toggle_channel(self, channel_number):
+    def turn_on_channel(self, channel_number):
         ch = self.device.channels[channel_number]
-        if ch.stat["ON"]:
-            ch.turn_off()
-        else:
-            self.set_vset(channel_number)
-            ch.turn_on()
+        ch.turn_on()
+
+    def turn_off_channel(self, channel_number):
+        ch = self.device.channels[channel_number]
+        ch.turn_off()
 
     def set_vset_and_turn_on(self, channel_number):
         entry = self.vset_entries[channel_number]
@@ -552,10 +562,6 @@ class CaenHVPSGUI(DeviceGUI):
                 state_tooltip_text += " (RAMP DOWN)"
         self.state_indicators[channel_number].itemconfig(1, fill=state_indicator_color)
         self.state_tooltips[channel_number].change_text(f"State: {state_tooltip_text}")
-
-        self.turn_buttons[channel_number].configure(
-            text="TURN OFF" if stat["ON"] else "TURN  ON"
-        )
 
     def update_alarm_indicators(self):
         bas = self.device.board_alarm_status.copy()
