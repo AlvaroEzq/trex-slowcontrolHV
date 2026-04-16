@@ -85,66 +85,55 @@ class CaenHVPSGUI(DeviceGUI):
         return main_frame
 
     def create_alarm_frame(self, frame):
-        alarm_frame = tk.Frame(frame, bg="gray", padx=20, pady=20)
-        alarm_frame.pack(side="top", padx=10, pady=10)
+        alarm_frame = tk.LabelFrame(frame, text="Module", font=("Arial", 14, "bold"), bg="gray", padx=5, pady=5)
+        alarm_frame.pack(side="top", padx=5, pady=5)
 
         tk.Label(
-            alarm_frame, text="Module", font=("Arial", 14, "bold"), bg="gray"
-        ).grid(row=0, column=0, columnspan=2)
-
-        tk.Label(
-            alarm_frame, text="Alarm", font=("Arial", 12, "bold"), bg="gray", fg="black"
-        ).grid(row=1, column=0)
+            alarm_frame, text="Alarm", font=("Arial", 10), bg="gray", fg="black",
+        ).grid(row=0, column=0, padx=5, pady=5)
         intlck_label = tk.Label(
             alarm_frame,
-            text="Interlock",
-            font=("Arial", 12, "bold"),
+            text="ILK",
+            font=("Arial", 10),
             bg="gray",
             fg="black",
         )
-        intlck_label.grid(row=1, column=1)
+        intlck_label.grid(row=0, column=2, padx=5, pady=5)
         ToolTip(intlck_label, f"Interlock mode:") # {self.device.interlock_mode}, causes error, i dont know why
 
         self.alarm_indicator = tk.Canvas(
             alarm_frame, width=30, height=30, bg="gray", highlightthickness=0
         )
-        self.alarm_indicator.grid(row=2, column=0, padx=10, pady=10)
+        self.alarm_indicator.grid(row=0, column=1, padx=0, pady=5)
         self.alarm_indicator.create_oval(2, 2, 28, 28, fill="gray")
         self.alarm_tooltip = ToolTip(self.alarm_indicator, "Alarm signal")
 
         self.interlock_indicator = tk.Canvas(
             alarm_frame, width=30, height=30, bg="gray", highlightthickness=0
         )
-        self.interlock_indicator.grid(row=2, column=1, padx=10, pady=10)
+        self.interlock_indicator.grid(row=0, column=3, padx=5, pady=5)
         self.interlock_indicator.create_oval(2, 2, 28, 28, fill="gray")
         self.interlock_tooltip = ToolTip(self.interlock_indicator, "Interlock signal")
 
         self.clear_alarm_button = tk.Button(
             alarm_frame,
-            text="Clear alarm signal",
+            text="Clear alarm",
             font=("Arial", 10),
             bg="navy",
             fg="white",
             command=lambda: self.issue_command(self.clear_alarm),
         )
-        self.clear_alarm_button.grid(row=3, column=0, columnspan=2, pady=10)
+        self.clear_alarm_button.grid(row=1, column=0, columnspan=4, padx=5, pady=5)
 
         return alarm_frame
 
     def create_channels_frame(self, frame):
-        channels_frame = tk.Frame(frame, bg="darkblue", padx=10, pady=10)
+        channels_frame = tk.LabelFrame(frame, bg="darkblue", text="Channels", font=("Arial", 14, "bold"), fg="white", borderwidth=0, highlightthickness=0)
         channels_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
         
         single_channels_frame = tk.Frame(channels_frame, bg="darkblue")
         single_channels_frame.pack(side="top", fill="x", expand=False)
 
-        tk.Label(
-            single_channels_frame,
-            text="Channels",
-            font=("Arial", 14, "bold"),
-            bg="darkblue",
-            fg="white",
-        ).grid(row=0, column=0, columnspan=7, pady=10)
         tk.Label(
             single_channels_frame,
             text="state",
@@ -280,10 +269,11 @@ class CaenHVPSGUI(DeviceGUI):
         self.toggle_button = tk.Button(
             frame,
             text="\u25B2 Multichannel control",
-            font=("Arial", 10),
+            font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
             bd=0,
+            highlightthickness=0,
             command=self.toggle_scrolled_text,
             relief="raised",
         )
@@ -672,5 +662,5 @@ if __name__ == "__main__":
     else:
         from simulators import *  # noqa: F403
 
-        m = ModuleSimulator(4)  # noqa: F405
+        m = ModuleSimulator(4, 0)  # noqa: F405
         CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS, log=False)
