@@ -39,9 +39,6 @@ def create_row_for_google_sheet(run_number, start_date, run_type, other_columns,
         print(f"Error, {e}, while fetching column names from Google Sheet. Using default column names")
     column_names = [c.replace(' ', '').lower() for c in column_names]
     row = ['' for _ in range(len(column_names))]
-    row[0] = run_number
-    row[1] = start_date
-    row[2] = run_type
     for ch, v in other_columns.items():
         ch = ch.replace(' ', '').lower()
         column_found = False
@@ -52,6 +49,9 @@ def create_row_for_google_sheet(run_number, start_date, run_type, other_columns,
                 break
         if not column_found:
             print(f"Column for channel {ch} not found in Google Sheet")
+    row[0] = run_number
+    row[1] = start_date
+    row[2] = run_type
     return row
 
 def get_last_run_number_from_google_sheet(worksheet_number=WORKSHEET_NUMBER):
