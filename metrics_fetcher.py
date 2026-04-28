@@ -194,6 +194,45 @@ def parse_run_file_by_fem(file_content):
 
     return values_by_fem
 
+def parse_femdaq_config_yaml_file(file_content):
+    """
+    Parse YAML content from a string into a Python dictionary.
+
+    Args:
+        file_content (str): YAML content as a string
+
+    Returns:
+        dict: Parsed YAML data
+    """
+
+    # just associate the content before : to the valuye afterwards for each line
+    info = {}
+    for line in file_content.splitlines():
+        if ':' in line:
+            key, value = line.split(':', 1)
+            key = key.strip()
+            value = value.strip()
+            info[key] = value
+
+    return info
+
+def get_loop_time_from_run_file(file_content):
+    """ Extracts the loop time in seconds from the run file content string.
+    Example of file content: the .run file
+    """
+    run_loop_time_seconds = -1
+    # Look for the line starting with LOOP
+    for line in file_content.splitlines():
+        if line.startswith('LOOP'):
+            parts = line.split()
+            if len(parts) >= 2:
+                try:
+                    run_loop_time_seconds = int(parts[1])
+                except ValueError:
+                    run_loop_time_seconds = -1
+            break
+    return run_loop_time_seconds
+
 # Usage example
 file_content = """
 fem 0
@@ -248,7 +287,6 @@ class MetricsFetcher:
     def __init__(self, url):
         self.url = url
         self.metrics = None
-        self.run_file_content = None
 
     def fetch_metrics(self):
         try:
@@ -256,18 +294,24 @@ class MetricsFetcher:
             response.raise_for_status()
             self.metrics = parse_prometheus_metrics(response.text)
         except:
-            self.metrics = None
+            self.metrics = None    
 
-    def fetch_run_file(self):
-        run_filename = self.get_filename().replace(".root", ".run")
-        with open(run_filename, "r") as file:
-            self.run_file_content = file.read()
+    def fetch_file_content(self, filename):
+        try:
+            with open(filename, "r") as file:
+                return file.read()
+        except Exception as e:
+            print(f"Error reading file {filename}: {e}")
+            return None
     
-    def get_run_file_time(self):
-        run_filename = self.get_filename().replace(".root", ".run")
-        timestamp = os.path.getmtime(run_filename)
-        date = datetime.datetime.fromtimestamp(timestamp)
-        return date.strftime("%d/%m/%Y %H:%M")
+    def get_file_time(self, filename):
+        try:
+            timestamp = os.path.getmtime(filename)
+            date = datetime.datetime.fromtimestamp(timestamp)
+            return date.strftime("%d/%m/%Y %H:%M")
+        except Exception as e:
+            print(f"Error getting file time for {filename}: {e}")
+            return None
 
     def get_metric(self, metric_name, labels=None):
         if self.metrics is None:
@@ -285,7 +329,8 @@ class MetricsFetcher:
     def get_metrics_list(self):
         if self.metrics is None:
             self.fetch_metrics()
-        
+        if self.metrics is None:
+            return []
         return list(self.metrics.keys())
     
     def get_metrics(self):
@@ -321,71 +366,6 @@ class MetricsFetcher:
     
     def get_metric_value(self, metric_name, labels=None):
         return self.get_metric(metric_name, labels)
-    
-    def get_filename(self):
-        try:
-            output_file_labels = self.get_metric_labels("output_root_file_size_mb")
-        except ValueError:
-            return ""
-        output_filename = ""
-        for lbl in output_file_labels:
-            if "filename=" in lbl:
-                output_filename = lbl.split("filename=")[1]
-                output_filename = output_filename.replace('"', '')
-                break
-        return output_filename
-
-    def get_filename_metadata(self):
-        try:
-            output_file_labels = self.get_metric_labels("output_root_file_size_mb")
-        except ValueError:
-            return {}
-        #example: filename="/storage/data//R02450_Calibration37Ar_Vm_270_Vd_90_Pr_1.1_Gain_0x0_Shape_0xF_Clock_0x4.root"}
-        output_filename = ""
-        for lbl in output_file_labels:
-            if "filename=" in lbl:
-                output_filename = lbl.split("filename=")[1]
-                output_filename = output_filename.replace('"', '')
-                output_filename = output_filename.split("/")[-1]
-                break
-        splits_ = output_filename.split("_")
-        metadata = {}
-        metadata["run_number"] = splits_[0].replace("R", "")
-        metadata["run_type"] = splits_[1]
-        # Get the rest of the metadata that should be in pairs with format 'key_value'
-        for i in range(2, len(splits_), 2):
-            metadata[splits_[i]] = splits_[i+1].replace(".root", "")
-        return metadata
-
-    def get_run_file_content(self):
-        self.fetch_run_file()
-        return self.run_file_content
-
-    def get_run_file_values_by_fem(self):
-        file_content = self.get_run_file_content()
-        if file_content is None:
-            return {}
-        return parse_run_file_by_fem(file_content)
-
-    def get_run_file_values_for_fem(self, fem_number):
-        values_by_fem = self.get_run_file_values_by_fem()
-        return values_by_fem.get(fem_number, {})
-
-    def get_run_file_values_for_aget(self, fem_number, aget_number):
-        values_by_fem = self.get_run_file_values_by_fem()
-        return values_by_fem.get(fem_number, {}).get(aget_number, {})
-
-    def get_total_threshold_for_fem_aget(self, fem_number, aget_number):
-        dac = self.get_run_file_values_for_aget(fem_number, aget_number).get('dac', None)
-        threshold = self.get_run_file_values_for_aget(fem_number, aget_number).get('threshold', None)
-        total_threshold = f"{dac} + {threshold}"
-        return total_threshold
-
-    def get_total_multiplicity_for_fem_aget(self, fem_number, aget_number):
-        mult_thr = self.get_run_file_values_for_aget(fem_number, aget_number).get('mult_thr', None)
-        mult_limit = self.get_run_file_values_for_aget(fem_number, aget_number).get('mult_limit', None)
-        total_multiplicity = f"{mult_thr}+{mult_limit}"
-        return total_multiplicity
 
 class MetricsFetcherSSH(MetricsFetcher):
     def __init__(self, url, hostname, username, password=None, key_filename=None):
@@ -419,19 +399,328 @@ class MetricsFetcherSSH(MetricsFetcher):
             self.metrics = None
         return self.metrics
 
-    def fetch_run_file(self):
+    def fetch_file_content(self, filename):
         try:
-            run_filename = self.get_filename().replace(".root", ".run")
             with self.ssh_connection as ssh_con:
                 with ssh_con.open_sftp() as sftp:
-                    with sftp.file(run_filename, "r") as file:
-                        self.run_file_content = file.read().decode()
+                    with sftp.file(filename, "r") as file:
+                        file_content = file.read().decode()
         except Exception as e:
             if self.error_ssh_connection != str(e):
                 print(f"Error connecting to SSH: {e}")
                 self.error_ssh_connection = str(e)
-            self.run_file_content = None
+            file_content = None
+        return file_content
+    
+    def get_file_time(self, filename):
+        try:
+            with self.ssh_connection as ssh_con:
+                with ssh_con.open_sftp() as sftp:
+                    timestamp = sftp.stat(filename).st_mtime
+                    date = datetime.datetime.fromtimestamp(timestamp)
+                    return date.strftime("%d/%m/%Y %H:%M")
+        except Exception as e:
+            if self.error_ssh_connection != str(e):
+                print(f"Error connecting to SSH: {e}")
+                self.error_ssh_connection = str(e)
+            return None
+
+class DaqMetricsBase:
+    def __init__(self, fetcher):
+        self.fetcher = fetcher
+        self.run_file_content = None
+    
+    def fetch_metrics(self):
+        self.fetcher.fetch_metrics()
+    
+    def get_metric(self, metric_name, labels=None):
+        return self.fetcher.get_metric(metric_name, labels)
+    
+    def get_run_type(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+    
+    def get_run_number(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+    
+    def get_run_time_seconds(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+    
+    def get_run_start_time_string(self, formatting="%d/%m/%Y %H:%M"):
+        raise NotImplementedError("Subclasses should implement this method.")
+    
+    def get_run_start_time(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+    
+    def get_rate(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+    
+    def get_number_of_events(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+    
+    def get_all_metadata(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+
+
+class FeminosDaqMetrics(DaqMetricsBase):
+    def __init__(self, fetcher):
+        super().__init__(fetcher)
+
+    def get_run_start_time(self):
+        run_filename = self.get_filename().replace(".root", ".run")
+        return self.fetcher.get_file_time(run_filename)
+
+    def get_run_start_time_string(self, formatting="%d/%m/%Y %H:%M"):
+        date = self.get_run_file_time()
+        return date.strftime(formatting)
+    
+    def get_filename(self):
+        try:
+            output_file_labels = self.fetcher.get_metric_labels("output_root_file_size_mb")
+        except ValueError:
+            return ""
+        output_filename = ""
+        for lbl in output_file_labels:
+            if "filename=" in lbl:
+                output_filename = lbl.split("filename=")[1]
+                output_filename = output_filename.replace('"', '')
+                break
+        return output_filename
+
+    def get_filename_metadata(self):
+        try:
+            output_file_labels = self.fetcher.get_metric_labels("output_root_file_size_mb")
+        except ValueError:
+            return {}
+        #example: filename="/storage/data//R02450_Calibration37Ar_Vm_270_Vd_90_Pr_1.1_Gain_0x0_Shape_0xF_Clock_0x4.root"}
+        output_filename = ""
+        for lbl in output_file_labels:
+            if "filename=" in lbl:
+                output_filename = lbl.split("filename=")[1]
+                output_filename = output_filename.replace('"', '')
+                output_filename = output_filename.split("/")[-1]
+                break
+        splits_ = output_filename.split("_")
+        metadata = {}
+        metadata["run_number"] = splits_[0].replace("R", "")
+        metadata["run_type"] = splits_[1]
+        # Get the rest of the metadata that should be in pairs with format 'key_value'
+        for i in range(2, len(splits_), 2):
+            metadata[splits_[i]] = splits_[i+1].replace(".root", "")
+        return metadata
+    
+    def get_all_metadata(self):
+        return self.get_filename_metadata()
+
+    def get_run_number(self):
+        return self.get_metric("run_number")
+
+    def get_run_type(self):
+        return self.get_filename_metadata().get("run_type", "N/A")
+    
+    def get_rate(self):
+        try:
+            rate = self.fetcher.get_metric("daq_speed_events_per_sec_now")
+            return rate
+        except ValueError:
+            return None
+    
+    def get_number_of_events(self):
+        try:
+            n_events = self.fetcher.get_metric("number_of_events")
+            return n_events
+        except ValueError:
+            return None
+    
+
+    def get_run_file_content(self):
+        self.fetch_run_file()
         return self.run_file_content
+
+    def get_run_file_values_by_fem(self):
+        file_content = self.get_run_file_content()
+        if file_content is None:
+            return {}
+        return parse_run_file_by_fem(file_content)
+
+    def get_run_file_values_for_fem(self, fem_number):
+        values_by_fem = self.get_run_file_values_by_fem()
+        return values_by_fem.get(fem_number, {})
+
+    def get_run_file_values_for_aget(self, fem_number, aget_number):
+        values_by_fem = self.get_run_file_values_by_fem()
+        return values_by_fem.get(fem_number, {}).get(aget_number, {})
+
+    def get_total_threshold_for_fem_aget(self, fem_number, aget_number):
+        dac = self.get_run_file_values_for_aget(fem_number, aget_number).get('dac', None)
+        threshold = self.get_run_file_values_for_aget(fem_number, aget_number).get('threshold', None)
+        total_threshold = f"{dac} + {threshold}"
+        return total_threshold
+
+    def get_total_multiplicity_for_fem_aget(self, fem_number, aget_number):
+        mult_thr = self.get_run_file_values_for_aget(fem_number, aget_number).get('mult_thr', None)
+        mult_limit = self.get_run_file_values_for_aget(fem_number, aget_number).get('mult_limit', None)
+        total_multiplicity = f"{mult_thr}+{mult_limit}"
+        return total_multiplicity
+    
+    def get_run_time_seconds(self):
+        file_content = self.get_run_file_content()
+        if file_content is None:
+            return -1
+        return get_loop_time_from_run_file(file_content)
+    
+class FemDaqMetrics(DaqMetricsBase):
+    def __init__(self, fetcher):
+        super().__init__(fetcher)
+    
+    def get_run_file_time(self):
+        run_filename = self.get_filename().replace(".root", ".run")
+        return self.fetcher.get_file_time(run_filename)
+
+    def get_run_file_time_string(self, formatting="%d/%m/%Y %H:%M"):
+        date = self.get_run_file_time()
+        return date.strftime(formatting)
+    
+    def get_filename(self):
+        try:
+            output_file_labels = self.fetcher.get_metric_labels("run_filename_info")
+        except ValueError:
+            return ""
+        output_filename = ""
+        for lbl in output_file_labels:
+            if "filename=" in lbl:
+                output_filename = lbl.split("filename=")[1]
+                output_filename = output_filename.replace('"', '')
+                break
+        return output_filename
+
+
+    def get_filename_metadata(self):
+        output_filename = self.get_filename()
+        splits_ = output_filename.split("_")
+        metadata = {}
+        metadata["run_number"] = splits_[0].replace("Run", "")
+        metadata["run_tag"] = splits_[1]
+        metadata["experiment"] = splits_[2]
+        metadata["run_type"] = splits_[3]
+        metadata["subrun_number"] = splits_[4]
+        return metadata
+
+    def get_run_number(self):
+        return self.get_metric("run_number")
+
+    def get_run_type(self):
+        return self.get_filename_metadata().get("run_type", "N/A")
+    
+    def get_rate(self):
+        try:
+            rate = self.fetcher.get_metric("event_rate")
+            return rate
+        except ValueError:
+            return None
+    
+    def get_number_of_events(self):
+        try:
+            n_events = self.fetcher.get_metric("events_total")
+            return n_events
+        except ValueError:
+            return None
+    
+    def get_run_metadata(self):
+        try:
+            run_config = self.fetcher.get_metric("run_metadata_info")
+            run_config = list(run_config.keys())[0] # run_metadata_info is not well defined as a metric...
+            run_config = run_config.split("runName=")[1].replace('"', '')
+        except ValueError:
+            return ""
+        #convert \n to actual newlines
+        run_config = run_config.replace("\\n", "\n")
+        info = parse_femdaq_config_yaml_file(run_config)
+        return info
+    
+    def get_fems_in_run(self):
+        info = self.get_run_metadata()
+        return len(info.get("FEM", []))
+    
+    def get_all_metadata(self):
+        metadata = self.get_filename_metadata()
+        # add info
+        info = self.get_run_metadata() # here there is some redundancy as some info is already in the filename
+        for key, value in info.items():
+            metadata[key] = value
+        return metadata
+    
+    def get_run_nEvents(self):
+        info = self.get_run_metadata()
+        return info.get("nEvents", -1)
+    
+    def get_run_time(self):
+        try:
+            info = self.get_run_metadata()
+            return info.get("time", "")
+        except:
+            return ""
+
+    def get_run_time_seconds(self):
+        time = self.get_run_time() # format should be something like '1h' or '30m' or '45s'
+        try:
+            if time.endswith('w'):
+                time_seconds = int(time[:-1]) * 7 * 24 * 3600
+            elif time.endswith('d'):
+                time_seconds = int(time[:-1]) * 24 * 3600
+            elif time.endswith('h'):
+                time_seconds = int(time[:-1]) * 3600
+            elif time.endswith('m'):
+                time_seconds = int(time[:-1]) * 60
+            elif time.endswith('s'):
+                time_seconds = int(time[:-1])
+            else:
+                time_seconds = -1
+        except:
+            time_seconds = -1
+        
+        return time_seconds
+    
+    def get_run_maxFileSize(self):
+        info = self.get_run_metadata()
+        return info.get("maxFileSize", "")
+
+    def get_run_file_content(self):
+        self.fetch_run_file()
+        return self.run_file_content
+
+    def get_run_file_content(self):
+        runCalibFilename = self.get_filename()
+        splits_ = runCalibFilename.split("_")
+        split_to_replace = splits_[-1] # the last split should be something like '001.root'
+        filename = runCalibFilename.replace(split_to_replace, "FEM0.log") # where the content of runCalib file is dumped
+        self.run_file_content = self.fetcher.fetch_file_content(filename)
+        return self.run_file_content
+
+    def get_run_file_values_by_fem(self):
+        file_content = self.get_run_file_content()
+        if file_content is None:
+            return {}
+        return parse_run_file_by_fem(file_content)
+
+    def get_run_file_values_for_fem(self, fem_number):
+        values_by_fem = self.get_run_file_values_by_fem()
+        return values_by_fem.get(fem_number, {})
+
+    def get_run_file_values_for_aget(self, fem_number, aget_number):
+        values_by_fem = self.get_run_file_values_by_fem()
+        return values_by_fem.get(fem_number, {}).get(aget_number, {})
+
+    def get_total_threshold_for_fem_aget(self, fem_number, aget_number):
+        dac = self.get_run_file_values_for_aget(fem_number, aget_number).get('dac', None)
+        threshold = self.get_run_file_values_for_aget(fem_number, aget_number).get('threshold', None)
+        total_threshold = f"{dac} + {threshold}"
+        return total_threshold
+
+    def get_total_multiplicity_for_fem_aget(self, fem_number, aget_number):
+        mult_thr = self.get_run_file_values_for_aget(fem_number, aget_number).get('mult_thr', None)
+        mult_limit = self.get_run_file_values_for_aget(fem_number, aget_number).get('mult_limit', None)
+        total_multiplicity = f"{mult_thr}+{mult_limit}"
+        return total_multiplicity
 
 if __name__ == "__main__":
     # Example usage of the MetricsFetcherSSH class
