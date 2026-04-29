@@ -24,7 +24,7 @@ class DaqMetricsGUI(DeviceGUI):
         self.all_channels = all_channels if all_channels is not None else {} # list of all channels of the main GUI
         self.channels_vset_guilabel = channels_vset_guilabel if channels_vset_guilabel is not None else {} # list of all channels vset guilabels of the main GUI, to be able to fetch the vset values when adding to google sheet
         self.run_number_label = None
-        self.run_type_label = None
+        self.run_tag_label = None
         self.run_endtime_label = None
         self.daq_speed_label = None
         self.daq_events_label = None
@@ -42,36 +42,26 @@ class DaqMetricsGUI(DeviceGUI):
                         channels_name=[],
                         parent_frame=parent_frame,
                         logging_enabled=False,
-                        read_loop_time=1,
+                        read_loop_time=10,
                         )
     
     def create_gui(self):
-        start_mainloop = False
-        if self.root is None:
-            self.root = tk.Tk()
-            self.root.title("DAQ Metrics GUI")
-            start_mainloop = True
-
-        self.main_frame = tk.LabelFrame(self.root, text=f"DAQ Metrics", font=("", 16), padx=10, pady=10, labelanchor="n", bd=4)
-        self.main_frame.pack(fill="both", expand=True)
-        
+        self.main_frame = tk.LabelFrame(self.root, text=f"{self.daqmetrics.name}", font=("", 16), padx=10, pady=10, labelanchor="n", bd=4)
+        self.main_frame.pack(expand=False)
         self.main_frame = self.create_main_frame(self.main_frame, self.channels_name)
-
-        if start_mainloop:
-            self.root.mainloop()
     
     def create_main_frame(self, frame, channels_name):
         
-        daq_frame = tk.LabelFrame(frame, text="DAQ metrics", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
+        daq_frame = tk.Frame(frame, padx=0, pady=0, bd=0, highlightthickness=0)
         daq_frame.pack()
 
         tk.Label(daq_frame, text="Run number").grid(row=0, column=0, sticky="w")
         self.run_number_label = tk.Label(daq_frame, text="N/A")
         self.run_number_label.grid(row=0, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="Run type").grid(row=1, column=0, sticky="w")
-        self.run_type_label = tk.Label(daq_frame, text="N/A")
-        self.run_type_label.grid(row=1, column=1, sticky="e")
+        tk.Label(daq_frame, text="Run tag").grid(row=1, column=0, sticky="w")
+        self.run_tag_label = tk.Label(daq_frame, text="N/A")
+        self.run_tag_label.grid(row=1, column=1, sticky="e")
 
         tk.Label(daq_frame, text="End time").grid(row=2, column=0, sticky="w")
         self.run_endtime_label = tk.Label(daq_frame, text="N/A")
@@ -85,9 +75,9 @@ class DaqMetricsGUI(DeviceGUI):
         self.events_number_label = tk.Label(daq_frame, text="N/A")
         self.events_number_label.grid(row=4, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="Queue fill level").grid(row=5, column=0, sticky="w")
-        self.queue_fill_label = tk.Label(daq_frame, text="N/A")
-        self.queue_fill_label.grid(row=5, column=1, sticky="e")
+        tk.Label(daq_frame, text="Subrun number").grid(row=5, column=0, sticky="w")
+        self.subrun_number_label = tk.Label(daq_frame, text="N/A")
+        self.subrun_number_label.grid(row=5, column=1, sticky="e")
 
 
         self.check_entries_var = tk.IntVar()
@@ -131,8 +121,8 @@ class DaqMetricsGUI(DeviceGUI):
             except:
                 start_date = time.strftime("%d/%m/%Y %H:%M")
             metadata = self.daqmetrics.get_all_metadata()
-            run_type = metadata.get("run_type", "")
-            metadata.pop("run_type", None)
+            run_tag = metadata.get("run_tag", "")
+            metadata.pop("run_tag", None)
             metadata.pop("run_number", None)
             metadata.pop("Vm", None)
             metadata.pop("Vd", None)
@@ -142,7 +132,7 @@ class DaqMetricsGUI(DeviceGUI):
             column_data['threshold right'] = self.daqmetrics.get_total_threshold_for_fem_aget(0, 0)
             column_data['multiplicity left'] = self.daqmetrics.get_total_multiplicity_for_fem_aget(2, 0)
             column_data['multiplicity right'] = self.daqmetrics.get_total_multiplicity_for_fem_aget(0, 0)
-            row = utils.create_row_for_google_sheet(run_number, start_date, run_type, column_data)
+            row = utils.create_row_for_google_sheet(run_number, start_date, run_tag, column_data)
             print(f"Row to be added: {row}")
             utils.append_row_to_google_sheet(row)
             self.add_to_googlesheet_button.config(state="normal")
@@ -156,25 +146,25 @@ class DaqMetricsGUI(DeviceGUI):
 
     def read_values(self):
 
-        self.daqmetrics.fetch_metrics()
+        self.daqmetrics.fetch_everything()
         if self.daqmetrics.fetcher.metrics:
             #output_filename = self.daqmetrics.get_filename()
-            run_type = self.daqmetrics.get_run_type()
+            run_tag = self.daqmetrics.get_run_tag()
             self.run_number_label.config(text=f'{self.daqmetrics.get_run_number():.0f}')
             if self.daqmetrics.get_metric("run_number") != 0:
                 if self.add_to_googlesheet_thread and self.add_to_googlesheet_thread.is_alive():
                     pass
                 else:
                     self.add_to_googlesheet_button.config(state="normal")
-            self.run_type_label.config(text=run_type)
+            self.run_tag_label.config(text=run_tag if run_tag else "")
             run_duration = self.daqmetrics.get_run_time_seconds()
-            run_start = self.daqmetrics.get_run_file_time()
+            run_start = self.daqmetrics.get_run_start_time()
             if run_start is not None:
-                endtime = self.daqmetrics.get_run_file_time() + datetime.timedelta(seconds=run_duration)
+                endtime = run_start + datetime.timedelta(seconds=run_duration)
                 self.run_endtime_label.config(text=f'{endtime.strftime("%d/%m/%Y %H:%M")}')
             else:
                 endtime = None
-                self.run_endtime_label.config(text=f'N/A')
+                self.run_endtime_label.config(text=f'')
                 
             self.daq_events_label.config(text=f'{self.daqmetrics.get_rate():.1f}')
             number_of_events = self.daqmetrics.get_number_of_events()
@@ -208,7 +198,7 @@ class DaqMetricsGUI(DeviceGUI):
                 self.alarm_level_sent = logging.NOTSET
             
             # Check for background runs that have finished or will finish soon
-            if any(b in run_type.lower() for b in ["background", "bg", "bckg", "bkg"]):
+            if any(b in run_tag.lower() for b in ["background", "bg", "bckg", "bkg"]):
                 if run_duration < 24*3600: # to catch when run is launched without changing the calibration LOOP time
                     self.run_endtime_label.config(fg="red")
                 else:
@@ -217,15 +207,15 @@ class DaqMetricsGUI(DeviceGUI):
                 if endtime and endtime < datetime.datetime.now(): # catch if run has finished
                     self.logger.error(f"Background run {int(self.daqmetrics.get_metric('run_number'))} has finished!")
 
-            queue_fill_level = 0 #self.daqmetrics.get_metric("daq_frames_queue_fill_level_sum")
-            self.queue_fill_label.config(text=f'{queue_fill_level:.3f}')
+            subrun_number = self.daqmetrics.get_subrun_number()
+            self.subrun_number_label.config(text=f'{subrun_number}')
         else:
             self.run_number_label.config(text="N/A")
-            self.run_type_label.config(text="N/A")
+            self.run_tag_label.config(text="N/A")
             self.run_endtime_label.config(text="N/A")
             self.daq_events_label.config(text="N/A")
             self.events_number_label.config(text="N/A")
-            self.queue_fill_label.config(text="N/A")
+            self.subrun_number_label.config(text="N/A")
             self.add_to_googlesheet_button.config(state="disabled")
             # don't reset here the number of entries and datetime_last_entries_change, just in case the metrics server is down for a while
         if (

@@ -3,6 +3,7 @@ from collections import defaultdict
 import paramiko
 import requests
 import os
+import glob
 import datetime
 
 def parse_prometheus_metrics(metrics_data):
@@ -233,6 +234,17 @@ def get_loop_time_from_run_file(file_content):
             break
     return run_loop_time_seconds
 
+def get_log_exec_time(file_content):
+    """ Extracts the log file time from the log file content string.
+    Example of file content: the .log file
+    """
+    match = re.search(r'-- LOG FILE INITIALIZED AT (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', file_content)
+
+    if match:
+        dt = datetime.datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+        log_file_time = dt.strftime("%d/%m/%Y %H:%M")
+    return log_file_time
+
 # Usage example
 file_content = """
 fem 0
@@ -258,13 +270,15 @@ for fem, aget_data in values_by_fem.items():
 """
 
 class SSHConnection:
-    def __init__(self, hostname, port, username, password=None, key_filename=None):
+    def __init__(self, hostname, port, username, password=None, key_filename=None, timeout=300):
         self.hostname = hostname
         self.port = port
         self.username = username
         self.password = password
         self.key_filename = key_filename
+        self.timeout = timeout
         self.client = paramiko.SSHClient()
+        self.is_open = False
 
     def __enter__(self):
         try:
@@ -273,20 +287,23 @@ class SSHConnection:
             self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             
             # Attempt to connect to the SSH server
-            self.client.connect(self.hostname, port=self.port, username=self.username, password=self.password)
-            return self.client
-
+            self.client.connect(self.hostname, port=self.port, username=self.username, password=self.password, timeout=self.timeout, key_filename=self.key_filename)
+            self.is_open = True
         except Exception as e:
             raise
 
     def __exit__(self, exc_type, exc_value, traceback):
         # Close the connection
         self.client.close()
+        self.is_open = False
 
 class MetricsFetcher:
     def __init__(self, url):
         self.url = url
         self.metrics = None
+        self.file_name = None
+        self.file_content = None
+        self.file_time = None
 
     def fetch_metrics(self):
         try:
@@ -308,14 +325,14 @@ class MetricsFetcher:
         try:
             timestamp = os.path.getmtime(filename)
             date = datetime.datetime.fromtimestamp(timestamp)
-            return date.strftime("%d/%m/%Y %H:%M")
+            return date
         except Exception as e:
             print(f"Error getting file time for {filename}: {e}")
             return None
 
     def get_metric(self, metric_name, labels=None):
         if self.metrics is None:
-            self.fetch_metrics()
+            return None
         
         if metric_name not in self.metrics:
             raise ValueError(f"Metric '{metric_name}' not found in the fetched metrics.")
@@ -328,18 +345,15 @@ class MetricsFetcher:
     
     def get_metrics_list(self):
         if self.metrics is None:
-            self.fetch_metrics()
-        if self.metrics is None:
             return []
         return list(self.metrics.keys())
     
     def get_metrics(self):
-        self.fetch_metrics()
         return self.metrics
     
     def get_metric_help(self, metric_name):
         if self.metrics is None:
-            self.fetch_metrics()
+            return None
         
         if metric_name not in self.metrics:
             raise ValueError(f"Metric '{metric_name}' not found in the fetched metrics.")
@@ -348,7 +362,7 @@ class MetricsFetcher:
     
     def get_metric_type(self, metric_name):
         if self.metrics is None:
-            self.fetch_metrics()
+            return None
         
         if metric_name not in self.metrics:
             raise ValueError(f"Metric '{metric_name}' not found in the fetched metrics.")
@@ -357,7 +371,7 @@ class MetricsFetcher:
     
     def get_metric_labels(self, metric_name):
         if self.metrics is None:
-            self.fetch_metrics()
+            return []
         
         if metric_name not in self.metrics:
             raise ValueError(f"Metric '{metric_name}' not found in the fetched metrics.")
@@ -366,6 +380,22 @@ class MetricsFetcher:
     
     def get_metric_value(self, metric_name, labels=None):
         return self.get_metric(metric_name, labels)
+
+    def fetch_matching_file_content(self, filename_pattern, matching_file_number=0):
+        """Return the content of the matching_file_number'th file matching filename_pattern.
+
+        filename_pattern supports shell-style wildcards (e.g. R03333_Calibration_*.root).
+        """
+        try:
+            matches = sorted(glob.glob(filename_pattern))
+            if not matches:
+                return None
+            if matching_file_number < 0 or matching_file_number >= len(matches):
+                matching_file_number = 0
+            return self.fetch_file_content(matches[matching_file_number])
+        except Exception as e:
+            print(f"Error finding files matching {filename_pattern}: {e}")
+            return None
 
 class MetricsFetcherSSH(MetricsFetcher):
     def __init__(self, url, hostname, username, password=None, key_filename=None):
@@ -378,6 +408,71 @@ class MetricsFetcherSSH(MetricsFetcher):
 
         self.error_output = None
         self.error_ssh_connection = None
+
+    def _retrieve_metrics(self):
+        if not self.ssh_connection.is_open:
+            raise ConnectionError("SSH connection is not open.")
+
+        # Run the command to fetch the metrics
+        stdin, stdout, stderr = self.ssh_connection.client.exec_command(f"curl -sS {self.url}")
+        error_output = stderr.read().decode()
+        if error_output:
+            if self.error_output != error_output:
+                print(f"Error: {error_output}. Is feminos-daq running?")
+                self.error_output = error_output
+            return None
+        response = stdout.read().decode()
+        self.metrics = parse_prometheus_metrics(response)
+        return self.metrics
+    
+    def _retrieve_file_content(self, filename):
+        if not self.ssh_connection.is_open:
+            raise ConnectionError("SSH connection is not open.")
+        
+        with self.ssh_connection.client.open_sftp() as sftp:
+            with sftp.file(filename, "r") as file:
+                file_content = file.read().decode()
+        self.file_name = filename
+        return file_content
+
+    def _retrieve_matching_file_content(self, filename_pattern, matching_file_number=0):
+        if not self.ssh_connection.is_open:
+            raise ConnectionError("SSH connection is not open.")
+        
+        # List files matching the pattern (one per line), silencing ls errors
+        stdin, stdout, stderr = self.ssh_connection.client.exec_command(f"ls -1 {filename_pattern} 2>/dev/null")
+        error_output = stderr.read().decode()
+        if error_output:
+            # no matching files or other error
+            return None
+        files = stdout.read().decode().splitlines()
+        if not files:
+            return None
+        if matching_file_number < 0 or matching_file_number >= len(files):
+            matching_file_number = 0
+        selected = files[matching_file_number]
+        self.file_name = selected
+        # Read the file content
+        stdin, stdout, stderr = self.ssh_connection.client.exec_command(f"cat {selected}")
+        err = stderr.read().decode()
+        if err:
+            print(f"Error reading remote file {selected}: {err}")
+            return None
+        self.file_content = stdout.read().decode()
+        return self.file_content
+
+    def _retrieve_file_time(self, filename):
+        if not self.ssh_connection.is_open:
+            raise ConnectionError("SSH connection is not open.")
+        
+        with self.ssh_connection.client.open_sftp() as sftp:
+            try:
+                timestamp = sftp.stat(filename).st_mtime
+            except FileNotFoundError:
+                print(f"File {filename} not found on remote host.")
+                return None
+            date = datetime.datetime.fromtimestamp(timestamp)
+            return date.strftime("%d/%m/%Y %H:%M")
 
     def fetch_metrics(self):
         try:
@@ -399,17 +494,29 @@ class MetricsFetcherSSH(MetricsFetcher):
             self.metrics = None
         return self.metrics
 
+    def fetch_matching_file_content(self, filename_pattern, matching_file_number=0):
+        """Return the content of the matching_file_number'th remote file matching filename_pattern.
+
+        This runs remote shell globbing (so patterns like R03333_Calibration_*.root are expanded on the remote host).
+        """
+        try:
+            with self.ssh_connection as ssh_con:
+                return self._retrieve_matching_file_content(filename_pattern, matching_file_number)
+        except Exception as e:
+            print(f"SSH error fetching matching file content: {e}")
+            return None
+
     def fetch_file_content(self, filename):
         try:
             with self.ssh_connection as ssh_con:
-                with ssh_con.open_sftp() as sftp:
-                    with sftp.file(filename, "r") as file:
-                        file_content = file.read().decode()
+                return self._retrieve_file_content(filename)
         except Exception as e:
             if self.error_ssh_connection != str(e):
                 print(f"Error connecting to SSH: {e}")
                 self.error_ssh_connection = str(e)
             file_content = None
+        self.file_name = filename
+        self.file_content = file_content
         return file_content
     
     def get_file_time(self, filename):
@@ -418,7 +525,7 @@ class MetricsFetcherSSH(MetricsFetcher):
                 with ssh_con.open_sftp() as sftp:
                     timestamp = sftp.stat(filename).st_mtime
                     date = datetime.datetime.fromtimestamp(timestamp)
-                    return date.strftime("%d/%m/%Y %H:%M")
+                    return date
         except Exception as e:
             if self.error_ssh_connection != str(e):
                 print(f"Error connecting to SSH: {e}")
@@ -429,6 +536,7 @@ class DaqMetricsBase:
     def __init__(self, fetcher):
         self.fetcher = fetcher
         self.run_file_content = None
+        self.name = "BaseDaq Metrics"
     
     def fetch_metrics(self):
         self.fetcher.fetch_metrics()
@@ -438,8 +546,14 @@ class DaqMetricsBase:
     
     def get_run_type(self):
         raise NotImplementedError("Subclasses should implement this method.")
-    
+
+    def get_run_tag(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+
     def get_run_number(self):
+        raise NotImplementedError("Subclasses should implement this method.")
+    
+    def get_subrun_number(self):
         raise NotImplementedError("Subclasses should implement this method.")
     
     def get_run_time_seconds(self):
@@ -464,6 +578,7 @@ class DaqMetricsBase:
 class FeminosDaqMetrics(DaqMetricsBase):
     def __init__(self, fetcher):
         super().__init__(fetcher)
+        self.name = "FeminosDaq Metrics"
 
     def get_run_start_time(self):
         run_filename = self.get_filename().replace(".root", ".run")
@@ -513,9 +628,15 @@ class FeminosDaqMetrics(DaqMetricsBase):
 
     def get_run_number(self):
         return self.get_metric("run_number")
+    
+    def get_subrun_number(self):
+        return 0 # feminos-daq does not have subruns for .root files
 
     def get_run_type(self):
-        return self.get_filename_metadata().get("run_type", "N/A")
+        return self.get_filename_metadata().get("run_type", "")
+    
+    def get_run_tag(self):
+        return self.get_filename_metadata().get("run_tag", "")
     
     def get_rate(self):
         try:
@@ -533,8 +654,7 @@ class FeminosDaqMetrics(DaqMetricsBase):
     
 
     def get_run_file_content(self):
-        self.fetch_run_file()
-        return self.run_file_content
+        return self.fetcher.file_content
 
     def get_run_file_values_by_fem(self):
         file_content = self.get_run_file_content()
@@ -571,13 +691,30 @@ class FeminosDaqMetrics(DaqMetricsBase):
 class FemDaqMetrics(DaqMetricsBase):
     def __init__(self, fetcher):
         super().__init__(fetcher)
-    
-    def get_run_file_time(self):
-        run_filename = self.get_filename().replace(".root", ".run")
-        return self.fetcher.get_file_time(run_filename)
+        self.name = "FemDaq Metrics"
 
-    def get_run_file_time_string(self, formatting="%d/%m/%Y %H:%M"):
+    def get_log_filename_from_metrics(self):
+        log_filename = self.get_filename()
+        log_filename = log_filename[:-8] + "FEM*.log" # replace yyy.root for FEM*.log
+        return log_filename
+
+    def get_run_start_time(self):
+        log_content = self.fetcher.file_content
+        if log_content:
+            match = re.search(r'-- LOG FILE INITIALIZED AT (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', log_content)
+            if match:
+                dt = datetime.datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+                return dt
+            else:
+                print("Log file initialization time not found in log content.")
+        else:
+            print("No log content available to extract run start time.")
+        return None
+
+    def get_run_start_time_string(self, formatting="%d/%m/%Y %H:%M"):
         date = self.get_run_file_time()
+        if date is None:
+            return ""
         return date.strftime(formatting)
     
     def get_filename(self):
@@ -602,14 +739,20 @@ class FemDaqMetrics(DaqMetricsBase):
         metadata["run_tag"] = splits_[1]
         metadata["experiment"] = splits_[2]
         metadata["run_type"] = splits_[3]
-        metadata["subrun_number"] = splits_[4]
+        metadata["subrun_number"] = splits_[4].replace(".root", "")
         return metadata
 
     def get_run_number(self):
         return self.get_metric("run_number")
+    
+    def get_subrun_number(self):
+        return self.get_filename_metadata().get("subrun_number", "")
 
     def get_run_type(self):
-        return self.get_filename_metadata().get("run_type", "N/A")
+        return self.get_filename_metadata().get("run_type", "")
+    
+    def get_run_tag(self):
+        return self.get_filename_metadata().get("run_tag", "")
     
     def get_rate(self):
         try:
@@ -685,16 +828,7 @@ class FemDaqMetrics(DaqMetricsBase):
         return info.get("maxFileSize", "")
 
     def get_run_file_content(self):
-        self.fetch_run_file()
-        return self.run_file_content
-
-    def get_run_file_content(self):
-        runCalibFilename = self.get_filename()
-        splits_ = runCalibFilename.split("_")
-        split_to_replace = splits_[-1] # the last split should be something like '001.root'
-        filename = runCalibFilename.replace(split_to_replace, "FEM0.log") # where the content of runCalib file is dumped
-        self.run_file_content = self.fetcher.fetch_file_content(filename)
-        return self.run_file_content
+        return self.fetcher.file_content
 
     def get_run_file_values_by_fem(self):
         file_content = self.get_run_file_content()
@@ -721,6 +855,18 @@ class FemDaqMetrics(DaqMetricsBase):
         mult_limit = self.get_run_file_values_for_aget(fem_number, aget_number).get('mult_limit', None)
         total_multiplicity = f"{mult_thr}+{mult_limit}"
         return total_multiplicity
+    
+    def fetch_everything(self):
+        try:
+            with self.fetcher.ssh_connection as ssh_con:
+                self.fetcher._retrieve_metrics()
+                filename = self.get_log_filename_from_metrics()
+                self.file_content = self.fetcher._retrieve_matching_file_content(filename, 0)
+                self.file_time = self.fetcher._retrieve_file_time(self.fetcher.file_name)
+        except Exception:
+            self.metrics = None
+            self.file_content = None
+            self.file_time = None
 
 if __name__ == "__main__":
     # Example usage of the MetricsFetcherSSH class
