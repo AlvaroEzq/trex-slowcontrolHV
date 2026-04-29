@@ -407,7 +407,7 @@ class HVGUI:
         )
         
         daqmetrics = FemDaqMetrics(metrics_fetcher)
-        daqmetrics_gui = DaqMetricsGUI(daqmetrics, parent_frame=frame)
+        daqmetrics_gui = DaqMetricsGUI(daqmetrics, parent_frame=frame, all_channels=self.all_channels, channels_vset_guilabel=self.channels_vset_guilabel)
         
         self.all_guis['daqmetrics'] = daqmetrics_gui
 

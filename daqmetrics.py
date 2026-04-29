@@ -763,6 +763,8 @@ class FemDaqMetrics(DaqMetricsBase):
     def get_filename_metadata(self):
         output_filename = self.get_filename()
         splits_ = output_filename.split("_")
+        if len(splits_) < 5:
+            return {}
         metadata = {}
         metadata["run_number"] = splits_[0].replace("Run", "")
         metadata["run_tag"] = splits_[1]
@@ -800,6 +802,8 @@ class FemDaqMetrics(DaqMetricsBase):
     def get_run_metadata(self):
         try:
             run_config = self.fetcher.get_metric("run_metadata_info")
+            if not run_config:
+                return {}
             run_config = list(run_config.keys())[0] # run_metadata_info is not well defined as a metric...
             run_config = run_config.split("runName=")[1].replace('"', '')
         except ValueError:
