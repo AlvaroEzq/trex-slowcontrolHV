@@ -407,8 +407,9 @@ class HVGUI:
         )
         
         daqmetrics = FemDaqMetrics(metrics_fetcher)
+        daqmetrics_gui = DaqMetricsGUI(daqmetrics, parent_frame=frame)
         
-        self.all_guis['daqmetrics'] = daqmetrics
+        self.all_guis['daqmetrics'] = daqmetrics_gui
 
     def create_scrolled_text(self, frame):
         self.toggle_button = tk.Button(frame, text="\u25B2 Hide terminal output", command=self.toggle_scrolled_text,
