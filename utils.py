@@ -6,7 +6,7 @@ GOOGLE_SHEET_SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.goog
 GOOGLE_SHEET_CREDENTIALS_FILENAME = "trex-slowcontrolHV-credentials.json"
 GOOGLE_SHEET_NAME = "TREX-DM run lists"
 
-WORKSHEET_NUMBER = 4 # starts from 0
+WORKSHEET_NUMBER = 6 # starts from 0
 
 def append_row_to_google_sheet(row, worksheet_number=WORKSHEET_NUMBER):
     try:
