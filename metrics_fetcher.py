@@ -298,6 +298,12 @@ class SSHConnection:
         self.is_open = False
 
 class MetricsFetcher:
+    """Class to fetch and parse Prometheus metrics from a given URL, and optionally fetch file content and file time.
+    The fetch methods serve to get the information and store it in the class attributes,
+    while the get methods serve to give this information to the user.
+    So, to update the information, a fetch must be done before calling any get method.
+    """
+    
     def __init__(self, url):
         self.url = url
         self.metrics = None
@@ -321,7 +327,23 @@ class MetricsFetcher:
             print(f"Error reading file {filename}: {e}")
             return None
     
-    def get_file_time(self, filename):
+    def fetch_matching_file_content(self, filename_pattern, matching_file_number=0):
+        """Return the content of the matching_file_number'th file matching filename_pattern.
+
+        filename_pattern supports shell-style wildcards (e.g. R03333_Calibration_*.root).
+        """
+        try:
+            matches = sorted(glob.glob(filename_pattern))
+            if not matches:
+                return None
+            if matching_file_number < 0 or matching_file_number >= len(matches):
+                matching_file_number = 0
+            return self.fetch_file_content(matches[matching_file_number])
+        except Exception as e:
+            print(f"Error finding files matching {filename_pattern}: {e}")
+            return None
+    
+    def fetch_file_time(self, filename):
         try:
             timestamp = os.path.getmtime(filename)
             date = datetime.datetime.fromtimestamp(timestamp)
@@ -381,23 +403,14 @@ class MetricsFetcher:
     def get_metric_value(self, metric_name, labels=None):
         return self.get_metric(metric_name, labels)
 
-    def fetch_matching_file_content(self, filename_pattern, matching_file_number=0):
-        """Return the content of the matching_file_number'th file matching filename_pattern.
-
-        filename_pattern supports shell-style wildcards (e.g. R03333_Calibration_*.root).
-        """
-        try:
-            matches = sorted(glob.glob(filename_pattern))
-            if not matches:
-                return None
-            if matching_file_number < 0 or matching_file_number >= len(matches):
-                matching_file_number = 0
-            return self.fetch_file_content(matches[matching_file_number])
-        except Exception as e:
-            print(f"Error finding files matching {filename_pattern}: {e}")
-            return None
-
 class MetricsFetcherSSH(MetricsFetcher):
+    """Class to fetch and parse Prometheus metrics from a given URL on a remote host via SSH, and optionally fetch file content and file time from the remote host.
+    It overrides the fetch methods to do it via SSH, while the get methods are inherited and work the same way as in the base class.
+    The fetch methods serve to get the information and store it in the class attributes, while the get methods serve to give this information to the user.
+    So, to update the information, a fetch must be done before calling any get method.
+    Additionally, the retrieve methods are used to get the information assuming the SSH connection is already open, so they can be used internally
+    to fetch different pieces of information in the same SSH session without having to reconnect each time. This is very useful specially for slow SSH connections.
+    """
     def __init__(self, url, hostname, username, password=None, key_filename=None):
         super().__init__(url)
         self.hostname = hostname
@@ -477,16 +490,7 @@ class MetricsFetcherSSH(MetricsFetcher):
     def fetch_metrics(self):
         try:
             with self.ssh_connection as ssh_con:
-                # Run the command to fetch the metrics
-                stdin, stdout, stderr = ssh_con.exec_command(f"curl -sS {self.url}")
-                error_output = stderr.read().decode()
-                if error_output:
-                    if self.error_output != error_output:
-                        print(f"Error: {error_output}. Is feminos-daq running?")
-                        self.error_output = error_output
-                    return None
-                response = stdout.read().decode()
-                self.metrics = parse_prometheus_metrics(response)
+                self._retrieve_metrics()
         except Exception as e:
             if self.error_ssh_connection != str(e):
                 print(f"Error connecting to SSH: {e}")
@@ -519,13 +523,10 @@ class MetricsFetcherSSH(MetricsFetcher):
         self.file_content = file_content
         return file_content
     
-    def get_file_time(self, filename):
+    def fetch_file_time(self, filename):
         try:
             with self.ssh_connection as ssh_con:
-                with ssh_con.open_sftp() as sftp:
-                    timestamp = sftp.stat(filename).st_mtime
-                    date = datetime.datetime.fromtimestamp(timestamp)
-                    return date
+                self._retrieve_file_time(filename)
         except Exception as e:
             if self.error_ssh_connection != str(e):
                 print(f"Error connecting to SSH: {e}")
@@ -544,6 +545,9 @@ class DaqMetricsBase:
     def get_metric(self, metric_name, labels=None):
         return self.fetcher.get_metric(metric_name, labels)
     
+    def fetch_everything(self):
+        raise NotImplementedError("Subclasses should implement this method to fetch all necessary information for the metrics.")
+
     def get_run_type(self):
         raise NotImplementedError("Subclasses should implement this method.")
 
@@ -582,7 +586,7 @@ class FeminosDaqMetrics(DaqMetricsBase):
 
     def get_run_start_time(self):
         run_filename = self.get_filename().replace(".root", ".run")
-        return self.fetcher.get_file_time(run_filename)
+        return self.fetcher.fetch_file_time(run_filename)
 
     def get_run_start_time_string(self, formatting="%d/%m/%Y %H:%M"):
         date = self.get_run_file_time()
@@ -687,6 +691,31 @@ class FeminosDaqMetrics(DaqMetricsBase):
         if file_content is None:
             return -1
         return get_loop_time_from_run_file(file_content)
+    
+    def fetch_everything(self):
+        if type(self.fetcher) is MetricsFetcherSSH:
+            try:
+                with self.fetcher.ssh_connection as ssh_con:
+                    self.fetcher._retrieve_metrics()
+                    filename = self.get_filename()
+                    self.file_content = self.fetcher._retrieve_matching_file_content(filename, 0)
+                    self.file_time = self.fetcher._retrieve_file_time(self.fetcher.file_name)
+            except Exception:
+                self.metrics = None
+                self.file_content = None
+                self.file_time = None
+        elif type(self.fetcher) is MetricsFetcher:
+            try:
+                self.fetcher.fetch_metrics()
+                filename = self.get_filename()
+                self.file_content = self.fetcher.fetch_matching_file_content(filename, 0)
+                self.file_time = self.fetcher.fetch_file_time(self.fetcher.file_name)
+            except Exception:
+                self.metrics = None
+                self.file_content = None
+                self.file_time = None
+        else:
+            raise TypeError("Unsupported fetcher type.")
     
 class FemDaqMetrics(DaqMetricsBase):
     def __init__(self, fetcher):
@@ -857,16 +886,29 @@ class FemDaqMetrics(DaqMetricsBase):
         return total_multiplicity
     
     def fetch_everything(self):
-        try:
-            with self.fetcher.ssh_connection as ssh_con:
-                self.fetcher._retrieve_metrics()
+        if type(self.fetcher) is MetricsFetcherSSH:
+            try:
+                with self.fetcher.ssh_connection as ssh_con:
+                    self.fetcher._retrieve_metrics()
+                    filename = self.get_log_filename_from_metrics()
+                    self.file_content = self.fetcher._retrieve_matching_file_content(filename, 0)
+                    self.file_time = self.fetcher._retrieve_file_time(self.fetcher.file_name)
+            except Exception:
+                self.metrics = None
+                self.file_content = None
+                self.file_time = None
+        elif type(self.fetcher) is MetricsFetcher:
+            try:
+                self.fetcher.fetch_metrics()
                 filename = self.get_log_filename_from_metrics()
-                self.file_content = self.fetcher._retrieve_matching_file_content(filename, 0)
-                self.file_time = self.fetcher._retrieve_file_time(self.fetcher.file_name)
-        except Exception:
-            self.metrics = None
-            self.file_content = None
-            self.file_time = None
+                self.file_content = self.fetcher.fetch_matching_file_content(filename, 0)
+                self.file_time = self.fetcher.fetch_file_time(self.fetcher.file_name)
+            except Exception:
+                self.metrics = None
+                self.file_content = None
+                self.file_time = None
+        else:
+            raise TypeError("Unsupported fetcher type.")
 
 if __name__ == "__main__":
     # Example usage of the MetricsFetcherSSH class
