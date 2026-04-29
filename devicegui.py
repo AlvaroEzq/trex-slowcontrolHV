@@ -76,7 +76,11 @@ class DeviceGUI(ABC):
         start_mainloop = False
         if parent_frame is None:
             self.root = tk.Tk()
-            self.root.title(f"{device.name} GUI")
+            try:
+                title = f"{device.name} GUI"
+            except AttributeError:
+                title = "Unknown device GUI"
+            self.root.title(title)
             # menu bar only if it is the main gui
             self.menu_bar = tk.Menu(self.root)
             self.menu_config = tk.Menu(self.menu_bar, tearoff=0)
@@ -93,7 +97,10 @@ class DeviceGUI(ABC):
         self.device_lock = threading.Lock()
 
         #Initialize logger
-        logger_name = f"app.{self.device.name}"
+        try:
+            logger_name = f"app.{self.device.name}"
+        except AttributeError:
+            logger_name = "app.unknown"
         self.logger = logging.getLogger(logger_name)
         if self.logger.parent.name == "root": # if it is not embedded in another GUI with its own logger
             self.logger = configure_basic_logger(logger_name)

@@ -10,16 +10,16 @@ This repository contains software for remote control and monitoring of high volt
    - Register of voltage and current monitor values of the channels of each device.
    - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
    - Trip recovery system to automatically detect, handle and recover a trip. It uses the multidevice raising of voltages to recover a trip. Also, a configurable cooldown time is applied before recovering the trip.
-   - Alert message to slack webhook (to do so, copy your slack webhook in the global variable SLACK_WEBHOOK_URL of [logger.py](logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
+   - Alert message to slack/mattermost webhook (to do so, copy your slack/mattermost webhook in the global variable SLACK/MATTERMOST_WEBHOOK_URL of [logger.py](logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
       * CRITICAL: unexpected error happens which require the user to fix.
       * ERROR: expected error happens which require the users attention.
       * WARNING: expected event as trips.
-      * INFO: information on the normal functioning of the program.
+      * INFO: information on the normal functioning of the program, including trip recovery messages when a trip is detected and recovered successfully.
       * DEBUG: debugging information.
 
-      It is recommended to set the slack logging level to warning if you want to receive messages when trips happen or error if you want to ignore the messages of trips.
-   - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication.
-   - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold in the .run file) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `utils.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
+      It is recommended to set the slack/mattermost logging level to warning if you want to receive messages when trips happen or error if you want to ignore the messages of trips.
+   - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) or [femdaq](https://github.com/juanangp/femdaq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication.
+   - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `utils.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
 - CAEN and Spellman SL30 simulators for testing without hardware.
 
 ## Usage

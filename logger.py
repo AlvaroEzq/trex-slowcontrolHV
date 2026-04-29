@@ -161,13 +161,13 @@ def configure_basic_logger(logger_name:str, log_level=logging.DEBUG):
         logger_name,
         log_filename=f"{LOG_DIR}/slack_{logger_name}.log",
         slack_webhook_url=SLACK_WEBHOOK_URL,
-        log_level=logging.WARNING
+        log_level=logging.ERROR
     )
     logger = configure_mattermost_logger(
         logger_name,
         log_filename=f"{LOG_DIR}/mattermost_{logger_name}.log",
         mattermost_webhook_url=MATTERMOST_WEBHOOK_URL,
-        log_level=logging.WARNING
+        log_level=logging.INFO
     )
     logger = configure_streamer_logger(
         logger_name,
@@ -190,7 +190,7 @@ def configure_slack_logger(logger_name:str, log_filename:str, slack_webhook_url:
         logger.addHandler(file_slack_handler)
     return logger
 
-def configure_mattermost_logger(logger_name:str, log_filename:str, mattermost_webhook_url:str, log_level=logging.ERROR):
+def configure_mattermost_logger(logger_name:str, log_filename:str, mattermost_webhook_url:str, log_level=logging.INFO):
     logger = logging.getLogger(logger_name)
     # logger.setLevel(logging.DEBUG)
     if mattermost_webhook_url:

@@ -19,7 +19,8 @@ import utils
 from checkframe import ChecksFrame
 from check import load_checks_from_toml_file
 from utilsgui import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
-from metrics_fetcher import MetricsFetcherSSH
+from daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
+from daqmetricsgui import DaqMetricsGUI
 import logger
 
 
@@ -73,6 +74,8 @@ class HVGUI:
         # daq metrics variables
         self.metrics_fetcher = None
         self.run_number_label = None
+        self.run_type_label = None
+        self.run_endtime_label = None
         self.daq_speed_label = None
         self.daq_events_label = None
         self.events_number_label = None
@@ -394,54 +397,19 @@ class HVGUI:
         self.create_trip_recovery_frame(right_frame)
         all_devices_locks = tuple([gui.device_lock for gui in self.all_guis.values()])
         self.checks_frame = ChecksFrame(right_frame, checks=self.checks, channels=self.all_channels, locks=all_devices_locks)
+
     def create_daq_frame(self, frame):
-        daq_frame = tk.LabelFrame(frame, text="DAQ metrics", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
-        daq_frame.pack()
-
-        tk.Label(daq_frame, text="Run number").grid(row=0, column=0, sticky="w")
-        self.run_number_label = tk.Label(daq_frame, text="N/A")
-        self.run_number_label.grid(row=0, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Run type").grid(row=1, column=0, sticky="w")
-        self.run_filename_label = tk.Label(daq_frame, text="N/A")
-        self.run_filename_label.grid(row=1, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Speed (events/s)").grid(row=2, column=0, sticky="w")
-        self.daq_events_label = tk.Label(daq_frame, text="N/A")
-        self.daq_events_label.grid(row=2, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Number of events").grid(row=3, column=0, sticky="w")
-        self.events_number_label = tk.Label(daq_frame, text="N/A")
-        self.events_number_label.grid(row=3, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Queue fill level").grid(row=4, column=0, sticky="w")
-        self.queue_fill_label = tk.Label(daq_frame, text="N/A")
-        self.queue_fill_label.grid(row=4, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Disk free space (GB)").grid(row=5, column=0, sticky="w")
-        self.disk_space_label = tk.Label(daq_frame, text="N/A")
-        self.disk_space_label.grid(row=5, column=1, sticky="e")
-
-        self.check_entries_var = tk.IntVar()
-        self.check_entries_var.set(0)
-        self.check_entries_change_checkbox = tk.Checkbutton(daq_frame, text="Check entries (TCM)", variable=self.check_entries_var, selectcolor="gray")
-        self.check_entries_var.set(1) # enable by default
-        self.check_entries_change_checkbox.grid(row=6, column=0, columnspan=2, pady=5, sticky="nsew")
-
-        self.auto_add_var = tk.IntVar()
-        self.auto_add_var.set(0)
-        self.last_run_number_from_google_sheet = None
-        self.auto_add_var.trace_add("write", lambda *args : self.set_last_run_number_from_google_sheet())
-        self.auto_add_var.set(1)
-        self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var, selectcolor="gray")
-        self.auto_add_to_googlesheet_checkbox.grid(row=7, column=0, columnspan=2, pady=0, sticky="nsew")
-
-
-        self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
-                                        command=self.add_run_to_googlesheet)
-        self.add_to_googlesheet_button.grid(row=8, column=0, columnspan=2, pady=10, sticky="nsew")
-
-        threading.Thread(target=self.daq_metrics_loop, daemon=True).start()
+        metrics_fetcher = MetricsFetcherSSH(
+            url="http://localhost:8080/metrics",
+            hostname="192.168.3.80",
+            username="usertrex",
+            key_filename="/home/usertrex/.ssh/id_rsa"
+        )
+        
+        daqmetrics = FemDaqMetrics(metrics_fetcher)
+        daqmetrics_gui = DaqMetricsGUI(daqmetrics, parent_frame=frame)
+        
+        self.all_guis['daqmetrics'] = daqmetrics_gui
 
     def create_scrolled_text(self, frame):
         self.toggle_button = tk.Button(frame, text="\u25B2 Hide terminal output", command=self.toggle_scrolled_text,
@@ -456,119 +424,6 @@ class HVGUI:
                 self.logger.removeHandler([h for h in self.logger.handlers if type(h) is logging.StreamHandler][0])
             self.logger.addHandler(logger.TextWidgetHandler(self.scrolled_text))
 
-    def set_last_run_number_from_google_sheet(self, run_number=None):
-        def get_last_run_number_from_google_sheet():
-            self.last_run_number_from_google_sheet = utils.get_last_run_number_from_google_sheet()
-        if run_number is None and self.last_run_number_from_google_sheet is None:
-            threading.Thread(target=get_last_run_number_from_google_sheet).start()
-        elif run_number is not None:
-            self.last_run_number_from_google_sheet = run_number
-
-    def daq_metrics_loop(self):
-        self.metrics_fetcher = MetricsFetcherSSH(
-                                url="http://localhost:8080/metrics",
-                                hostname="192.168.3.80",
-                                username="usertrex",
-                                key_filename="/home/usertrex/.ssh/id_rsa"
-                                )
-        while True:
-            self.metrics_fetcher.fetch_metrics()
-            if self.metrics_fetcher.metrics:
-                #output_filename = self.metrics_fetcher.get_filename()
-                run_type = self.metrics_fetcher.get_filename_metadata().get("run_type", "N/A")
-                self.run_number_label.config(text=f'{self.metrics_fetcher.get_metric("run_number"):.0f}')
-                if self.metrics_fetcher.get_metric("run_number") != 0:
-                    if self.add_to_googlesheet_thread and self.add_to_googlesheet_thread.is_alive():
-                        pass
-                    else:
-                        self.add_to_googlesheet_button.config(state="normal")
-                self.run_filename_label.config(text=run_type)
-                disk_space_gb = self.metrics_fetcher.get_metric("free_disk_space_gb")['path="/"']
-                self.disk_space_label.config(text=f'{disk_space_gb:.0f}')
-                self.daq_events_label.config(text=f'{self.metrics_fetcher.get_metric("daq_speed_events_per_sec_now"):.1f}')
-                number_of_events = self.metrics_fetcher.get_metric("number_of_events")
-                self.events_number_label.config(text=f'{number_of_events:,.0f}')
-
-                # Checking if the number of entries is changing is done as an indirect way to check if the TCM is running fine
-                if self.check_entries_var.get() == 1:
-                    if self.number_of_entries is None or number_of_events != self.number_of_entries:
-                        self.number_of_entries = number_of_events
-                        self.datetime_last_entries_change = datetime.datetime.now()
-                        self.alarm_level_sent = logging.NOTSET # reset alarm level sent
-                    else:
-                        time_diff = datetime.datetime.now() - self.datetime_last_entries_change
-                        if time_diff.total_seconds() > 3600*24: # 24 hours without new entries
-                            # Send alarm only if lower level was sent
-                            if self.alarm_level_sent < logging.CRITICAL:
-                                self.logger.critical("No new entries in the DAQ for more than 24 hours! Check TCM state...")
-                                self.alarm_level_sent = logging.CRITICAL
-                        elif time_diff.total_seconds() > 3600*10: # 10 hours without new entries
-                            if self.alarm_level_sent < logging.ERROR:
-                                self.logger.error("No new entries in the DAQ for more than 10 hours. Check TCM state...")
-                                self.alarm_level_sent = logging.ERROR
-                        elif time_diff.total_seconds() > 3600: # 1 hour without new entries
-                            if self.alarm_level_sent < logging.WARNING:
-                                self.logger.warning("No new entries in the DAQ for more than 1 hour. Check TCM state...")
-                                self.alarm_level_sent = logging.WARNING
-                else:
-                    # reset
-                    self.number_of_entries = None
-                    self.datetime_last_entries_change = None
-                    self.alarm_level_sent = logging.NOTSET
-
-                queue_fill_level = self.metrics_fetcher.get_metric("daq_frames_queue_fill_level_sum")
-                self.queue_fill_label.config(text=f'{queue_fill_level:.3f}')
-            else:
-                self.run_number_label.config(text="N/A")
-                self.disk_space_label.config(text="N/A")
-                self.daq_events_label.config(text="N/A")
-                self.events_number_label.config(text="N/A")
-                self.queue_fill_label.config(text="N/A")
-                self.add_to_googlesheet_button.config(state="disabled")
-                # don't reset here the number of entries and datetime_last_entries_change, just in case the metrics server is down for a while
-            if (
-                self.auto_add_var.get() == 1
-                and self.run_number_label.cget("text") != "N/A"
-                and self.last_run_number_from_google_sheet
-                and int(self.last_run_number_from_google_sheet) < int(self.run_number_label.cget("text"))
-            ):
-                self.add_run_to_googlesheet()
-            time.sleep(10)
-
-    def add_run_to_googlesheet(self):
-        def add_run():
-            print("Adding run to Google Sheet...")
-            self.add_to_googlesheet_button.config(state="disabled") # avoid spamming the button
-            run_number = self.run_number_label.cget("text")
-            self.set_last_run_number_from_google_sheet(int(run_number))
-            start_date = ""
-            try:
-                start_date = self.metrics_fetcher.get_run_file_time()
-            except:
-                start_date = time.strftime("%d/%m/%Y %H:%M")
-            metadata = self.metrics_fetcher.get_filename_metadata()
-            run_type = metadata.get("run_type", "")
-            metadata.pop("run_type", None)
-            metadata.pop("run_number", None)
-            metadata.pop("Vm", None)
-            metadata.pop("Vd", None)
-            column_data = {ch: float(self.channels_vset_guilabel[ch].cget("text")) for ch in self.all_channels.keys()}
-            column_data.update(metadata)
-            column_data['threshold left'] = self.metrics_fetcher.get_total_threshold_for_fem_aget(2, 0)
-            column_data['threshold right'] = self.metrics_fetcher.get_total_threshold_for_fem_aget(0, 0)
-            column_data['multiplicity left'] = self.metrics_fetcher.get_total_multiplicity_for_fem_aget(2, 0)
-            column_data['multiplicity right'] = self.metrics_fetcher.get_total_multiplicity_for_fem_aget(0, 0)
-            row = utils.create_row_for_google_sheet(run_number, start_date, run_type, column_data)
-            print(f"Row to be added: {row}")
-            utils.append_row_to_google_sheet(row)
-            self.add_to_googlesheet_button.config(state="normal")
-            print("Run added to Google Sheet.")
-
-        if self.add_to_googlesheet_thread and self.add_to_googlesheet_thread.is_alive():
-            print("Run currently being added to Google Sheet. Please wait.")
-            return
-        self.add_to_googlesheet_thread = threading.Thread(target=add_run)
-        self.add_to_googlesheet_thread.start()
 
     def create_trip_recovery_frame(self, frame):
         triprec_frame = tk.LabelFrame(frame, text="Trip recovery", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)

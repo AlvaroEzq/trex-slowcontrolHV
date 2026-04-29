@@ -6,7 +6,7 @@ GOOGLE_SHEET_SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.goog
 GOOGLE_SHEET_CREDENTIALS_FILENAME = "trex-slowcontrolHV-credentials.json"
 GOOGLE_SHEET_NAME = "TREX-DM run lists"
 
-WORKSHEET_NUMBER = 4 # starts from 0
+WORKSHEET_NUMBER = 6 # starts from 0
 
 def append_row_to_google_sheet(row, worksheet_number=WORKSHEET_NUMBER):
     try:
@@ -22,7 +22,7 @@ def append_row_to_google_sheet(row, worksheet_number=WORKSHEET_NUMBER):
         with open(LOG_DIR + "/run_list.txt", "a") as file:
             file.write(str(row)+"\n")
 
-def create_row_for_google_sheet(run_number, start_date, run_type, other_columns, worksheet_number=WORKSHEET_NUMBER):
+def create_row_for_google_sheet(run_number, start_date, run_tag, other_columns, worksheet_number=WORKSHEET_NUMBER):
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEET_CREDENTIALS_FILENAME, GOOGLE_SHEET_SCOPE)
         client = gspread.authorize(creds)
@@ -30,7 +30,7 @@ def create_row_for_google_sheet(run_number, start_date, run_type, other_columns,
         page = sheet.get_worksheet(worksheet_number) # starts from 0
         column_names = page.row_values(2)
     except Exception as e:
-        column_names = ['Run', 'Date', 'Type', 'Time', 'Vmesh Left (V)', 'Eg-mm (V/cm*bar)', 'Vgem(top-bott) (V)',
+        column_names = ['Run', 'Date', 'Tag', 'Time', 'Vmesh Left (V)', 'Eg-mm (V/cm*bar)', 'Vgem(top-bott) (V)',
                         'Vgembottom', 'Vgemtop', 'Vlastring', 'Ec-g(V/cm*bar)', 'Vcathode (V)', 'Ec-mm (V/cm*bar)',
                         'Vmesh Right (V)', 'Pressure (bar)', 'Flow (ln/h)', 'Gain (FEC units)', 'Shape time (FEC units)',
                         'Clock (FEC units/MHz)', 'Threshold Left (daq+thr)', 'Multiplicity Left', 'Threshold Right (daq+thr)',
@@ -39,19 +39,30 @@ def create_row_for_google_sheet(run_number, start_date, run_type, other_columns,
         print(f"Error, {e}, while fetching column names from Google Sheet. Using default column names")
     column_names = [c.replace(' ', '').lower() for c in column_names]
     row = ['' for _ in range(len(column_names))]
-    row[0] = run_number
-    row[1] = start_date
-    row[2] = run_type
     for ch, v in other_columns.items():
         ch = ch.replace(' ', '').lower()
         column_found = False
+        # first try to find the column with the exact name (with brackets and spaces)
         for column in column_names:
             if ch in column:
                 row[column_names.index(column)] = v
                 column_found = True
                 break
+        # second try to find the column without brackets and spaces (to be more robust)
         if not column_found:
-            print(f"Column for channel {ch} not found in Google Sheet")
+            for column in column_names:
+                column_nobrackets = column.replace('(', '').replace(')', '')
+                column_nobrackets = column_nobrackets.replace(' ', '')
+                if ch in column_nobrackets:
+                    row[column_names.index(column)] = v
+                    column_found = True
+                    break
+        if not column_found:
+            pass
+            #print(f"Column for channel {ch} not found in Google Sheet")
+    row[0] = run_number
+    row[1] = start_date
+    row[2] = run_tag
     return row
 
 def get_last_run_number_from_google_sheet(worksheet_number=WORKSHEET_NUMBER):
