@@ -62,29 +62,32 @@ class DaqMetricsGUI(DeviceGUI):
         tk.Label(daq_frame, text="Run tag").grid(row=1, column=0, sticky="w")
         self.run_tag_label = tk.Label(daq_frame, text="N/A")
         self.run_tag_label.grid(row=1, column=1, sticky="e")
+        
+        tk.Label(daq_frame, text="Start time").grid(row=2, column=0, sticky="w")
+        self.run_starttime_label = tk.Label(daq_frame, text="N/A")
+        self.run_starttime_label.grid(row=2, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="End time").grid(row=2, column=0, sticky="w")
+        tk.Label(daq_frame, text="End time").grid(row=3, column=0, sticky="w")
         self.run_endtime_label = tk.Label(daq_frame, text="N/A")
-        self.run_endtime_label.grid(row=2, column=1, sticky="e")
+        self.run_endtime_label.grid(row=3, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="Speed (events/s)").grid(row=3, column=0, sticky="w")
-        self.daq_events_label = tk.Label(daq_frame, text="N/A")
-        self.daq_events_label.grid(row=3, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Number of events").grid(row=4, column=0, sticky="w")
-        self.events_number_label = tk.Label(daq_frame, text="N/A")
-        self.events_number_label.grid(row=4, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Subrun number").grid(row=5, column=0, sticky="w")
+        tk.Label(daq_frame, text="Subrun number").grid(row=4, column=0, sticky="w")
         self.subrun_number_label = tk.Label(daq_frame, text="N/A")
-        self.subrun_number_label.grid(row=5, column=1, sticky="e")
+        self.subrun_number_label.grid(row=4, column=1, sticky="e")
 
+        tk.Label(daq_frame, text="Speed (events/s)").grid(row=5, column=0, sticky="w")
+        self.daq_events_label = tk.Label(daq_frame, text="N/A")
+        self.daq_events_label.grid(row=5, column=1, sticky="e")
+
+        tk.Label(daq_frame, text="Number of events").grid(row=6, column=0, sticky="w")
+        self.events_number_label = tk.Label(daq_frame, text="N/A")
+        self.events_number_label.grid(row=6, column=1, sticky="e")
 
         self.check_entries_var = tk.IntVar()
         self.check_entries_var.set(0)
         self.check_entries_change_checkbox = tk.Checkbutton(daq_frame, text="Check entries (TCM)", variable=self.check_entries_var, selectcolor="gray")
         self.check_entries_var.set(1) # enable by default
-        self.check_entries_change_checkbox.grid(row=6, column=0, columnspan=2, pady=5, sticky="nsew")
+        self.check_entries_change_checkbox.grid(row=7, column=0, columnspan=2, pady=5, sticky="nsew")
 
         self.auto_add_var = tk.IntVar()
         self.auto_add_var.set(0)
@@ -92,12 +95,12 @@ class DaqMetricsGUI(DeviceGUI):
         self.auto_add_var.trace_add("write", lambda *args : self.set_last_run_number_from_google_sheet())
         self.auto_add_var.set(1)
         self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var, selectcolor="gray")
-        self.auto_add_to_googlesheet_checkbox.grid(row=7, column=0, columnspan=2, pady=0, sticky="nsew")
+        self.auto_add_to_googlesheet_checkbox.grid(row=8, column=0, columnspan=2, pady=0, sticky="nsew")
 
 
         self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
                                         command=self.add_run_to_googlesheet)
-        self.add_to_googlesheet_button.grid(row=8, column=0, columnspan=2, pady=10, sticky="nsew")
+        self.add_to_googlesheet_button.grid(row=9, column=0, columnspan=2, pady=10, sticky="nsew")
 
         #threading.Thread(target=self.daq_metrics_loop, daemon=True).start()
     
@@ -160,13 +163,15 @@ class DaqMetricsGUI(DeviceGUI):
             run_duration = self.daqmetrics.get_run_time_seconds()
             run_start = self.daqmetrics.get_run_start_time()
             if run_start is not None:
+                self.run_starttime_label.config(text=f'{run_start.strftime("%d/%m/%Y %H:%M")}')
                 endtime = run_start + datetime.timedelta(seconds=run_duration)
                 self.run_endtime_label.config(text=f'{endtime.strftime("%d/%m/%Y %H:%M")}')
             else:
                 endtime = None
+                self.run_starttime_label.config(text=f'')
                 self.run_endtime_label.config(text=f'')
                 
-            self.daq_events_label.config(text=f'{self.daqmetrics.get_rate():.1f}')
+            self.daq_events_label.config(text=f'{self.daqmetrics.get_rate():.2f}')
             number_of_events = self.daqmetrics.get_number_of_events()
             self.events_number_label.config(text=f'{number_of_events:,.0f}')
 
@@ -212,6 +217,7 @@ class DaqMetricsGUI(DeviceGUI):
         else:
             self.run_number_label.config(text="N/A")
             self.run_tag_label.config(text="N/A")
+            self.run_starttime_label.config(text="N/A")
             self.run_endtime_label.config(text="N/A")
             self.daq_events_label.config(text="N/A")
             self.events_number_label.config(text="N/A")
