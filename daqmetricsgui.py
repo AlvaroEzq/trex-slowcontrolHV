@@ -9,7 +9,7 @@ import datetime
 import time
 
 import utils
-from metrics_fetcher import MetricsFetcher, MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
+from daqmetrics import MetricsFetcher, MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
 from utilsgui import ToolTip
 from devicegui import DeviceGUI
 
