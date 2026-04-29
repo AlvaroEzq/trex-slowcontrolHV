@@ -42,13 +42,24 @@ def create_row_for_google_sheet(run_number, start_date, run_tag, other_columns, 
     for ch, v in other_columns.items():
         ch = ch.replace(' ', '').lower()
         column_found = False
+        # first try to find the column with the exact name (with brackets and spaces)
         for column in column_names:
             if ch in column:
                 row[column_names.index(column)] = v
                 column_found = True
                 break
+        # second try to find the column without brackets and spaces (to be more robust)
         if not column_found:
-            print(f"Column for channel {ch} not found in Google Sheet")
+            for column in column_names:
+                column_nobrackets = column.replace('(', '').replace(')', '')
+                column_nobrackets = column_nobrackets.replace(' ', '')
+                if ch in column_nobrackets:
+                    row[column_names.index(column)] = v
+                    column_found = True
+                    break
+        if not column_found:
+            pass
+            #print(f"Column for channel {ch} not found in Google Sheet")
     row[0] = run_number
     row[1] = start_date
     row[2] = run_tag
