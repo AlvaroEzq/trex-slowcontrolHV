@@ -129,13 +129,14 @@ class DaqMetricsGUI(DeviceGUI):
             metadata.pop("run_number", None)
             metadata.pop("Vm", None)
             metadata.pop("Vd", None)
-            column_data = {ch: float(self.channels_vset_guilabel[ch].cget("text")) for ch in self.all_channels.keys()}
+            column_data = {}
             column_data.update(metadata)
             column_data['threshold left'] = self.daqmetrics.get_total_threshold_for_fem_aget(2, 0)
             column_data['threshold right'] = self.daqmetrics.get_total_threshold_for_fem_aget(0, 0)
             column_data['multiplicity left'] = self.daqmetrics.get_total_multiplicity_for_fem_aget(2, 0)
             column_data['multiplicity right'] = self.daqmetrics.get_total_multiplicity_for_fem_aget(0, 0)
-            row = utils.create_row_for_google_sheet(run_number, start_date, run_tag, column_data)
+            voltages_data = {ch: float(self.channels_vset_guilabel[ch].cget("text")) for ch in self.all_channels.keys()}
+            row = utils.create_row_for_google_sheet(run_number, start_date, run_tag, voltages_data, column_data)
             print(f"Row to be added: {row}")
             utils.append_row_to_google_sheet(row)
             self.add_to_googlesheet_button.config(state="normal")
