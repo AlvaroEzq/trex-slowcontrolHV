@@ -42,7 +42,7 @@ class DaqMetricsGUI(DeviceGUI):
                         channels_name=[],
                         parent_frame=parent_frame,
                         logging_enabled=False,
-                        read_loop_time=10,
+                        read_loop_time=60,
                         )
     
     def create_gui(self):
