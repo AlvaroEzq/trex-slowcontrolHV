@@ -735,7 +735,8 @@ class FemDaqMetrics(DaqMetricsBase):
                 dt = datetime.datetime.strptime(match.group(1), "%Y-%m-%d_%H:%M:%S")
                 return dt
             else:
-                print("Log file initialization time not found in log content.")
+                pass
+                #print("Log file initialization time not found in log content.")
         else:
             print("No log content available to extract run start time.")
         return None
