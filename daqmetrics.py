@@ -730,12 +730,13 @@ class FemDaqMetrics(DaqMetricsBase):
     def get_run_start_time(self):
         log_content = self.fetcher.file_content
         if log_content:
-            match = re.search(r'-- LOG FILE INITIALIZED AT (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})', log_content)
+            match = re.search(r'-- LOG FILE INITIALIZED AT (\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2})', log_content)
             if match:
-                dt = datetime.datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+                dt = datetime.datetime.strptime(match.group(1), "%Y-%m-%d_%H:%M:%S")
                 return dt
             else:
-                print("Log file initialization time not found in log content.")
+                pass
+                #print("Log file initialization time not found in log content.")
         else:
             print("No log content available to extract run start time.")
         return None
