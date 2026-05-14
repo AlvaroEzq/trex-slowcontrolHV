@@ -27,50 +27,38 @@ class DeviceGUI(ABC):
         - read_loop_time (float): Time interval for reading channel data (default: 1 second).
     """
 
-    def __init__(self, device, channels_name: list, parent_frame=None, **kwargs):
+    def __init__(self, device, channels_states, parent_frame=None, **kwargs):
         self.device = device
-        self.channels_name = channels_name
-        self.channels_state = None
+        self.channels_state = channels_states.copy()
+        self.channels_name = list(channels_states.keys())
 
         self.config_params = {
             "logging_enabled" : kwargs.get("logging_enabled", True),
-            "channel_state_save_previous" : kwargs.get("channel_state_save_previous", True),
-            "channel_state_save_force" : kwargs.get("channel_state_save_force", False),
-            "channel_state_diff_vmon" : kwargs.get("channel_state_diff_vmon", 0.5),
-            "channel_state_diff_imon" : kwargs.get("channel_state_diff_imon", 0.01),
-            "channel_state_prec_vmon" : kwargs.get("channel_state_prec_vmon", 1),
-            "channel_state_prec_imon" : kwargs.get("channel_state_prec_imon", 3),
             "read_loop_time" : kwargs.get("read_loop_time", 1),
+            "gui_update_time" : kwargs.get("gui_update_time", 1),
         }
+        
+        base_channel_params = {
+            "save_previous": False,
+            "save_force": False,
+            "thresholds": {},
+            "precisions": {},
+        }
+        
+        self.config_channels_params = {}
+        for name in self.channels_name:
+            self.config_channels_params[name] = base_channel_params.copy()
+            if self.channels_state.get(name):
+                # if the channel state is already provided, use its parameters as default
+                chstate = self.channels_state[name]
+                self.config_channels_params[name]["thresholds"] = chstate.thresholds
+                self.config_channels_params[name]["precisions"] = chstate.precisions
 
         # Validate input parameters
         if not isinstance(self.config_params["logging_enabled"], bool):
             raise ValueError("logging_enabled must be a boolean")
-        if not isinstance(self.config_params["channel_state_save_previous"], bool):
-            raise ValueError("channels_state_save_previous must be a boolean")
-        if not isinstance(self.config_params["channel_state_prec_vmon"], int) or self.config_params["channel_state_prec_vmon"] < 0:
-            raise ValueError("channels_state_prec_vmon must be a positive integer")
-        if not isinstance(self.config_params["channel_state_prec_imon"], int) or self.config_params["channel_state_prec_imon"] < 0:
-            raise ValueError("channels_state_prec_imon must be a positive integer")
-        if not isinstance(self.config_params["channel_state_diff_vmon"], (int, float)) or self.config_params["channel_state_diff_vmon"] < 0:
-            raise ValueError("channels_state_diff_vmon must be a positive number")
-        if not isinstance(self.config_params["channel_state_diff_imon"], (int, float)) or self.config_params["channel_state_diff_imon"] < 0:
-            raise ValueError("channels_state_diff_imon must be a positive number")
         if not isinstance(self.config_params["read_loop_time"], (int, float)) or self.config_params["read_loop_time"] <= 0:
             raise ValueError("read_loop_time must be a positive number")
-
-        # Initialize channel states
-        if self.channels_state is None:
-            self.channels_state = [
-                ChannelState(
-                    name,
-                    diff_vmon=self.config_params["channel_state_diff_vmon"],
-                    diff_imon=self.config_params["channel_state_diff_imon"],
-                    precision_vmon=self.config_params["channel_state_prec_vmon"],
-                    precision_imon=self.config_params["channel_state_prec_imon"],
-                )
-                for name in self.channels_name
-            ]
 
         # Initialize GUI basic components
         start_mainloop = False
@@ -110,7 +98,7 @@ class DeviceGUI(ABC):
         # Create GUI
         self.create_gui()
         self.start_background_threads()
-
+        self.schedule_gui_update()
         if start_mainloop:
             self.root.mainloop() # this will block the main thread until the window is closed
 
@@ -142,14 +130,25 @@ class DeviceGUI(ABC):
         threading.Thread(target=self.read_loop, daemon=True).start()
         threading.Thread(target=self.process_commands, daemon=True).start()
 
+    def schedule_gui_update(self):
+            try:
+                self.update_gui()
+            except Exception as e:
+                self.logger.exception(f"{self.device.name} GUI update failed: {e}")
+
+            self.root.after(
+                self.config_params["gui_update_time"]*1000, # convert s to ms
+                self.schedule_gui_update
+            )
+
     def read_loop(self):
         while True:
             self.issue_command(self.read_values)
             if self.config_params["logging_enabled"]:
-                for chstate in self.channels_state:
+                for name, chstate in self.channels_state.items():
                     chstate.save_state(
-                        save_previous=self.config_params["channel_state_save_previous"],
-                        force=self.config_params["channel_state_save_force"],
+                        save_previous=self.config_channels_params[name]["save_previous"],
+                        force=self.config_channels_params[name]["save_force"],
                     )
             time.sleep(self.config_params["read_loop_time"])
 
@@ -226,6 +225,10 @@ class DeviceGUI(ABC):
     
     @abstractmethod
     def read_values(self):
+        pass
+    
+    @abstractmethod
+    def update_gui(self):
         pass
     
     @abstractmethod
