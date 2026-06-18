@@ -39,7 +39,7 @@ class DaqMetricsGUI(DeviceGUI):
 
         super().__init__(
                         device=daqmetrics,
-                        channels_name=[],
+                        channels_states={},
                         parent_frame=parent_frame,
                         logging_enabled=False,
                         read_loop_time=60,
@@ -148,18 +148,10 @@ class DaqMetricsGUI(DeviceGUI):
         self.add_to_googlesheet_thread = threading.Thread(target=add_run)
         self.add_to_googlesheet_thread.start()
 
-    def read_values(self):
-
-        self.daqmetrics.fetch_everything()
+    def update_gui(self):
         if self.daqmetrics.fetcher.metrics:
-            #output_filename = self.daqmetrics.get_filename()
             run_tag = self.daqmetrics.get_run_tag()
             self.run_number_label.config(text=f'{self.daqmetrics.get_run_number():.0f}')
-            if self.daqmetrics.get_metric("run_number") != 0:
-                if self.add_to_googlesheet_thread and self.add_to_googlesheet_thread.is_alive():
-                    pass
-                else:
-                    self.add_to_googlesheet_button.config(state="normal")
             self.run_tag_label.config(text=run_tag if run_tag else "")
             run_duration = self.daqmetrics.get_run_time_seconds()
             run_start = self.daqmetrics.get_run_start_time()
@@ -171,10 +163,41 @@ class DaqMetricsGUI(DeviceGUI):
                 endtime = None
                 self.run_starttime_label.config(text=f'')
                 self.run_endtime_label.config(text=f'')
-                
+
             self.daq_events_label.config(text=f'{self.daqmetrics.get_rate():.2f}')
             number_of_events = self.daqmetrics.get_number_of_events()
             self.events_number_label.config(text=f'{number_of_events:,.0f}')
+            
+            run_tag = self.daqmetrics.get_run_tag()
+            if any(b in run_tag.lower() for b in ["background", "bg", "bckg", "bkg"]):
+                if run_duration < 24*3600: # to catch when run is launched without changing the calibration LOOP time
+                    self.run_endtime_label.config(fg="red")
+                else:
+                    self.run_endtime_label.config(fg="black") # TODO: better to go back to default color
+            subrun_number = self.daqmetrics.get_subrun_number()
+            self.subrun_number_label.config(text=f'{subrun_number}')
+        else:
+            self.run_number_label.config(text="N/A")
+            self.run_tag_label.config(text="N/A")
+            self.run_starttime_label.config(text="N/A")
+            self.run_endtime_label.config(text="N/A")
+            self.daq_events_label.config(text="N/A")
+            self.events_number_label.config(text="N/A")
+            self.subrun_number_label.config(text="N/A")
+            self.add_to_googlesheet_button.config(state="disabled")
+            # don't reset here the number of entries and datetime_last_entries_change, just in case the metrics server is down for a while
+
+    def read_values(self):
+        self.daqmetrics.fetch_everything()
+        if self.daqmetrics.fetcher.metrics:
+            # enable the "Add to Google Sheet" button
+            if self.daqmetrics.get_metric("run_number") != 0:
+                if self.add_to_googlesheet_thread and self.add_to_googlesheet_thread.is_alive():
+                    pass
+                else:
+                    self.add_to_googlesheet_button.config(state="normal")
+
+            number_of_events = self.daqmetrics.get_number_of_events()
 
             # Checking if the number of entries is changing is done as an indirect way to check if the TCM is running fine
             if self.check_entries_var.get() == 1:
@@ -204,27 +227,18 @@ class DaqMetricsGUI(DeviceGUI):
                 self.alarm_level_sent = logging.NOTSET
             
             # Check for background runs that have finished or will finish soon
+            run_tag = self.daqmetrics.get_run_tag()
+            run_duration = self.daqmetrics.get_run_time_seconds()
+            run_start = self.daqmetrics.get_run_start_time()
+            if run_start is not None:
+                endtime = run_start + datetime.timedelta(seconds=run_duration)
+            else:
+                endtime = None
             if any(b in run_tag.lower() for b in ["background", "bg", "bckg", "bkg"]):
-                if run_duration < 24*3600: # to catch when run is launched without changing the calibration LOOP time
-                    self.run_endtime_label.config(fg="red")
-                else:
-                    self.run_endtime_label.config(fg="black") # TODO: better to go back to default color
-
                 if endtime and endtime < datetime.datetime.now(): # catch if run has finished
                     self.logger.error(f"Background run {int(self.daqmetrics.get_metric('run_number'))} has finished!")
 
-            subrun_number = self.daqmetrics.get_subrun_number()
-            self.subrun_number_label.config(text=f'{subrun_number}')
-        else:
-            self.run_number_label.config(text="N/A")
-            self.run_tag_label.config(text="N/A")
-            self.run_starttime_label.config(text="N/A")
-            self.run_endtime_label.config(text="N/A")
-            self.daq_events_label.config(text="N/A")
-            self.events_number_label.config(text="N/A")
-            self.subrun_number_label.config(text="N/A")
-            self.add_to_googlesheet_button.config(state="disabled")
-            # don't reset here the number of entries and datetime_last_entries_change, just in case the metrics server is down for a while
+        # auto-add to google sheet if new run is detected and auto-add is enabled
         if (
             self.auto_add_var.get() == 1
             and self.run_number_label.cget("text") != "N/A"

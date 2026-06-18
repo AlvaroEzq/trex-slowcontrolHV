@@ -23,6 +23,7 @@ class ChecksFrame:
         self.checks_vars = []
         self.checks_checkboxes = []
         self.checks_tooltips = []
+        self.checks_states = []
         self.edit_checks_button = None
 
         self.config_params = {
@@ -75,6 +76,7 @@ class ChecksFrame:
         self.checks_checkboxes = []
         self.checks_tooltips = []
         for i, check in enumerate(self.checks):
+            self.checks_states.append("unavailable")
             var = tk.BooleanVar()
             var.set(check.is_available())
             self.checks_vars.append(var)
@@ -161,6 +163,7 @@ class ChecksFrame:
             cancel_button.grid(row=len(name_entries)+2, column=0, padx=10, pady=10, sticky="e")
             apply_button.grid(row=len(name_entries)+2, column=1, padx=10, pady=10, sticky="w")
             # add the check to the list
+            self.checks_states.append("unavailable")
             self.checks_vars.append(tk.BooleanVar())
             self.checks_vars[-1].set(False)
             self.checks_vars[-1].trace_variable("w", lambda *args, x=len(self.checks)-1: self.checks[x].set_active(self.checks_vars[x].get()))
@@ -226,23 +229,13 @@ class ChecksFrame:
             current_bg_color = self.checks_checkboxes[i].cget("bg")
             current_fg_color = self.checks_checkboxes[i].cget("fg")
             if not check.is_available():
-                if current_bg_color != "gray":
-                    self.checks_checkboxes[i].config(bg=frame_bg_color)
-                if current_fg_color != "black":
-                    self.checks_checkboxes[i].config(fg="black")
+                self.checks_states[i] = "unavailable"
                 continue
             if check.eval_condition():
-                if current_fg_color != "green":
-                    self.checks_checkboxes[i].config(fg="green")
-                if current_bg_color != frame_bg_color:
-                    self.checks_checkboxes[i].config(bg=frame_bg_color)
+                self.checks_states[i] = "passed"
             else:
-                all_available_checks_passed = False
-                if current_fg_color != "black":
-                    self.checks_checkboxes[i].config(fg="black")
-                if current_bg_color != "red":
-                    self.checks_checkboxes[i].config(bg="red")
-                    print(f"Check '{check.name}' failed")
+                if self.checks_states[i] != "failed":
+                    self.checks_states[i] = "failed"
                     failed_checks.append(check)
         if failed_checks:
             message = "\n".join([f"Check '{check.name}' failed." for check in failed_checks])
@@ -252,6 +245,7 @@ class ChecksFrame:
                         "Warning", message, parent=self.root
                     )
                 ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
+        self.root.after(10, self.update_gui)
         return failed_checks == []
     
     def simulate_check_conditions(self, parameters_values : dict):
@@ -261,23 +255,13 @@ class ChecksFrame:
             current_bg_color = self.checks_checkboxes[i].cget("bg")
             current_fg_color = self.checks_checkboxes[i].cget("fg")
             if not check.is_available():
-                if current_bg_color != "gray":
-                    self.checks_checkboxes[i].config(bg=frame_bg_color)
-                if current_fg_color != "black":
-                    self.checks_checkboxes[i].config(fg="black")
+                self.checks_states[i] = "unavailable"
                 continue
             if check.simulate_eval_condition(parameters_values):
-                if current_fg_color != "green":
-                    self.checks_checkboxes[i].config(fg="green")
-                if current_bg_color != frame_bg_color:
-                    self.checks_checkboxes[i].config(bg=frame_bg_color)
+                self.checks_states[i] = "passed"
             else:
-                all_available_checks_passed = False
-                if current_fg_color != "black":
-                    self.checks_checkboxes[i].config(fg="black")
-                if current_bg_color != "red":
-                    self.checks_checkboxes[i].config(bg="red")
-                    print(f"Check '{check.name}' failed")
+                if self.checks_states[i] != "failed":
+                    self.checks_states[i] = "failed"
                     failed_checks.append(check)
         if failed_checks:
             message = "\n".join([f"Simulated check '{check.name}' failed." for check in failed_checks])
@@ -287,7 +271,32 @@ class ChecksFrame:
                         "Warning", message, parent=self.root
                     )
                 ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
+        self.root.after(10, self.update_gui)
         return failed_checks == []
+    
+    def update_gui(self):
+        for i, check_state in enumerate(self.checks_states):
+            frame_bg_color = self.frame.cget("bg")
+            current_bg_color = self.checks_checkboxes[i].cget("bg")
+            current_fg_color = self.checks_checkboxes[i].cget("fg")
+            if check_state == "unavailable":
+                if current_bg_color != "gray":
+                    self.checks_checkboxes[i].config(bg=frame_bg_color)
+                if current_fg_color != "black":
+                    self.checks_checkboxes[i].config(fg="black")
+            elif check_state == "passed":
+                if current_fg_color != "green":
+                    self.checks_checkboxes[i].config(fg="green")
+                if current_bg_color != frame_bg_color:
+                    self.checks_checkboxes[i].config(bg=frame_bg_color)
+            elif check_state == "failed":
+                if current_fg_color != "black":
+                    self.checks_checkboxes[i].config(fg="black")
+                if current_bg_color != "red":
+                    self.checks_checkboxes[i].config(bg="red")
+            else:
+                print(f"Warning: check state '{check_state}' is not valid.")
+                self.checks_checkboxes[i].config(bg="blue", fg="orange")
 
     def check_loop(self):
         while True:

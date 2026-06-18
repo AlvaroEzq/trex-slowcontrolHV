@@ -3,7 +3,7 @@ import argparse
 
 # import spellmanModule as spll  # Assuming spellmanModule has required functions
 from spellmanClass import Spellman
-from logger import ChannelState
+from channel import ChannelState
 from checkframe import ChecksFrame
 from devicegui import DeviceGUI
 from utilsgui import ToolTip
@@ -21,14 +21,21 @@ class SpellmanFrame(DeviceGUI):
         self.state_tooltip = None
         self.security_frame = None
         self.checks_frame = None
+        
+        channelstate = ChannelState(
+            channel_name='cathode',
+            value_names=['vset', 'iset','vmon', 'imon', 'stat'],
+            thresholds={'vmon': 50, 'imon': 999},
+            precisions={'vmon': 0, 'imon': 5},
+            units={'vset': 'V', 'iset': 'mA', 'vmon': 'V', 'imon': 'mA'},
+            save_value={'vset': False, 'iset': False, 'vmon': True, 'imon': True, 'stat': False},
+            )
 
-        super().__init__(spellman, ['cathode'], parent,
+        super().__init__(
+                        device=spellman,
+                        channels_states={'cathode': channelstate},
+                        parent_frame=parent,
                         logging_enabled=log,
-                        channel_state_save_previous=False,
-                        channel_state_diff_vmon=50,
-                        channel_state_diff_imon=999,
-                        channel_state_prec_vmon=0,
-                        channel_state_prec_imon=5,
                         read_loop_time=2,
                         )
 
@@ -281,17 +288,32 @@ class SpellmanFrame(DeviceGUI):
         imon = self.device.imon
         vset = self.device.vset
         iset = self.device.iset
-        self.channels_state[0].set_state(vmon, imon)
+        stat = self.device.stat
+        self.channels_state['cathode'].set_state(
+            {
+                'vmon': vmon,
+                'imon': imon,
+                'vset': vset,
+                'iset': iset,
+                'stat': stat,
+            }
+        )
+    
+    def update_gui(self):
+        values = self.channels_state['cathode'].get_values()
+        vmon = values.get('vmon', -1)
+        imon = values.get('imon', -1)
+        vset = values.get('vset', -1)
+        iset = values.get('iset', -1)
+        stat = values.get('stat', {})
+        remote = stat.get('REMOTE', '--')
+        hv = stat.get('HV', '--')
+        arc = stat.get('ARC', '--')
+
         self.label_vars['voltage'].set(f"{vmon:.0f}")
         self.labels['current_s'].config(text=f"{imon:.5f}")
         self.labels['voltage_dac_label'].config(text=f"{vset:.0f}")
         self.labels['current_dac_label'].config(text=f"{iset:.5f}")
-
-        stat = self.device.stat
-        remote = stat['REMOTE']
-        hv = stat['HV']
-        arc = stat['ARC']
-
         if isinstance(remote, bool):
             self.labels['remote_s'].config(text='ON' if remote else 'OFF')
             self.labels['remote_s'].config(fg='green' if remote else 'red')
@@ -308,7 +330,7 @@ class SpellmanFrame(DeviceGUI):
 
         if isinstance(arc, bool):
             self.labels['arc'].config(text='ARC' if arc else 'no arc')
-            self.labels['arc'].config(fg='red' if arc else 'black')
+            #self.labels['arc'].config(fg='red' if arc else 'black')
         else:
             self.labels['arc'].config(text=arc)
             self.labels['arc'].config(fg='black')

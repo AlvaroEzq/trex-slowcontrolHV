@@ -3,6 +3,7 @@ from __future__ import annotations
 import tkinter as tk
 import argparse
 import threading
+from channel import ChannelState
 import hvps
 
 CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
@@ -51,9 +52,30 @@ class CaenHVPSGUI(DeviceGUI):
                 if i >= len(channel_names):
                     channel_names[i] = f"Channel {i}"
 
-        super().__init__(module, channel_names, parent_frame,
+        channels_states = {}
+        for name in CHANNEL_NAMES:
+            channels_states[name] = ChannelState(
+                    name,
+                    ["vset", "vmon", "imon", "stat"],
+                    thresholds={"vmon": 0.5, "imon": 0.01},
+                    precisions={"vmon": 1, "imon": 3},
+                    units={"vset": "V", "vmon": "V", "imon": "uA"},
+                    save_value={"vset": False, "vmon": True, "imon": True, "stat": False},
+                )
+        channels_states["board"] = ChannelState(
+                "board",
+                ["board_alarm_status", "interlock_status"],
+                save_value={"board_alarm_status": False, "interlock_status": False},
+                thresholds={"board_alarm_status": 0, "interlock_status": 0},
+                precisions={"board_alarm_status": 0, "interlock_status": 0},
+                units={"board_alarm_status": "", "interlock_status": ""},
+            )
+
+        super().__init__(
+                        device=module,
+                        channels_states=channels_states,
+                        parent_frame=parent_frame,
                         logging_enabled=log,
-                        channel_state_save_previous=False,
                         )
 
 
@@ -527,16 +549,28 @@ class CaenHVPSGUI(DeviceGUI):
             vset = ch.vset
             vmon = ch.vmon
             imon = ch.imon
-            self.channels_state[i].set_state(vmon, imon)
-            self.vset_labels[i].config(text=f"{vset:.1f}")
-            self.vmon_labels[i].config(text=f"{vmon:.1f}")
-            self.imon_labels[i].config(text=f"{imon:.3f}")
-            self.update_state_indicator(i, ch)
-        self.update_alarm_indicators()
+            self.channels_state[self.channels_name[i]].set_state(
+                {"vset": vset, "vmon": vmon, "imon": imon, "stat": ch.stat.copy()})
+        self.channels_state["board"].set_state({
+            "board_alarm_status": self.device.board_alarm_status.copy(),
+            "interlock_status": self.device.interlock_status,
+        })
 
-    def update_state_indicator(self, channel_number, channel):
+    def update_gui(self):
+        for i, ch in enumerate(self.device.channels):
+            values = self.channels_state[self.channels_name[i]].get_values()
+            self.vset_labels[i].config(text=f"{values.get('vset', -1):.1f}")
+            self.vmon_labels[i].config(text=f"{values.get('vmon', -1):.1f}")
+            self.imon_labels[i].config(text=f"{values.get('imon', -1):.3f}")
+            self.update_state_indicator(i, values.get("stat", {}))
+        values_board = self.channels_state["board"].get_values()
+        self.update_alarm_indicators(
+            board_alarm_status=values_board.get("board_alarm_status", {}),
+            interlock_status=values_board.get("interlock_status", False),
+        )
+    def update_state_indicator(self, channel_number, status):
         # Update the state indicator
-        stat = channel.stat.copy()
+        stat = status.copy()
         if stat["TRIP"]:
             state_indicator_color = "red"
             state_tooltip_text = "TRIP"
@@ -563,9 +597,9 @@ class CaenHVPSGUI(DeviceGUI):
         self.state_indicators[channel_number].itemconfig(1, fill=state_indicator_color)
         self.state_tooltips[channel_number].change_text(f"State: {state_tooltip_text}")
 
-    def update_alarm_indicators(self):
-        bas = self.device.board_alarm_status.copy()
-        ilk = self.device.interlock_status
+    def update_alarm_indicators(self, board_alarm_status=None, interlock_status=None):
+        bas = board_alarm_status.copy() if board_alarm_status is not None else {}
+        ilk = interlock_status if interlock_status is not None else False
         self.alarm_indicator.itemconfig(
             1,
             fill="red"
