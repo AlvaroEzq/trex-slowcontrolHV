@@ -36,6 +36,7 @@ class DaqMetricsGUI(DeviceGUI):
         self.number_of_entries = None
         self.datetime_last_entries_change = None
         self.alarm_level_sent = logging.NOTSET
+        self.run_finished_alarm_sent = False
 
         super().__init__(
                         device=daqmetrics,
@@ -234,9 +235,14 @@ class DaqMetricsGUI(DeviceGUI):
                 endtime = run_start + datetime.timedelta(seconds=run_duration)
             else:
                 endtime = None
-            if any(b in run_tag.lower() for b in ["background", "bg", "bckg", "bkg"]):
-                if endtime and endtime < datetime.datetime.now(): # catch if run has finished
-                    self.logger.error(f"Background run {int(self.daqmetrics.get_metric('run_number'))} has finished!")
+            if endtime and endtime < datetime.datetime.now(): # catch if run has finished
+                if not self.run_finished_alarm_sent:
+                    self.run_finished_alarm_sent = True
+                    self.logger.warning(f"{run_tag} run #{int(self.daqmetrics.get_metric('run_number'))} has finished!")
+            elif not endtime: # when it cannot retrieve the endtime do not change anything, just in case the metrics server is down for a while
+                pass
+            else:
+                self.run_finished_alarm_sent = False # reset if run is still running or has not started yet
 
         # auto-add to google sheet if new run is detected and auto-add is enabled
         if (
