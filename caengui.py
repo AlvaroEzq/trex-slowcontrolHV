@@ -40,6 +40,8 @@ class CaenHVPSGUI(DeviceGUI):
         self.alarm_tooltip = None
         self.alarm_indicator = None
         self.multichannel_frame = None
+        self.multichannel_visible = True
+        self.multichannel_checkbox_frame = None
         self.channel_frame = None
         self.main_frame = None
 
@@ -87,11 +89,13 @@ class CaenHVPSGUI(DeviceGUI):
             start_mainloop = True
 
         self.main_frame = self.create_main_frame()
-        self.alarm_frame = self.create_alarm_frame(self.main_frame)
+        left_frame = tk.Frame(self.main_frame)
+        left_frame.pack(side="left", fill="both", expand=True)
+        self.alarm_frame = self.create_alarm_frame(left_frame)
         self.channel_frame = self.create_channels_frame(self.main_frame)
         if self.device.number_of_channels > 1:
             self.multichannel_frame = self.create_multichannel_frame(self.channel_frame)
-        self.security_frame = self.create_security_frame(self.main_frame)
+        self.security_frame = self.create_security_frame(left_frame)
 
 
         if start_mainloop:
@@ -103,100 +107,92 @@ class CaenHVPSGUI(DeviceGUI):
         return main_frame
 
     def create_alarm_frame(self, frame):
-        alarm_frame = tk.Frame(frame, bg="gray", padx=20, pady=20)
-        alarm_frame.grid(row=1, column=0, padx=10, pady=10, sticky="N")
+        alarm_frame = tk.LabelFrame(frame, text="Module", font=("Arial", 14, "bold"), bg="gray", padx=5, pady=5)
+        alarm_frame.pack(side="top", padx=5, pady=5)
 
         tk.Label(
-            alarm_frame, text="Module", font=("Arial", 14, "bold"), bg="gray"
-        ).grid(row=0, column=0, columnspan=2)
-
-        tk.Label(
-            alarm_frame, text="Alarm", font=("Arial", 12, "bold"), bg="gray", fg="black"
-        ).grid(row=1, column=0)
+            alarm_frame, text="Alarm", font=("Arial", 10), bg="gray", fg="black",
+        ).grid(row=0, column=0, padx=5, pady=5)
         intlck_label = tk.Label(
             alarm_frame,
-            text="Interlock",
-            font=("Arial", 12, "bold"),
+            text="ILK",
+            font=("Arial", 10),
             bg="gray",
             fg="black",
         )
-        intlck_label.grid(row=1, column=1)
+        intlck_label.grid(row=0, column=2, padx=5, pady=5)
         ToolTip(intlck_label, f"Interlock mode:") # {self.device.interlock_mode}, causes error, i dont know why
 
         self.alarm_indicator = tk.Canvas(
             alarm_frame, width=30, height=30, bg="gray", highlightthickness=0
         )
-        self.alarm_indicator.grid(row=2, column=0, padx=10, pady=10)
+        self.alarm_indicator.grid(row=0, column=1, padx=0, pady=5)
         self.alarm_indicator.create_oval(2, 2, 28, 28, fill="gray")
         self.alarm_tooltip = ToolTip(self.alarm_indicator, "Alarm signal")
 
         self.interlock_indicator = tk.Canvas(
             alarm_frame, width=30, height=30, bg="gray", highlightthickness=0
         )
-        self.interlock_indicator.grid(row=2, column=1, padx=10, pady=10)
+        self.interlock_indicator.grid(row=0, column=3, padx=5, pady=5)
         self.interlock_indicator.create_oval(2, 2, 28, 28, fill="gray")
         self.interlock_tooltip = ToolTip(self.interlock_indicator, "Interlock signal")
 
         self.clear_alarm_button = tk.Button(
             alarm_frame,
-            text="Clear alarm signal",
+            text="Clear alarm",
             font=("Arial", 10),
             bg="navy",
             fg="white",
             command=lambda: self.issue_command(self.clear_alarm),
         )
-        self.clear_alarm_button.grid(row=3, column=0, columnspan=2, pady=10)
+        self.clear_alarm_button.grid(row=1, column=0, columnspan=4, padx=5, pady=5)
 
         return alarm_frame
 
     def create_channels_frame(self, frame):
-        channels_frame = tk.Frame(frame, bg="darkblue", padx=10, pady=10)
-        channels_frame.grid(row=1, column=1, columnspan=2, rowspan=2, padx=10, pady=10)
+        channels_frame = tk.LabelFrame(frame, bg="darkblue", text="Channels", font=("Arial", 14, "bold"), fg="white", borderwidth=0, highlightthickness=0)
+        channels_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+        
+        single_channels_frame = tk.Frame(channels_frame, bg="darkblue")
+        single_channels_frame.pack(side="top", fill="x", expand=False)
 
         tk.Label(
-            channels_frame,
-            text="Channels",
-            font=("Arial", 14, "bold"),
-            bg="darkblue",
-            fg="white",
-        ).grid(row=0, column=0, columnspan=7, pady=10)
-        tk.Label(
-            channels_frame,
+            single_channels_frame,
             text="state",
             font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
         ).grid(row=1, column=1)
         tk.Label(
-            channels_frame,
+            single_channels_frame,
             text="Turn on/off",
             font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
         ).grid(row=1, column=2)
         tk.Label(
-            channels_frame,
+            single_channels_frame,
             text="Set vset (V)",
             font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
         ).grid(row=1, column=3, columnspan=2)
         tk.Label(
-            channels_frame,
+            single_channels_frame,
             text="vset (V)",
             font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
         ).grid(row=1, column=5)
         tk.Label(
-            channels_frame,
+            single_channels_frame,
             text="vmon (V)",
             font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
         ).grid(row=1, column=6)
         tk.Label(
-            channels_frame,
+            single_channels_frame,
             text="imon (uA)",
             font=("Arial", 10, "bold"),
             bg="darkblue",
@@ -212,7 +208,7 @@ class CaenHVPSGUI(DeviceGUI):
         self.set_buttons = []
         for i in range(self.device.number_of_channels):
             channel_button = tk.Button(
-                channels_frame,
+                single_channels_frame,
                 text=f"{self.channels_name[i]}",
                 font=("Arial", 12, "bold"),
                 bg="darkblue",
@@ -227,14 +223,14 @@ class CaenHVPSGUI(DeviceGUI):
             ToolTip(channel_button, f"Channel {i}: click for more setting options.")
 
             state_indicator = tk.Canvas(
-                channels_frame, width=30, height=30, bg="darkblue", highlightthickness=0
+                single_channels_frame, width=30, height=30, bg="darkblue", highlightthickness=0
             )
             state_indicator.grid(row=i + 2, column=1, sticky="NSEW", padx=5, pady=5)
             state_indicator.create_oval(2, 2, 28, 28, fill="black")
             self.state_indicators.append(state_indicator)
             self.state_tooltips.append(ToolTip(state_indicator, "State:"))
 
-            turn_frame = tk.Frame(channels_frame, bg="darkblue")
+            turn_frame = tk.Frame(single_channels_frame, bg="darkblue")
             turn_frame.grid(row=i + 2, column=2, padx=10, pady=5)
 
             turn_on_button = tk.Button(
@@ -258,7 +254,7 @@ class CaenHVPSGUI(DeviceGUI):
             turn_off_button.grid(row=0, column=1, padx=0)
 
             set_button = tk.Button(
-                channels_frame,
+                single_channels_frame,
                 text="Set",
                 font=("Arial", 9),
                 bg="navy",
@@ -268,7 +264,7 @@ class CaenHVPSGUI(DeviceGUI):
             set_button.grid(row=i + 2, column=3, sticky="NSW", padx=0, pady=5)
             self.set_buttons.append(set_button)
 
-            vset_entry = tk.Entry(channels_frame, width=7, justify="center",
+            vset_entry = tk.Entry(single_channels_frame, width=7, justify="center",
                                 validate="key", validatecommand=self.validate_numeric_input)
             vset_entry.insert(0, str(self.device.channels[i].vset))
             vset_entry.grid(row=i + 2, column=4, sticky="NSE", padx=0, pady=5)
@@ -277,33 +273,36 @@ class CaenHVPSGUI(DeviceGUI):
             )
             self.vset_entries.append(vset_entry)
 
-            vset_label = tk.Label(channels_frame, width=7, justify="center", text="-1")
+            vset_label = tk.Label(single_channels_frame, width=7, justify="center", text="-1")
             vset_label.grid(row=i + 2, column=5, sticky="NS", padx=10, pady=5)
             self.vset_labels.append(vset_label)
 
-            vmon_label = tk.Label(channels_frame, width=7, justify="center", text="-1")
+            vmon_label = tk.Label(single_channels_frame, width=7, justify="center", text="-1")
             vmon_label.grid(row=i + 2, column=6, sticky="NS", padx=10, pady=5)
             self.vmon_labels.append(vmon_label)
 
-            imon_label = tk.Label(channels_frame, width=7, justify="center", text="-1")
+            imon_label = tk.Label(single_channels_frame, width=7, justify="center", text="-1")
             imon_label.grid(row=i + 2, column=7, sticky="NS", padx=10, pady=5)
             self.imon_labels.append(imon_label)
 
         return channels_frame
 
     def create_multichannel_frame(self, frame):
-        checkbox_frame = tk.Frame(frame, bg="darkblue")
-        checkbox_frame.grid(
-            row=self.device.number_of_channels + 2, column=1, columnspan=6, pady=10
-        )
-
-        tk.Label(
-            checkbox_frame,
-            text="Multichannel control",
-            font=("Arial", 12, "bold"),
+        self.toggle_button = tk.Button(
+            frame,
+            text="\u25B2 Multichannel control",
+            font=("Arial", 10, "bold"),
             bg="darkblue",
             fg="white",
-        ).grid(row=0, column=0, columnspan=2, pady=10)
+            bd=0,
+            highlightthickness=0,
+            command=self.toggle_scrolled_text,
+            relief="raised",
+        )
+        self.toggle_button.pack(side="top", pady=10)
+
+        self.multichannel_checkbox_frame = tk.Frame(frame, bg="darkblue")
+        self.multichannel_checkbox_frame.pack(side="top", padx=10, pady=10)
 
         self.channel_vars = []
         nRows = 0
@@ -312,7 +311,7 @@ class CaenHVPSGUI(DeviceGUI):
             var = tk.IntVar()
             self.channel_vars.append(var)
             tk.Checkbutton(
-                checkbox_frame,
+                self.multichannel_checkbox_frame,
                 text=f" {self.channels_name[i]}",
                 variable=var,
                 font=("Arial", 10),
@@ -325,7 +324,7 @@ class CaenHVPSGUI(DeviceGUI):
             var.set(1)
 
         self.set_multichannel_button = tk.Button(
-            checkbox_frame,
+            self.multichannel_checkbox_frame,
             text="Set & turn on multichannel",
             font=("Arial", 10),
             bg="navy",
@@ -336,7 +335,7 @@ class CaenHVPSGUI(DeviceGUI):
             row=1, column=1, rowspan=int(nRows / 2), padx=20, pady=5
         )
         self.turn_off_multichannel_button = tk.Button(
-            checkbox_frame,
+            self.multichannel_checkbox_frame,
             text="Turn off multichannel",
             font=("Arial", 10),
             bg="navy",
@@ -350,11 +349,22 @@ class CaenHVPSGUI(DeviceGUI):
 
     def create_security_frame(self, frame):
         security_frame = tk.Frame(frame)
-        security_frame.grid(row=2, column=0, padx=10, pady=10, sticky="NWE")
+        security_frame.pack(side="top", fill="y", padx=10, pady=10)
         channels = {self.channels_name[i] : self.device.channels[i] for i in range(self.device.number_of_channels)}
         locks = tuple([self.device_lock])
         self.checks_frame = ChecksFrame(security_frame, checks=self.checks, channels=channels, locks=locks)
         return security_frame
+
+    def toggle_scrolled_text(self):
+        # Toggle the visibility of the ScrolledText widget
+        if self.multichannel_visible:
+            self.multichannel_checkbox_frame.pack_forget()  # Hide the widget
+            self.toggle_button.config(text="\u25BC Multichannel control")
+        else:
+            self.multichannel_checkbox_frame.pack(side="top", pady=10)  # Show the widget
+            self.toggle_button.config(text="\u25B2 Multichannel control")
+
+        self.multichannel_visible = not self.multichannel_visible
 
     def open_channel_property_window(self, channel_number):
         def values_from_description(description_: str | dict) -> list[str]:
@@ -686,5 +696,5 @@ if __name__ == "__main__":
     else:
         from simulators import *  # noqa: F403
 
-        m = ModuleSimulator(4)  # noqa: F405
+        m = ModuleSimulator(4, 0)  # noqa: F405
         CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS, log=False)
