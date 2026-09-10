@@ -84,6 +84,8 @@ class DeviceGUI(ABC):
         self.command_queue = queue.Queue()
         self.device_lock = threading.Lock()
 
+        self.auto_gui_update = True
+
         #Initialize logger
         try:
             logger_name = f"app.{self.device.name}"
@@ -131,15 +133,18 @@ class DeviceGUI(ABC):
         threading.Thread(target=self.process_commands, daemon=True).start()
 
     def schedule_gui_update(self):
-            try:
-                self.update_gui()
-            except Exception as e:
-                self.logger.exception(f"{self.device.name} GUI update failed: {e}")
+        if not self.auto_gui_update:
+            return # stop updating GUI
 
-            self.root.after(
-                self.config_params["gui_update_time"]*1000, # convert s to ms
-                self.schedule_gui_update
-            )
+        try:
+            self.update_gui()
+        except Exception as e:
+            self.logger.debug(f"{self.device.name} GUI update failed: {e}")
+
+        self.root.after(
+            self.config_params["gui_update_time"]*1000, # convert s to ms
+            self.schedule_gui_update
+        )
 
     def read_loop(self):
         while True:
