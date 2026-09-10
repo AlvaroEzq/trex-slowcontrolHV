@@ -21,10 +21,11 @@ from check import load_checks_from_toml_file
 from utilsgui import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
 from daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
 from daqmetricsgui import DaqMetricsGUI
+from multidevicegui import MultiDeviceGUI
 import logger
 
 
-class HVGUI:
+class HVGUI(MultiDeviceGUI):
     def __init__(self, caen_module=None, spellman_module=None, rigol_module_1=None, rigol_module_2=None, checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True):
         if checks_caen is None:
             checks_caen = []
@@ -101,11 +102,9 @@ class HVGUI:
 
         self.logger = logger.configure_basic_logger("app", log_level=logging.DEBUG)
 
-        self.create_gui()
+        super().__init__(name="TREX HV SC", devices=[caen_module, spellman_module, rigol_module_1, rigol_module_2], log=log)
 
     def create_gui(self):
-        self.root = tk.Tk()
-        self.root.title("TREX HV SC")
         self.validate_numeric_input = (self.root.register(validate_numeric_entry_input), "%P")
 
         if self.caen_module is not None:
