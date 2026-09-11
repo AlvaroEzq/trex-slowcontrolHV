@@ -104,7 +104,9 @@ class ChecksFrame:
         self.edit_checks_button.grid(row=len(self.checks)+1, column=0, padx=10, pady=10, sticky="w")
 
         self.frame = security_frame
-        self.start_background_threads()
+        # the check thread talks to tkinter, so it must not start before the main
+        # loop is running (otherwise: "main thread is not in main loop")
+        self.root.after(0, self.start_background_threads)
 
         if start_mainloop:
             self.root.mainloop()
@@ -225,9 +227,6 @@ class ChecksFrame:
     def check_conditions(self):
         failed_checks = []
         for i, check in enumerate(self.checks):
-            frame_bg_color = self.frame.cget("bg")
-            current_bg_color = self.checks_checkboxes[i].cget("bg")
-            current_fg_color = self.checks_checkboxes[i].cget("fg")
             if not check.is_available():
                 self.checks_states[i] = "unavailable"
                 continue
@@ -245,15 +244,12 @@ class ChecksFrame:
                         "Warning", message, parent=self.root
                     )
                 ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
-        self.root.after(10, self.update_gui)
+        self.schedule_in_main_thread(self.update_gui)
         return failed_checks == []
     
     def simulate_check_conditions(self, parameters_values : dict):
         failed_checks = []
         for i, check in enumerate(self.checks):
-            frame_bg_color = self.frame.cget("bg")
-            current_bg_color = self.checks_checkboxes[i].cget("bg")
-            current_fg_color = self.checks_checkboxes[i].cget("fg")
             if not check.is_available():
                 self.checks_states[i] = "unavailable"
                 continue
@@ -271,7 +267,7 @@ class ChecksFrame:
                         "Warning", message, parent=self.root
                     )
                 ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
-        self.root.after(10, self.update_gui)
+        self.schedule_in_main_thread(self.update_gui)
         return failed_checks == []
     
     def update_gui(self):
@@ -298,9 +294,19 @@ class ChecksFrame:
                 print(f"Warning: check state '{check_state}' is not valid.")
                 self.checks_checkboxes[i].config(bg="blue", fg="orange")
 
+    def schedule_in_main_thread(self, func, *args):
+        """Schedule func in the tkinter main loop (tkinter must only be used from it)."""
+        try:
+            self.root.after(0, func, *args)
+        except (RuntimeError, tk.TclError):
+            pass # the main loop is not running (GUI starting up or already closed)
+
     def check_loop(self):
         while True:
-            self.check_conditions()
+            try:
+                self.check_conditions()
+            except Exception as e:
+                print(f"Warning: checks evaluation failed: {e}")
             time.sleep(self.config_params.get("seconds_between_checks", 2)) # better to sleep for a while to avoid locking the devices with too many checks
 
     def start_background_threads(self):
