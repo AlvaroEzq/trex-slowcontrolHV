@@ -21,6 +21,7 @@ CHANNEL_NAMES_RIGHT = [
                 ]
 
 from rigolClass import RigolPowerSupply
+from channel import ChannelState
 from check import Check
 from checkframe import ChecksFrame
 from utilsgui import ToolTip
@@ -43,13 +44,22 @@ class RigolGUI(DeviceGUI):
         self.current_labels = []
         self.power_labels = []
 
-        super().__init__(device, channel_names, parent_frame,
+        channels_states = {}
+        for name in channel_names:
+            channels_states[name] = ChannelState(
+                name,
+                ["voltage", "current", "power", "state"],
+                thresholds={"voltage": 0.05, "current": 0.01},
+                precisions={"voltage": 2, "current": 2, "power": 2},
+                units={"voltage": "V", "current": "A", "power": "W"},
+                save_value={"voltage": True, "current": True, "power": False, "state": False},
+            )
+
+        super().__init__(
+                        device=device,
+                        channels_states=channels_states,
+                        parent_frame=parent_frame,
                         logging_enabled=log,
-                        channel_state_save_previous=False,
-                        channel_state_diff_vmon=0.05,
-                        channel_state_diff_imon=0.01,
-                        channel_state_prec_vmon=2,
-                        channel_state_prec_imon=2,
                         read_loop_time=1,
                         )
     
@@ -99,27 +109,31 @@ class RigolGUI(DeviceGUI):
             self.power_labels.append(power_label)
             row += 1
 
-        return channel_frame
+        return main_frame
     
     def read_values(self):
+        # Runs on the read_values background thread: only touch the device and the
+        # channel states here. Widgets are updated by update_gui(), on the main thread.
         with self.device:
-            #ratio = self.device.get_ratio(primary_gas=True, unit='%')
-
-            for i, channel in enumerate(self.channels_name):
+            for i, name in enumerate(self.channels_name):
                 measurements = self.device.measure_all(i+1) # voltage, current, power. First channel in rigol is 1
-                voltage = measurements.get("voltage", -1)
-                current = measurements.get("current", -1)
-                power = measurements.get("power", -1)
-                state = self.device.get_output_state(i+1) # first channel in rigol is 1
-                self.channels_state[i].set_state(voltage, current)
-                self.voltage_labels[i].config(text=f"{voltage:.3f} V")
-                self.current_labels[i].config(text=f"{current:.3f} A")
-                self.power_labels[i].config(text=f"{power:.3f} W")
-                self.state_labels[i].config(text=state)
-                if state == "ON":
-                    self.state_labels[i].config(fg="green")
-                else:
-                    self.state_labels[i].config(fg="red")
+                self.channels_state[name].set_state(
+                    {   # keep this order in sync with value_names, above
+                        "voltage": measurements.get("voltage", -1),
+                        "current": measurements.get("current", -1),
+                        "power": measurements.get("power", -1),
+                        "state": self.device.get_output_state(i+1), # first channel in rigol is 1
+                    }
+                )
+
+    def update_gui(self):
+        for i, name in enumerate(self.channels_name):
+            values = self.channels_state[name].get_values()
+            self.voltage_labels[i].config(text=f"{values.get('voltage', -1):.3f} V")
+            self.current_labels[i].config(text=f"{values.get('current', -1):.3f} A")
+            self.power_labels[i].config(text=f"{values.get('power', -1):.3f} W")
+            state = values.get("state", "---")
+            self.state_labels[i].config(text=state, fg="green" if state == "ON" else "red")
 
     def turn_on_channel(self, channel_name):
         if channel_name not in self.channels_name:
