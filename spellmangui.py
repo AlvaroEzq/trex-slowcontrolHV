@@ -335,6 +335,9 @@ class SpellmanFrame(DeviceGUI):
             self.labels['arc'].config(text=arc)
             self.labels['arc'].config(fg='black')
 
+        if not stat:
+            return # no status read yet, keep the initial indicator color
+
         if stat['FAULT']:
             state_indicator_color = 'red'
             state_tooltip_text = 'FAULT'

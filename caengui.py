@@ -571,6 +571,8 @@ class CaenHVPSGUI(DeviceGUI):
     def update_state_indicator(self, channel_number, status):
         # Update the state indicator
         stat = status.copy()
+        if not stat:
+            return # no status read yet, keep the initial indicator color
         if stat["TRIP"]:
             state_indicator_color = "red"
             state_tooltip_text = "TRIP"
