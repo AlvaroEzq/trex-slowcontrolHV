@@ -5,7 +5,7 @@ import time
 import logging
 from abc import ABC, abstractmethod
 
-from logger import ChannelState, configure_basic_logger
+from logger import configure_basic_logger
 from utilsgui import validate_numeric_entry_input
 
 class DeviceGUI(ABC):
@@ -99,19 +99,39 @@ class DeviceGUI(ABC):
 
         # Create GUI
         self.create_gui()
-        self.start_background_threads()
+        # the background threads talk to tkinter, so they must not start before
+        # the main loop is running (otherwise: "main thread is not in main loop")
+        self.root.after(0, self.start_background_threads)
         self.schedule_gui_update()
         if start_mainloop:
             self.root.mainloop() # this will block the main thread until the window is closed
 
+    def schedule_in_main_thread(self, func, *args):
+        """Schedule func in the tkinter main loop (tkinter must only be used from it)."""
+        try:
+            self.root.after(0, func, *args)
+        except (RuntimeError, tk.TclError):
+            pass # the main loop is not running (GUI starting up or already closed)
+
+    def set_cursor(self, cursor):
+        try:
+            if self.root.cget("cursor") != cursor:
+                self.root.config(cursor=cursor)
+        except tk.TclError:
+            pass # the widget is already destroyed
+
     def process_commands(self):
         while True:
             func, args, kwargs = self.command_queue.get()
-            with self.device_lock:
-                func(*args, **kwargs)
-            self.command_queue.task_done()
-            if self.root.cget("cursor") == "watch" and func.__name__ != "read_values":
-                self.root.config(cursor="")
+            try:
+                with self.device_lock:
+                    func(*args, **kwargs)
+            except Exception as e:
+                self.logger.exception(f"{func.__name__} command failed: {e}")
+            finally:
+                self.command_queue.task_done()
+            if func.__name__ != "read_values":
+                self.schedule_in_main_thread(self.set_cursor, "")
 
     def issue_command(self, func, *args, **kwargs):
         # do not stack read_values commands (critical if reading values is slow)
@@ -125,8 +145,7 @@ class DeviceGUI(ABC):
         if (
             func.__name__ != "read_values"
         ):  # because it is constantly reading values in the background
-            self.root.config(cursor="watch")
-            self.root.update()
+            self.schedule_in_main_thread(self.set_cursor, "watch")
 
     def start_background_threads(self):
         threading.Thread(target=self.read_loop, daemon=True).start()
@@ -148,13 +167,16 @@ class DeviceGUI(ABC):
 
     def read_loop(self):
         while True:
-            self.issue_command(self.read_values)
-            if self.config_params["logging_enabled"]:
-                for name, chstate in self.channels_state.items():
-                    chstate.save_state(
-                        save_previous=self.config_channels_params[name]["save_previous"],
-                        force=self.config_channels_params[name]["save_force"],
-                    )
+            try:
+                self.issue_command(self.read_values)
+                if self.config_params["logging_enabled"]:
+                    for name, chstate in self.channels_state.items():
+                        chstate.save_state(
+                            save_previous=self.config_channels_params[name]["save_previous"],
+                            force=self.config_channels_params[name]["save_force"],
+                        )
+            except Exception as e:
+                self.logger.exception(f"{self.device.name} read loop failed: {e}")
             time.sleep(self.config_params["read_loop_time"])
 
     def set_config_param(self, key : str, value):

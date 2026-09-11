@@ -1,0 +1,14 @@
+name: Simple PR Dummy Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  dummy-check:
+    name: Security Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dummy step
+        run: echo "This is a dummy check for pull requests. It does not perform any real checks."

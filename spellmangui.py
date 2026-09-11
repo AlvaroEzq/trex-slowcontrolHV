@@ -290,11 +290,11 @@ class SpellmanFrame(DeviceGUI):
         iset = self.device.iset
         stat = self.device.stat
         self.channels_state['cathode'].set_state(
-            {
-                'vmon': vmon,
-                'imon': imon,
+            {   # keep this order in sync with value_names, above
                 'vset': vset,
                 'iset': iset,
+                'vmon': vmon,
+                'imon': imon,
                 'stat': stat,
             }
         )
@@ -334,6 +334,9 @@ class SpellmanFrame(DeviceGUI):
         else:
             self.labels['arc'].config(text=arc)
             self.labels['arc'].config(fg='black')
+
+        if not stat:
+            return # no status read yet, keep the initial indicator color
 
         if stat['FAULT']:
             state_indicator_color = 'red'
