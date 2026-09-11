@@ -5,7 +5,7 @@ import time
 import logging
 from abc import ABC, abstractmethod
 
-from logger import ChannelState, configure_basic_logger
+from logger import configure_basic_logger
 from utilsgui import validate_numeric_entry_input
 
 class DeviceGUI(ABC):

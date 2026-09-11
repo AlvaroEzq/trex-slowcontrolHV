@@ -291,7 +291,7 @@ class RigolSimulator:
     def __init__(self, name="Rigol DP832 SIMULATOR"):
         self.name = name
         self.number_of_channels = 3
-        self.channels = [RigolChannelSimulator(channel_number=i) for i in range(self.number_of_channels)]
+        self.channels = [RigolChannelSimulator(channel_number=i+1) for i in range(self.number_of_channels)]
         self.instrument = True  # Simulate an open connection
 
     def __enter__(self):
@@ -303,31 +303,29 @@ class RigolSimulator:
         # Simulate closing a connection
         self.instrument = None
 
+    def get_channel(self, channel_number):
+        # Channel numbers are 1-based, as in the real device (":MEAS:ALL? CH1")
+        if not 1 <= channel_number <= self.number_of_channels:
+            raise ValueError(
+                f"Invalid channel number {channel_number}:"
+                f" expected 1 to {self.number_of_channels}"
+            )
+        return self.channels[channel_number - 1]
+
     def turn_on_channel(self, channel_number):
-        if 0 <= channel_number < self.number_of_channels:
-            self.channels[channel_number].turn_on()
-        else:
-            raise ValueError("Invalid channel number")
+        self.get_channel(channel_number).turn_on()
 
     def turn_off_channel(self, channel_number):
-        if 0 <= channel_number < self.number_of_channels:
-            self.channels[channel_number].turn_off()
-        else:
-            raise ValueError("Invalid channel number")
-        
+        self.get_channel(channel_number).turn_off()
+
     def measure_all(self, channel_number):
-        if 0 <= channel_number < self.number_of_channels:
-            self.channels[channel_number]._randomize()
-            return {
-                "voltage": round(self.channels[channel_number].vmon, 2),
-                "current": round(self.channels[channel_number].imon, 3),
-                "power": round(self.channels[channel_number].powermon, 2),
-            }
-        else:
-            raise ValueError("Invalid channel number")
-    
+        channel = self.get_channel(channel_number)
+        channel._randomize()
+        return {
+            "voltage": round(channel.vmon, 2),
+            "current": round(channel.imon, 3),
+            "power": round(channel.powermon, 2),
+        }
+
     def get_output_state(self, channel_number):
-        if 0 <= channel_number < self.number_of_channels:
-            return "ON" if self.channels[channel_number].on else "OFF"
-        else:
-            raise ValueError("Invalid channel number")
+        return "ON" if self.get_channel(channel_number).on else "OFF"
