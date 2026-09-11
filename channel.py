@@ -53,8 +53,7 @@ class State:
     def __str__(self):
 
         values_str = ", ".join(
-            f"{k}: {v} ({self.units.get(k, '')})".strip()
-            for k, v in self.values.items()
+            f"{k}: {v}" for k, v in self.values.items()
         )
 
         return f"{self.timestamp} | {values_str}"
@@ -98,7 +97,8 @@ class ChannelState:
         self.previous = State()
         self.last_saved = State()
         
-        self.lock = threading.Lock()
+        self.lock = threading.Lock()       # guards the state snapshots only
+        self.file_lock = threading.Lock()  # serializes writes to the channel file
 
     def set_state(self, values: dict):
         # check that values has the expected keys
@@ -148,14 +148,23 @@ class ChannelState:
     # Logging
     # ========================================================
     def save_state(self, force=False, save_previous=True):
+        # Only the state snapshots are touched under self.lock. File I/O (and the
+        # print() it may do, which is redirected to a Tk widget and therefore blocks
+        # until the GUI main thread services it) must stay outside the lock, or the
+        # main thread deadlocks against this one while waiting in get_values().
         with self.lock:
             if not (force or self.is_different()):
                 return
-            filename = get_full_filename_from_date(self.current.timestamp, suffix=self.name.replace(" ", ""))
-            if self.last_saved != self.previous and save_previous:
-                self.write_state_to_file(self.previous, filename, delimiter=' ')
-            self.write_state_to_file(self.current, filename, delimiter=' ')
-            self.last_saved = self.current
+            current = self.current
+            previous = self.previous
+            write_previous = save_previous and self.last_saved != previous
+            self.last_saved = current
+
+        filename = get_full_filename_from_date(current.timestamp, suffix=self.name.replace(" ", ""))
+        with self.file_lock:
+            if write_previous:
+                self.write_state_to_file(previous, filename, delimiter=' ')
+            self.write_state_to_file(current, filename, delimiter=' ')
 
     def file_header_row(self):
         header = ["Time"]
@@ -184,7 +193,7 @@ class ChannelState:
                 and isinstance(value, (int, float))
             ):
                 value = f"{value:.{precision}f}"
-            row.append(value)
+            row.append(str(value))
 
         return row
     
@@ -196,7 +205,7 @@ class ChannelState:
 
     def _build_filename(self, directory):
         date_str = self.current.timestamp.strftime("%Y-%m-%d")
-        safe_name = self.channel_name.replace(" ", "_")
+        safe_name = self.name.replace(" ", "_")
         path = Path(directory)
         path.mkdir(parents=True, exist_ok=True)
         return path / f"{date_str}_{safe_name}.csv"
@@ -224,7 +233,7 @@ class ChannelState:
 
     def to_dict(self):
         return {
-            "channel": self.channel_name,
+            "channel": self.name,
             "current": self.current.to_dict(),
             "previous": self.previous.to_dict(),
             "last_saved": self.last_saved.to_dict(),
