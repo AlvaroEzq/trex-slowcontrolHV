@@ -85,13 +85,13 @@ def get_last_run_number_from_google_sheet(worksheet_number=WORKSHEET_NUMBER):
         page = sheet.get_worksheet(worksheet_number) # starts from 0
         column_values = page.col_values(1)  # 1 refers to column A (run number)
         run_numbers_col = [val for val in column_values if val]
-        print(f"Last run number from Google Sheet: {run_numbers_col[-1]}")
         run_numbers = []
         for r in run_numbers_col:
             try:
                 run_numbers.append(int(r))
             except ValueError:
                 pass
+        print(f"Last run number from Google Sheet: {run_numbers[-1]}")
         return run_numbers[-1]
     except Exception as e:
         print(f"Error while fetching last run number from Google Sheet: {e}")
