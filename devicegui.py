@@ -12,10 +12,19 @@ class DeviceGUI(ABC):
     """
     A GUI class for controlling a single device.
 
+    The hardware acquisition (read_values, run from a background thread) is kept
+    strictly separated from the GUI rendering (update_gui, run from the Tkinter
+    main thread). They only communicate through the channels state.
+
     Parameters:
     - device: The device object to control.
-    - channels_name (list): A list of channel names.
-    - parent_frame (optional): The parent frame for the GUI.
+    - channels_states (dict): A dict of {channel name: ChannelState}.
+    - parent_frame (optional): The parent widget in which this GUI places its own frame.
+        If None, the GUI is standalone: it creates its own Tk root and runs the mainloop.
+    - auto_gui_update (bool): Whether this GUI owns its own GUI update scheduler
+        (default: True). Set it to False when the GUI is managed by a parent GUI
+        (e.g. a MultiDeviceGUI), which then becomes responsible for calling
+        update_gui(). It never affects the background hardware reading nor the logging.
     - **kwargs: for more customization options:
         - log (bool): Whether to log the channels (default: True).
         - channel_state_save_previous (bool): Whether to save the previous channel state (default: True).
@@ -27,7 +36,7 @@ class DeviceGUI(ABC):
         - read_loop_time (float): Time interval for reading channel data (default: 1 second).
     """
 
-    def __init__(self, device, channels_states, parent_frame=None, **kwargs):
+    def __init__(self, device, channels_states, parent_frame=None, auto_gui_update=True, **kwargs):
         self.device = device
         self.channels_state = channels_states.copy()
         self.channels_name = list(channels_states.keys())
@@ -60,31 +69,44 @@ class DeviceGUI(ABC):
         if not isinstance(self.config_params["read_loop_time"], (int, float)) or self.config_params["read_loop_time"] <= 0:
             raise ValueError("read_loop_time must be a positive number")
 
-        # Initialize GUI basic components
-        start_mainloop = False
-        if parent_frame is None:
+        # Initialize GUI basic components.
+        # self.root is always the actual Tk root/application context, while
+        # self.frame is the widget container owned by this GUI.
+        self.standalone = parent_frame is None
+        if self.standalone:
             self.root = tk.Tk()
             try:
                 title = f"{device.name} GUI"
             except AttributeError:
                 title = "Unknown device GUI"
             self.root.title(title)
-            # menu bar only if it is the main gui
-            self.menu_bar = tk.Menu(self.root)
-            self.menu_config = tk.Menu(self.menu_bar, tearoff=0)
-            # self.menu_config.add_command(label="Load checks") # TODO: implement load checks
-            self.menu_config.add_command(label="Advanced options", command=self.open_config_menu)
-            self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
-            self.root.config(menu=self.menu_bar)
-            start_mainloop = True
+            self.parent_frame = self.root
         else:
-            self.root = parent_frame
+            self.parent_frame = parent_frame
+            self.root = parent_frame.winfo_toplevel()
+
+        self.frame = tk.Frame(self.parent_frame)
+        self.frame.pack(fill="both", expand=True)
+
+        # menu bar. It is only attached to the window if this GUI owns it (standalone).
+        # Otherwise, the parent GUI may attach it whenever this GUI is the visible one.
+        self.menu_bar = tk.Menu(self.root)
+        self.menu_config = tk.Menu(self.menu_bar, tearoff=0)
+        # self.menu_config.add_command(label="Load checks") # TODO: implement load checks
+        self.menu_config.add_command(label="Advanced options", command=self.open_config_menu)
+        self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
+        if self.standalone:
+            self.root.config(menu=self.menu_bar)
+
         self.validate_numeric_input = (self.root.register(validate_numeric_entry_input), "%P")
         
         self.command_queue = queue.Queue()
         self.device_lock = threading.Lock()
 
-        self.auto_gui_update = True
+        # Whether this GUI owns its GUI update scheduler. It does not affect the
+        # background hardware reading (which always runs) in any way.
+        self.auto_gui_update = auto_gui_update
+        self.is_visible = True
 
         #Initialize logger
         try:
@@ -99,12 +121,29 @@ class DeviceGUI(ABC):
 
         # Create GUI
         self.create_gui()
+        # The hardware acquisition always runs, no matter who renders the GUI
         # the background threads talk to tkinter, so they must not start before
         # the main loop is running (otherwise: "main thread is not in main loop")
         self.root.after(0, self.start_background_threads)
-        self.schedule_gui_update()
-        if start_mainloop:
+        if self.auto_gui_update:
+            self.schedule_gui_update()
+        if self.standalone:
             self.root.mainloop() # this will block the main thread until the window is closed
+            self.cleanup()
+
+    def schedule_in_main_thread(self, func, *args):
+        """Schedule func in the tkinter main loop (tkinter must only be used from it)."""
+        try:
+            self.root.after(0, func, *args)
+        except (RuntimeError, tk.TclError):
+            pass # the main loop is not running (GUI starting up or already closed)
+
+    def set_cursor(self, cursor):
+        try:
+            if self.root.cget("cursor") != cursor:
+                self.root.config(cursor=cursor)
+        except tk.TclError:
+            pass # the widget is already destroyed
 
     def schedule_in_main_thread(self, func, *args):
         """Schedule func in the tkinter main loop (tkinter must only be used from it)."""
@@ -152,8 +191,9 @@ class DeviceGUI(ABC):
         threading.Thread(target=self.process_commands, daemon=True).start()
 
     def schedule_gui_update(self):
+        """GUI update loop owned by this GUI (standalone mode only)."""
         if not self.auto_gui_update:
-            return # stop updating GUI
+            return # the GUI update is handled by the parent GUI
 
         try:
             self.update_gui()
@@ -250,16 +290,23 @@ class DeviceGUI(ABC):
                 self.set_config_param(key, var.get())
             #new_window.destroy()
     
+    def cleanup(self):
+        """Hook called after the mainloop ends when this GUI is standalone."""
+        pass
+
     @abstractmethod
     def read_values(self):
+        """Read the hardware and update the internal state. Must NOT touch Tk widgets."""
         pass
     
     @abstractmethod
     def update_gui(self):
+        """Update the Tk widgets from the internal state. Must NOT talk to the hardware."""
         pass
     
     @abstractmethod
     def create_gui(self):
+        """Create the widgets of this GUI inside self.frame."""
         pass
 
 

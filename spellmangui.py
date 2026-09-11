@@ -9,7 +9,7 @@ from devicegui import DeviceGUI
 from utilsgui import ToolTip
 
 class SpellmanFrame(DeviceGUI):
-    def __init__(self, spellman, checks=None, parent=None, log=True):
+    def __init__(self, spellman, checks=None, parent=None, log=True, auto_gui_update=True):
         if checks is None:
             checks = []
 
@@ -35,13 +35,14 @@ class SpellmanFrame(DeviceGUI):
                         device=spellman,
                         channels_states={'cathode': channelstate},
                         parent_frame=parent,
+                        auto_gui_update=auto_gui_update,
                         logging_enabled=log,
                         read_loop_time=2,
                         )
 
     def create_gui(self):
         self.main_frame = tk.LabelFrame(
-            self.root, text=f"{self.device.name}", font=("", 16), bg="lightgray",
+            self.frame, text=f"{self.device.name}", font=("", 16), bg="lightgray",
             labelanchor="n", padx=10, pady=10, bd=4
         )
         self.main_frame.pack(fill="both", expand=True)

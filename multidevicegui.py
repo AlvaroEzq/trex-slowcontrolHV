@@ -1,74 +1,128 @@
 import tkinter as tk
-import queue
-import threading
-import time
 import logging
 from abc import ABC, abstractmethod
 
-from devicegui import DeviceGUI
-from logger import ChannelState, configure_basic_logger
-from utilsgui import validate_numeric_entry_input
 
 class MultiDeviceGUI(ABC):
     """
-    A GUI class for controlling multiple devices which GUIs are based on DeviceGUI.
+    A GUI class grouping several device GUIs (based on DeviceGUI) of a subsystem.
+
+    As for DeviceGUI, the hardware acquisition of every child device GUI is
+    completely independent from the GUI rendering: the children background
+    threads keep reading and logging regardless of whether this subsystem is
+    being rendered or not.
 
     Parameters:
-    - devices: A list of device objects to control.
-    - channels_name (list): A list of channel names.
-    - parent_frame (optional): The parent frame for the GUI.
-    - **kwargs: for more customization options:
-        - log (bool): Whether to log the channels (default: True).
+    - name (str): Name of the subsystem (used for the window title and the logger).
+    - devices (optional): The device objects of this subsystem.
+    - parent_frame (optional): The parent widget in which this GUI places its own frame.
+        If None, the GUI is standalone: it creates its own Tk root and runs the mainloop.
+    - auto_gui_update (bool): Whether this GUI owns its own GUI update scheduler
+        (default: True). Set it to False when it is managed by a parent GUI
+        (e.g. a SuperGUI), which then becomes responsible for calling update_gui().
+        It never affects the background hardware reading of the children nor the logging.
+    - gui_update_time (float): Period, in seconds, of the GUI update loop owned by
+        this GUI (only relevant if auto_gui_update is True).
+    - log (bool): Whether to log the channels (default: True).
+
+    The child DeviceGUIs must be created inside create_gui() with
+    auto_gui_update=False (so that there is a single GUI scheduler for the whole
+    subsystem) and registered in self.all_guis.
     """
-    
-    def __init__(self,name:str, devices, parent_frame=None, log=True, **kwargs):
+
+    def __init__(self, name: str, devices=None, parent_frame=None,
+                 auto_gui_update=True, gui_update_time=1, log=True, **kwargs):
         self.name = name
-        self.all_guis = {}
-        self.is_visible = False # so we only update the GUI when it is visible, to save resources
-        
-    
-        # Initialize GUI basic components
-        start_mainloop = False
-        if parent_frame is None:
+        self.devices = devices if devices is not None else []
+        # children GUIs ({name: DeviceGUI}). A subclass may have filled it already.
+        if getattr(self, "all_guis", None) is None:
+            self.all_guis = {}
+        self.logging_enabled = log
+
+        self.gui_update_time = gui_update_time
+        # Whether this GUI owns its GUI update scheduler. It does not affect the
+        # background hardware reading of the children (which always runs).
+        self.auto_gui_update = auto_gui_update
+        self.is_visible = True
+
+        # Initialize GUI basic components.
+        # self.root is always the actual Tk root/application context, while
+        # self.frame is the widget container owned by this GUI.
+        self.standalone = parent_frame is None
+        if self.standalone:
             self.root = tk.Tk()
-            try:
-                title = f"{self.name} GUI"
-            except AttributeError:
-                title = "Unknown Multi Device GUI"
-            self.root.title(title)
-            """
-            # menu bar only if it is the main gui
-            self.menu_bar = tk.Menu(self.root)
-            self.menu_config = tk.Menu(self.menu_bar, tearoff=0)
-            # self.menu_config.add_command(label="Load checks") # TODO: implement load checks
-            self.menu_config.add_command(label="Advanced options", command=self.open_config_menu)
-            self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
-            self.root.config(menu=self.menu_bar)
-            """
-            start_mainloop = True
+            self.root.title(f"{self.name} GUI")
+            self.parent_frame = self.root
         else:
-            self.root = parent_frame
-    
+            self.parent_frame = parent_frame
+            self.root = parent_frame.winfo_toplevel()
+
+        self.frame = tk.Frame(self.parent_frame)
+        if self.standalone:
+            self.frame.pack(fill="both", expand=True)
+        # when managed, the parent GUI is the one placing self.frame in its content area
+
+        if getattr(self, "logger", None) is None:
+            self.logger = logging.getLogger(f"app.{self.name}")
+
+        # menu bar. It is only attached to the window if this GUI owns it (standalone).
+        # Otherwise, the parent GUI attaches it whenever this subsystem is the visible one.
+        self.menu_bar = tk.Menu(self.root)
+
         # Create GUI
         self.create_gui()
-        self.schedule_gui_update()
-        for name, gui in self.all_guis.items():
-            if isinstance(gui, DeviceGUI):
-                gui.auto_gui_update = False # handle the GUI update for all devices in this MultiDeviceGUI to save after callbacks
-        if start_mainloop:
+
+        if self.standalone:
+            self.root.config(menu=self.menu_bar)
+
+        self.warn_about_children_schedulers()
+
+        if self.auto_gui_update:
+            self.schedule_gui_update()
+        if self.standalone:
             self.root.mainloop() # this will block the main thread until the window is closed
-        
+            self.cleanup()
+
+    def warn_about_children_schedulers(self):
+        """Warn if a child GUI also owns a scheduler (redundant after() callbacks)."""
+        for name, gui in self.all_guis.items():
+            if getattr(gui, "auto_gui_update", False):
+                self.logger.warning(
+                    f"GUI '{name}' of {self.name} owns its own GUI update scheduler. "
+                    "Create it with auto_gui_update=False to let "
+                    f"{type(self).__name__} handle its GUI updates."
+                )
+
     def schedule_gui_update(self):
-        if not self.is_visible:
-            return # stop updating GUI
+        """GUI update loop owned by this GUI (standalone mode only)."""
+        if not self.auto_gui_update:
+            return # the GUI update is handled by the parent GUI
 
         self.update_gui()
-        self.root.after(1000, self.schedule_gui_update) # update every second
-    
+        self.root.after(
+            int(self.gui_update_time * 1000), # convert s to ms
+            self.schedule_gui_update
+        )
+
     def update_gui(self):
+        """Update the widgets of every child GUI. Must NOT talk to the hardware."""
         for name, gui in self.all_guis.items():
-            if isinstance(gui, DeviceGUI):
-                try:
-                    gui.update_gui()
-                except Exception as e:
-                    print(f"Error updating GUI for device {name}: {e}") # TODO: change for a self.logger ??
+            if not hasattr(gui, "update_gui"):
+                continue
+            try:
+                gui.update_gui()
+            except Exception as e:
+                self.logger.debug(f"Error updating GUI for device {name}: {e}")
+
+    def cleanup(self):
+        """Hook called after the mainloop ends when this GUI is standalone."""
+        pass
+
+    @abstractmethod
+    def create_gui(self):
+        """Create the widgets of this subsystem inside self.frame.
+
+        The children DeviceGUIs must be created with parent_frame inside
+        self.frame and auto_gui_update=False, and registered in self.all_guis.
+        """
+        pass

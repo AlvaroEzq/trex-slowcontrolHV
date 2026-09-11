@@ -14,7 +14,7 @@ from utilsgui import ToolTip
 from devicegui import DeviceGUI
 
 class CaenHVPSGUI(DeviceGUI):
-    def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False):
+    def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False, auto_gui_update=True):
         if channel_names is None:
             channel_names = []
         if checks is None:
@@ -75,17 +75,12 @@ class CaenHVPSGUI(DeviceGUI):
                         device=module,
                         channels_states=channels_states,
                         parent_frame=parent_frame,
+                        auto_gui_update=auto_gui_update,
                         logging_enabled=log,
                         )
 
 
     def create_gui(self):
-        start_mainloop = False
-        if self.root is None:
-            self.root = tk.Tk()
-            self.root.title("Caen HVPS GUI")
-            start_mainloop = True
-
         self.main_frame = self.create_main_frame()
         self.alarm_frame = self.create_alarm_frame(self.main_frame)
         self.channel_frame = self.create_channels_frame(self.main_frame)
@@ -93,12 +88,8 @@ class CaenHVPSGUI(DeviceGUI):
             self.multichannel_frame = self.create_multichannel_frame(self.channel_frame)
         self.security_frame = self.create_security_frame(self.main_frame)
 
-
-        if start_mainloop:
-            self.root.mainloop()
-
     def create_main_frame(self):
-        main_frame = tk.LabelFrame(self.root, text=f"Module {self.device.name}", font=("", 16), bg="lightgray", padx=10, pady=10, labelanchor="n", bd=4)
+        main_frame = tk.LabelFrame(self.frame, text=f"Module {self.device.name}", font=("", 16), bg="lightgray", padx=10, pady=10, labelanchor="n", bd=4)
         main_frame.pack(fill="both", expand=True)
         return main_frame
 
