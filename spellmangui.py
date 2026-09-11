@@ -290,11 +290,11 @@ class SpellmanFrame(DeviceGUI):
         iset = self.device.iset
         stat = self.device.stat
         self.channels_state['cathode'].set_state(
-            {
-                'vmon': vmon,
-                'imon': imon,
+            {   # keep this order in sync with value_names, above
                 'vset': vset,
                 'iset': iset,
+                'vmon': vmon,
+                'imon': imon,
                 'stat': stat,
             }
         )

@@ -92,6 +92,21 @@ class ChannelState:
         # flag to decide whether to save a specific variable (if None, all are saved). Example: {"vmon": True, "imon": True, "pressure": False,}
         self.save_value = save_value or {}
 
+        # A row is only written when is_different() says something moved, and it only
+        # looks at keys present in thresholds. A magnitude that is saved to file but
+        # has no threshold therefore never triggers a write of its own, so its column
+        # only updates when some other magnitude happens to move.
+        unwatched = [
+            key for key in self.value_names
+            if self.save_value.get(key, True) and key not in self.thresholds
+        ]
+        if unwatched:
+            print(
+                f"Warning: channel '{self.name}' saves {unwatched} to file but has no"
+                f" threshold for them, so a change in those values alone will not be"
+                f" logged. Add them to 'thresholds' to log them."
+            )
+
         # Initialize state snapshots
         self.current = State()
         self.previous = State()
@@ -99,6 +114,11 @@ class ChannelState:
         
         self.lock = threading.Lock()       # guards the state snapshots only
         self.file_lock = threading.Lock()  # serializes writes to the channel file
+
+        # Output file resolved for the current (base filename, header) pair, so the
+        # header only has to be re-checked on a day rollover or a schema change.
+        self._active_schema = None
+        self._active_path = None
 
     def set_state(self, values: dict):
         # check that values has the expected keys
@@ -181,12 +201,15 @@ class ChannelState:
         return delimiter.join(row)
 
     def _state_to_row(self, state: State):
-
+        # Iterate value_names, the same list file_header_row() uses, so a value can
+        # never end up under the wrong column. Iterating state.values instead would
+        # follow whatever order read_values() happened to build its dict in.
         row = [state.timestamp.strftime("%Y-%m-%d %H:%M:%S")]
 
-        for key, value in state.values.items():
+        for key in self.value_names:
             if not self.save_value.get(key, True):
                 continue
+            value = state.get(key, "nan")
             precision = self.precisions.get(key)
             if (
                 precision is not None
@@ -196,8 +219,10 @@ class ChannelState:
             row.append(str(value))
 
         return row
-    
+
     def _state_to_str(self, state: State, delimiter=" "):
+        if not state.values: # empty snapshot, e.g. before the first read
+            return ""
         row = self._state_to_row(state)
         if len(row) <= 1: # Only timestamp, no values
             return ""
@@ -210,25 +235,54 @@ class ChannelState:
         path.mkdir(parents=True, exist_ok=True)
         return path / f"{date_str}_{safe_name}.csv"
     
-    def write_state_to_file(self, state: State, filename: str, delimiter=' '):
-        create_directory_recursive(filename)
-        if not os.path.isfile(filename):
-            try:
-                # create the file if it does not exist
-                header_str = self.file_header_str(delimiter=delimiter)
-                if not header_str: # no values to write, skip creating the file
-                    return
-                with open(filename, 'w') as file:
-                    file.write(self.file_header_str(delimiter=delimiter) + "\n")
-                print("Writing to new file:", filename)
-            except:
-                print("Invalid file or directory:", filename)
+    def _resolve_filename(self, base_filename: str, header_str: str):
+        """
+        Return the file to append to for the given header.
 
-        row_str = self._state_to_str(state, delimiter=delimiter) # empty string if only timestamp and no values to save
-        if not row_str: # no values to write, skip writing the row
+        The header is only written when a file is created, so if the logged
+        magnitudes change (save_value, units, value_names or their order), appending
+        to an existing file would file the new rows under a stale header. Instead,
+        roll over to "<base>_1.dat", "<base>_2.dat", ... until a file whose header
+        matches (or a free name) is found. The previous day's data stays readable and
+        no rows are ever mislabelled.
+        """
+        if (base_filename, header_str) == self._active_schema:
+            return self._active_path # already resolved for this file and header
+
+        root, extension = os.path.splitext(base_filename)
+        path, index = base_filename, 0
+        while os.path.isfile(path):
+            with open(path) as file:
+                existing_header = file.readline().rstrip("\n")
+            # an empty leftover file is reusable: write_state_to_file re-writes its header
+            if existing_header in (header_str, ""):
+                break
+            index += 1
+            path = f"{root}_{index}{extension}"
+
+        self._active_schema = (base_filename, header_str)
+        self._active_path = path
+        return path
+
+    def write_state_to_file(self, state: State, filename: str, delimiter=' '):
+        header_str = self.file_header_str(delimiter=delimiter)
+        if not header_str: # no values to save for this channel, skip the file entirely
             return
-        with open(filename, 'a') as file:
-            file.write(row_str + "\n")
+        row_str = self._state_to_str(state, delimiter=delimiter)
+        if not row_str: # nothing to write for this state
+            return
+
+        create_directory_recursive(filename)
+        filename = self._resolve_filename(filename, header_str)
+        try:
+            if not os.path.isfile(filename) or os.path.getsize(filename) == 0:
+                with open(filename, 'w') as file:
+                    file.write(header_str + "\n")
+                print("Writing to new file:", filename)
+            with open(filename, 'a') as file:
+                file.write(row_str + "\n")
+        except OSError as e:
+            print(f"Could not write to file {filename}: {e}")
 
 
     def to_dict(self):
