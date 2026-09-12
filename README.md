@@ -4,10 +4,20 @@ This repository contains software for remote control and monitoring of high volt
 
 ![CAEN HV power supply GUI.](docs/maingui.png)
 
+## Terminology
+
+Two different things in this project could both be called "logging", so they are named apart:
+
+- **logging** — human-readable messages and alarms, handled with the python `logging` module
+  ([logger.py](logger.py)). Goes to the terminal pane, `logs/*.log`, and the Slack/Mattermost webhooks.
+- **recording** — measured channel values written to data files ([channel.py](channel.py)).
+  Controlled by the `recording_enabled` option ("Record values to file" in the *Config → Advanced
+  options* dialog).
+
 ## Features
 - Graphical User Interface (GUI) for individual and multiple HV power supply devices. Including:
    - Security checks for individual and multiple devices.
-   - Register of voltage and current monitor values of the channels of each device.
+   - Recording of voltage and current monitor values of the channels of each device to file.
    - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
    - Trip recovery system to automatically detect, handle and recover a trip. It uses the multidevice raising of voltages to recover a trip. Also, a configurable cooldown time is applied before recovering the trip.
    - Alert message to slack/mattermost webhook (to do so, copy your slack/mattermost webhook in the global variable SLACK/MATTERMOST_WEBHOOK_URL of [logger.py](logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
@@ -128,7 +138,7 @@ only when it is the standalone/top-level GUI (i.e. when no `parent_frame` is giv
       - `mx32v2gui.py`: GUI for the gas sensors connected to an MX32v2 controller.
       - `arduinogui.py`: GUI for the digital alarm signals of the safety system read by an Arduino.
       - `daqmetricsgui.py`: GUI for the DAQ metrics.
-   - `checksframe.py`: Implementation of the ChecksFrame class to display and manage the checks.
+   - `checkframe.py`: Implementation of the ChecksFrame class to display and manage the checks.
    - `utilsgui.py`: Implementation of GUI utility classes such as ToolTip and PrintToTextWidget.
 - Device modules
    - `spellmanClass.py`: Class for managing the Spellman HV supply.
@@ -138,6 +148,9 @@ only when it is the standalone/top-level GUI (i.e. when no `parent_frame` is giv
    - `simulators.py`: CAEN, Spellman, Rigol, MX32v2 and Arduino device simulator classes.
 - Support modules
    - `check.py`: Implementation of the checks classes.
-   - `logger.py`: Implementation of the ChannelState class and logging helper functions and classes.
-   - `metrics_fetcher.py`: Implementation of MetricsFetcher and MetricsFetchcerSSH to extract the prometheus metrics of the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) acquisition program.
+   - `logger.py`: Logging helpers for human-readable messages and alarms: Slack, Mattermost and
+     Tk-widget handlers, plus the logger configuration functions. Nothing here writes measured values.
+   - `channel.py`: Implementation of the State and ChannelState classes, which hold the in-memory
+     snapshots of a channel's values and record them to file.
+   - `daqmetrics.py`: Implementation of MetricsFetcher and MetricsFetcherSSH to extract the prometheus metrics of the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) acquisition program.
    - `utils.py`: Other useful functions. For now, it includes the necessary functions for adding rows to the Google Sheet run list.

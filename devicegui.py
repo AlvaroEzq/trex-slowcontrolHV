@@ -8,6 +8,14 @@ from abc import ABC, abstractmethod
 from logger import configure_basic_logger
 from utilsgui import validate_numeric_entry_input
 
+# Human-readable labels for the config_params keys shown in the "Advanced options"
+# dialog, so the internal names never leak into the UI.
+CONFIG_PARAM_LABELS = {
+    "recording_enabled": "Record values to file",
+    "read_loop_time": "Read loop time (s)",
+    "gui_update_time": "GUI refresh time (s)",
+}
+
 class DeviceGUI(ABC):
     """
     A GUI class for controlling a single device.
@@ -26,14 +34,13 @@ class DeviceGUI(ABC):
         (e.g. a MultiDeviceGUI), which then becomes responsible for calling
         update_gui(). It never affects the background hardware reading nor the logging.
     - **kwargs: for more customization options:
-        - log (bool): Whether to log the channels (default: True).
-        - channel_state_save_previous (bool): Whether to save the previous channel state (default: True).
-        - channel_state_save_force (bool): Whether to force saving all the channel state (default: False).
-        - channel_state_diff_vmon (float): Voltage log monitoring threshold (default: 0.5).
-        - channel_state_diff_imon (float): Current log monitoring threshold (default: 0.01).
-        - channel_state_prec_vmon (int): Voltage precision (default: 1).
-        - channel_state_prec_imon (int): Current precision (default: 3).
+        - recording_enabled (bool): Whether to record the channel values to file (default: True).
+          Note this is unrelated to the python logging of messages, see logger.py for that.
         - read_loop_time (float): Time interval for reading channel data (default: 1 second).
+        - gui_update_time (float): Time interval for refreshing the widgets (default: 1 second).
+
+    Per-channel recording settings (thresholds, precisions, units, which values are
+    saved) live on the ChannelState objects passed in channels_states, see channel.py.
     """
 
     def __init__(self, device, channels_states, parent_frame=None, auto_gui_update=True, **kwargs):
@@ -42,10 +49,16 @@ class DeviceGUI(ABC):
         self.channels_name = list(channels_states.keys())
 
         self.config_params = {
-            "logging_enabled" : kwargs.get("logging_enabled", True),
+            "recording_enabled" : kwargs.get("recording_enabled", True),
             "read_loop_time" : kwargs.get("read_loop_time", 1),
             "gui_update_time" : kwargs.get("gui_update_time", 1),
         }
+
+        # Unrecognised kwargs are otherwise silently ignored, so a misspelled or
+        # renamed option quietly falls back to its default instead of failing.
+        unknown = [key for key in kwargs if key not in self.config_params]
+        if unknown:
+            print(f"Warning: {type(self).__name__} ignoring unknown options: {unknown}")
         
         base_channel_params = {
             "save_previous": False,
@@ -64,8 +77,8 @@ class DeviceGUI(ABC):
                 self.config_channels_params[name]["precisions"] = chstate.precisions
 
         # Validate input parameters
-        if not isinstance(self.config_params["logging_enabled"], bool):
-            raise ValueError("logging_enabled must be a boolean")
+        if not isinstance(self.config_params["recording_enabled"], bool):
+            raise ValueError("recording_enabled must be a boolean")
         if not isinstance(self.config_params["read_loop_time"], (int, float)) or self.config_params["read_loop_time"] <= 0:
             raise ValueError("read_loop_time must be a positive number")
 
@@ -209,7 +222,7 @@ class DeviceGUI(ABC):
         while True:
             try:
                 self.issue_command(self.read_values)
-                if self.config_params["logging_enabled"]:
+                if self.config_params["recording_enabled"]:
                     for name, chstate in self.channels_state.items():
                         chstate.save_state(
                             save_previous=self.config_channels_params[name]["save_previous"],
@@ -252,7 +265,7 @@ class DeviceGUI(ABC):
         for key, value in self.config_params.items():
             #print(f"key: {key}, value: {value}")
             row += 1
-            tk.Label(frame, text=key).grid(row=row, column=1, sticky="w")
+            tk.Label(frame, text=CONFIG_PARAM_LABELS.get(key, key)).grid(row=row, column=1, sticky="w")
             var = None
             if isinstance(value, bool):
                 var = tk.BooleanVar()

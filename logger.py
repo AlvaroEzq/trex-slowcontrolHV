@@ -18,9 +18,9 @@ class ThreadedHandler(logging.Handler):
         self.worker.daemon = True  # Ensures the thread exits with the main program
         self.worker.start()
 
-    def emit(self, record):
+    def emit(self, log_record):
         # Add the log record to the queue
-        self.log_queue.put(record)
+        self.log_queue.put(log_record)
 
     def logging_logic(self, log_message):
         raise NotImplementedError
@@ -51,11 +51,11 @@ class SlackHandler(ThreadedHandler):
         super().__init__()
         self.webhook_url = webhook_url
     
-    def logging_logic(self, record):
+    def logging_logic(self, log_record):
         try:
             # Enviar mensaje a Slack
-            message = record.getMessage()
-            log_level = record.levelno
+            message = log_record.getMessage()
+            log_level = log_record.levelno
             emoji = self.LEVEL_EMOJIS.get(log_level, "") + " "
             slack_data = {'text': f"{emoji}{message}"}
             requests.post(self.webhook_url, data=json.dumps(slack_data), headers={'Content-Type': 'application/json'})
@@ -86,20 +86,20 @@ class MattermostHandler(ThreadedHandler):
         super().__init__()
         self.webhook_url = webhook_url
 
-    def logging_logic(self, record):
+    def logging_logic(self, log_record):
         try:
-            message = record.getMessage()
-            log_level = record.levelno
+            message = log_record.getMessage()
+            log_level = log_record.levelno
             emoji = self.LEVEL_EMOJIS.get(log_level, "") + " "
             text = f"{emoji}{message}"
 
             mm_data = {}
 
             # For WARNING/ERROR/CRITICAL, use attachment with background color
-            if record.levelno in self.LEVEL_COLORS:
+            if log_record.levelno in self.LEVEL_COLORS:
                 mm_data["attachments"] = [{
                     "fallback": message,
-                    "color": self.LEVEL_COLORS[record.levelno],
+                    "color": self.LEVEL_COLORS[log_record.levelno],
                     "text": text
                 }]
             else:
@@ -123,8 +123,8 @@ class TextWidgetHandler(logging.Handler):
         super().__init__()
         self.text_widget = text_widget
 
-    def emit(self, record):
-        log_entry = self.format(record)
+    def emit(self, log_record):
+        log_entry = self.format(log_record)
         # use after() to avoid segmentation faults
         if self.text_widget:
             self.text_widget.after(0, self._write_log, log_entry)

@@ -14,7 +14,7 @@ from utilsgui import ToolTip
 from devicegui import DeviceGUI
 
 class CaenHVPSGUI(DeviceGUI):
-    def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False, auto_gui_update=True):
+    def __init__(self, module, channel_names=None, checks=None, parent_frame=None, record=True, silence=False, auto_gui_update=True):
         if channel_names is None:
             channel_names = []
         if checks is None:
@@ -76,7 +76,7 @@ class CaenHVPSGUI(DeviceGUI):
                         channels_states=channels_states,
                         parent_frame=parent_frame,
                         auto_gui_update=auto_gui_update,
-                        logging_enabled=log,
+                        recording_enabled=record,
                         )
 
 
@@ -680,4 +680,4 @@ if __name__ == "__main__":
         from simulators import *  # noqa: F403
 
         m = ModuleSimulator(4)  # noqa: F405
-        CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS, log=False)
+        CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS, record=False)

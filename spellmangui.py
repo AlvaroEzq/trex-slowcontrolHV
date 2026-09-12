@@ -9,7 +9,7 @@ from devicegui import DeviceGUI
 from utilsgui import ToolTip
 
 class SpellmanFrame(DeviceGUI):
-    def __init__(self, spellman, checks=None, parent=None, log=True, auto_gui_update=True):
+    def __init__(self, spellman, checks=None, parent=None, record=True, auto_gui_update=True):
         if checks is None:
             checks = []
 
@@ -36,7 +36,7 @@ class SpellmanFrame(DeviceGUI):
                         channels_states={'cathode': channelstate},
                         parent_frame=parent,
                         auto_gui_update=auto_gui_update,
-                        logging_enabled=log,
+                        recording_enabled=record,
                         read_loop_time=2,
                         )
 
@@ -371,5 +371,5 @@ if __name__ == "__main__":
     else:
         from simulators import SpellmanSimulator
         spll = SpellmanSimulator()
-        app = SpellmanFrame(spll, log=False)
+        app = SpellmanFrame(spll, record=False)
 
