@@ -8,13 +8,13 @@ def _default_data_dir():
     """
     Root directory for recorded channel values.
 
-    Resolved as $TREX_HV_DATA if set, else the "data" directory next to this file.
+    Resolved as $TREX_SC_DATA if set, else the "data" directory next to this file.
     Deliberately NOT relative to the current working directory: that used to make
     launching the GUI from somewhere else silently start a second, separate data
     tree. Note this is only for recorded measurements; python logging of messages
     writes to LOG_DIR in logger.py.
     """
-    return os.environ.get("TREX_HV_DATA") or os.path.join(
+    return os.environ.get("TREX_SC_DATA") or os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "data"
     )
 

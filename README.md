@@ -78,7 +78,7 @@ the day continues in `20260911_gemtop_1.dat` rather than filing new rows under a
 header.
 
 The root is the `data` directory next to the code, so it does not depend on where you
-launch from. Override it with `--data-dir` or the `TREX_HV_DATA` environment variable;
+launch from. Override it with `--data-dir` or the `TREX_SC_DATA` environment variable;
 the GUI prints the directory it settled on at startup. Recording can be turned off
 per device with `record=False`, or at runtime in *Config → Advanced options*.
 
@@ -95,26 +95,26 @@ vmon, imon = np.loadtxt("20260911_gemtop.dat", usecols=(1, 2), unpack=True)
 
 Files recorded before September 2026 have an uncommented header and a space between the
 date and the time, so those two examples need `skiprows=1` and a different `timefmt`.
-`hvdata.py` below reads both layouts, including a single file that spans the change.
+`datareader.py` below reads both layouts, including a single file that spans the change.
 
 ### Reading a time range
 
-[hvdata.py](hvdata.py) gathers the day files across a range, including the `_1`/`_2`
+[datareader.py](datareader.py) gathers the day files across a range, including the `_1`/`_2`
 siblings, and hands back a single table:
 
 ```bash
-python3 hvdata.py list                                   # channels present on disk
-python3 hvdata.py info -c "gem top" --from -7d           # files, rows, units, gaps
-python3 hvdata.py dump -c "gem top" --from -7d --epoch   # ready for gnuplot or awk
-python3 hvdata.py dump -c cathode --from 2026-09-01 --to 2026-09-11 --csv -o out.csv
+python3 datareader.py list                                   # channels present on disk
+python3 datareader.py info -c "gem top" --from -7d           # files, rows, units, gaps
+python3 datareader.py dump -c "gem top" --from -7d --epoch   # ready for gnuplot or awk
+python3 datareader.py dump -c cathode --from 2026-09-01 --to 2026-09-11 --csv -o out.csv
 ```
 
 ```python
-import hvdata
-df = hvdata.read_channel("cathode", "2026-09-01", "2026-09-11")  # pandas DataFrame
+import datareader
+df = datareader.read_channel("cathode", "2026-09-01", "2026-09-11")  # pandas DataFrame
 df["vmon"].plot()
-hvdata.units_of(df)                          # {'vmon': 'V', 'imon': 'mA'}
-t, values, names = hvdata.to_numpy(df)       # unix seconds + a 2-D array, for ROOT
+datareader.units_of(df)                          # {'vmon': 'V', 'imon': 'mA'}
+t, values, names = datareader.to_numpy(df)       # unix seconds + a 2-D array, for ROOT
 ```
 
 Dates accept ISO (`2026-09-11`, `2026-09-11 13:00`), the words `now`/`today`/`yesterday`,

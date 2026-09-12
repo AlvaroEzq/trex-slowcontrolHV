@@ -1062,7 +1062,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB0")
     parser.add_argument("--checks", type=str, help="Select checks configuration file", default="checks_config.toml")
     parser.add_argument("--data-dir", type=str, help="Directory to record channel values into "
-                        "(default: $TREX_HV_DATA, else the 'data' directory next to the code)")
+                        "(default: $TREX_SC_DATA, else the 'data' directory next to the code)")
 
     args = parser.parse_args()
 

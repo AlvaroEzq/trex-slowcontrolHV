@@ -12,15 +12,15 @@ This module turns a channel name and a time range into a single pandas DataFrame
 gathering the day files across the range and the _1 / _2 siblings that channel.py
 creates when the recorded magnitudes change mid-day.
 
-    import hvdata
-    df = hvdata.read_channel("cathode", "2026-09-01", "2026-09-11")
+    import datareader
+    df = datareader.read_channel("cathode", "2026-09-01", "2026-09-11")
     df["vmon"].plot()
 
 It is also a command line tool, for the gnuplot / awk / grep workflow:
 
-    python3 hvdata.py list
-    python3 hvdata.py info -c "gem top" --from -7d
-    python3 hvdata.py dump -c "gem top" --from -7d --epoch | gnuplot ...
+    python3 datareader.py list
+    python3 datareader.py info -c "gem top" --from -7d
+    python3 datareader.py dump -c "gem top" --from -7d --epoch | gnuplot ...
 """
 
 from __future__ import annotations
@@ -499,8 +499,8 @@ def _format(value):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Read back channel values recorded by the HV slow control GUIs.")
-    parser.add_argument("--data-dir", help="recording root (default: $TREX_HV_DATA, "
+        description="Read back channel values recorded by the slow control GUIs.")
+    parser.add_argument("--data-dir", help="recording root (default: $TREX_SC_DATA, "
                                            "else the data directory next to the code)")
     subparsers = parser.add_subparsers(dest="command", required=True)
 

@@ -10,7 +10,7 @@ import json
 # this file rather than relative to the working directory, so launching from
 # elsewhere does not scatter log files or crash the FileHandlers below.
 # Recorded channel values go to DATA_DIR in channel.py instead.
-LOG_DIR = os.environ.get("TREX_HV_LOGS") or os.path.join(
+LOG_DIR = os.environ.get("TREX_SC_LOGS") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "logs"
 )
 os.makedirs(LOG_DIR, exist_ok=True)
