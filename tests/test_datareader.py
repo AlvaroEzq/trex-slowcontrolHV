@@ -187,6 +187,90 @@ class TestSiblingFiles(unittest.TestCase):
             datareader.read_channel("ch", DAY, DAY, data_dir=self.root)
 
 
+class TestManyColumnsAndTextValues(unittest.TestCase):
+    """Nothing is specific to two columns or to numeric values."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = self.tmp.name
+
+    def test_many_columns_with_their_own_units(self):
+        write_file(self.root, DAY, "envprobe",
+                   "# Time pressure[mbar] temperature[C] humidity[%] flow[l/min]",
+                   ["2026-09-11T10:00:00 1013.25 21.0 40.0 2.5",
+                    "2026-09-11T10:00:01 1013.65 21.3 42.0 2.6"])
+        frame = datareader.read_channel("env probe", DAY, DAY, data_dir=self.root)
+        self.assertEqual(list(frame.columns),
+                         ["pressure", "temperature", "humidity", "flow"])
+        self.assertEqual(datareader.units_of(frame),
+                         {"pressure": "mbar", "temperature": "C",
+                          "humidity": "%", "flow": "l/min"})
+        self.assertEqual(frame["flow"].tolist(), [2.5, 2.6])
+
+    def test_one_column(self):
+        write_file(self.root, DAY, "single", "# Time pressure[mbar]",
+                   ["2026-09-11T10:00:00 1013.25"])
+        frame = datareader.read_channel("single", DAY, DAY, data_dir=self.root)
+        self.assertEqual(list(frame.columns), ["pressure"])
+
+    def test_text_column_survives_instead_of_becoming_nan(self):
+        write_file(self.root, DAY, "probe", "# Time temperature[C] state[]",
+                   ["2026-09-11T10:00:00 21.0 OK",
+                    "2026-09-11T10:00:01 22.0 NOT_READY"])
+        frame = datareader.read_channel("probe", DAY, DAY, data_dir=self.root)
+        self.assertEqual(frame["state"].tolist(), ["OK", "NOT_READY"])
+        self.assertEqual(frame["temperature"].tolist(), [21.0, 22.0])
+
+    def test_all_nan_column_stays_numeric(self):
+        write_file(self.root, DAY, "probe", "# Time v[V]",
+                   ["2026-09-11T10:00:00 nan", "2026-09-11T10:00:01 nan"])
+        frame = datareader.read_channel("probe", DAY, DAY, data_dir=self.root)
+        self.assertTrue(frame["v"].isna().all())
+        self.assertEqual(frame["v"].dtype.kind, "f")
+
+    def test_to_numpy_skips_text_columns(self):
+        write_file(self.root, DAY, "probe", "# Time temperature[C] state[]",
+                   ["2026-09-11T10:00:00 21.0 OK"])
+        frame = datareader.read_channel("probe", DAY, DAY, data_dir=self.root)
+        _, values, names = datareader.to_numpy(frame)
+        self.assertEqual(names, ["temperature"])
+        self.assertEqual(values.shape, (1, 1))
+
+    def test_unparseable_timestamp_is_reported_not_dropped_quietly(self):
+        # a value containing a space used to shift the columns and yield a NaT row
+        write_file(self.root, DAY, "probe", "# Time temperature[C] state[]",
+                   ["2026-09-11T10:00:00 21.0 OK",
+                    "2026-09-11T10:00:01 22.0 NOT READY"])
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            frame = datareader.read_channel("probe", DAY, DAY, data_dir=self.root)
+        self.assertEqual(len(frame), 1)
+        self.assertTrue(any(w.category is datareader.MalformedLineWarning for w in caught))
+
+
+class TestWriterQuotesNothing(unittest.TestCase):
+    """channel.py must never emit a value containing the delimiter."""
+
+    def test_whitespace_in_a_value_is_collapsed(self):
+        import channel
+        state = channel.ChannelState(
+            "probe", ["temperature", "state"],
+            thresholds={"temperature": 0.1, "state": 0},
+            precisions={"temperature": 2}, units={"temperature": "C", "state": ""},
+        )
+        state.set_state({"temperature": 21.0, "state": "NOT READY"})
+        row = state._state_to_row(state.current)
+        self.assertEqual(row[1:], ["21.00", "NOT_READY"])
+        self.assertTrue(all(" " not in token for token in row[1:]))
+
+    def test_empty_value_does_not_collapse_to_nothing(self):
+        import channel
+        state = channel.ChannelState("probe", ["note"], thresholds={"note": 0})
+        state.set_state({"note": ""})
+        self.assertEqual(state._state_to_row(state.current)[1], "nan")
+
+
 class TestChannelResolution(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

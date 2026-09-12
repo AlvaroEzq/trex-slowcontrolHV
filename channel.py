@@ -232,7 +232,10 @@ class ChannelState:
                 and isinstance(value, (int, float))
             ):
                 value = f"{value:.{precision}f}"
-            row.append(str(value))
+            # the file is whitespace delimited, so a value whose text contains
+            # whitespace (a status like "NOT READY", or a dict) would silently
+            # shift every column after it
+            row.append("_".join(str(value).split()) or "nan")
 
         return row
 

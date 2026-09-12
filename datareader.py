@@ -244,6 +244,23 @@ def unit_factor(source, target):
 # Reading
 # ------------------------------------------------------------------
 
+def _to_numeric_if_it_is(series):
+    """
+    Convert a column to float, unless it is text.
+
+    Most recorded magnitudes are numeric and the literal "nan" channel.py writes
+    for a missing value has to become a real NaN. But a channel may record a
+    status word, and coercing that to NaN would throw the column away, so a
+    column that holds no numbers at all is kept as text.
+    """
+    converted = pd.to_numeric(series, errors="coerce")
+    if converted.notna().any():
+        return converted
+    if series.astype(str).str.lower().isin(["nan", ""]).all():
+        return converted        # genuinely all missing
+    return series               # text column, e.g. a status word
+
+
 def read_file(record_file, columns=None):
     """
     One recorded file, in the units it was written in.
@@ -278,17 +295,24 @@ def read_file(record_file, columns=None):
             stamps.append(stamp)
             rows.append(values)
 
+    frame = pd.DataFrame(rows, columns=list(record_file.columns))
+    for column in frame.columns:
+        frame[column] = _to_numeric_if_it_is(frame[column])
+    frame.index = pd.to_datetime(pd.Series(stamps, dtype="object"), errors="coerce")
+    frame.index.name = "Time"
+
+    # a row whose token count matched but whose timestamp does not parse is still
+    # malformed; dropping it quietly would lose data without saying so
+    unparseable = int(frame.index.isna().sum())
+    if unparseable:
+        malformed += unparseable
+        frame = frame[frame.index.notna()]
+
     if malformed:
         warnings.warn(
             f"{record_file.path}: skipped {malformed} malformed line(s)",
             MalformedLineWarning, stacklevel=2,
         )
-
-    frame = pd.DataFrame(rows, columns=list(record_file.columns))
-    for column in frame.columns:
-        frame[column] = pd.to_numeric(frame[column], errors="coerce")
-    frame.index = pd.to_datetime(pd.Series(stamps, dtype="object"), errors="coerce")
-    frame.index.name = "Time"
 
     if columns:
         keep = [c for c in columns if c in frame.columns]
@@ -370,7 +394,8 @@ def to_numpy(frame):
     For plain numpy and for feeding ROOT's TGraph.
     """
     seconds = pd.DatetimeIndex(frame.index).astype("int64") / 1e9
-    columns = [c for c in frame.columns if c != "source_file"]
+    columns = [c for c in frame.columns
+               if c != "source_file" and pd.api.types.is_numeric_dtype(frame[c])]
     return (
         np.asarray(seconds, dtype="float64"),
         frame[columns].to_numpy(dtype="float64"),
