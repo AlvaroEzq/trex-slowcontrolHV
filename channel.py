@@ -213,13 +213,14 @@ class ChannelState:
         row = self.file_header_row()
         if len(row) <= 1: # Only timestamp, no values
             return ""
-        return delimiter.join(row)
+        # "# " so numpy.loadtxt and gnuplot skip the header without extra options
+        return "# " + delimiter.join(row)
 
     def _state_to_row(self, state: State):
         # Iterate value_names, the same list file_header_row() uses, so a value can
         # never end up under the wrong column. Iterating state.values instead would
         # follow whatever order read_values() happened to build its dict in.
-        row = [state.timestamp.strftime("%Y-%m-%d %H:%M:%S")]
+        row = [state.timestamp.strftime("%Y-%m-%dT%H:%M:%S")]
 
         for key in self.value_names:
             if not self.save_value.get(key, True):
@@ -262,8 +263,10 @@ class ChannelState:
         while os.path.isfile(path):
             with open(path) as file:
                 existing_header = file.readline().rstrip("\n")
-            # an empty leftover file is reusable: write_state_to_file re-writes its header
-            if existing_header in (header_str, ""):
+            # compare without the "# " prefix so files written before it was added
+            # still match; an empty leftover file is reusable, write_state_to_file
+            # re-writes its header
+            if existing_header.lstrip("# ") in (header_str.lstrip("# "), ""):
                 break
             index += 1
             path = f"{root}_{index}{extension}"
