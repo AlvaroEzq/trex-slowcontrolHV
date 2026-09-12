@@ -59,6 +59,70 @@ Two different things in this project could both be called "logging", so they are
    python3 caengui.py --port /dev/ttyUSB0
    ```
 
+## Recorded data
+
+While the GUI runs, the monitored values of every channel are recorded to plain text
+files, one per channel per day:
+
+```
+data/2026/09/11/20260911_gemtop.dat
+   # Time vmon[V] imon[uA]
+   2026-09-11T13:05:39 100.1 0.010
+   2026-09-11T13:05:45 99.1 0.010
+```
+
+Spaces are removed from the channel name (`mesh right` becomes `meshright`). A row is
+only written when a value moves past its threshold, so the sampling is irregular. If
+the recorded magnitudes change (different units, or a different set of values saved),
+the day continues in `20260911_gemtop_1.dat` rather than filing new rows under a stale
+header.
+
+The root is the `data` directory next to the code, so it does not depend on where you
+launch from. Override it with `--data-dir` or the `TREX_HV_DATA` environment variable;
+the GUI prints the directory it settled on at startup. Recording can be turned off
+per device with `record=False`, or at runtime in *Config → Advanced options*.
+
+The header is commented and the timestamp is a single token, so the files load with no
+preparation:
+
+```bash
+gnuplot -e 'set xdata time; set timefmt "%Y-%m-%dT%H:%M:%S"; plot "20260911_gemtop.dat" using 1:2'
+```
+```python
+import numpy as np
+vmon, imon = np.loadtxt("20260911_gemtop.dat", usecols=(1, 2), unpack=True)
+```
+
+Files recorded before September 2026 have an uncommented header and a space between the
+date and the time, so those two examples need `skiprows=1` and a different `timefmt`.
+`hvdata.py` below reads both layouts, including a single file that spans the change.
+
+### Reading a time range
+
+[hvdata.py](hvdata.py) gathers the day files across a range, including the `_1`/`_2`
+siblings, and hands back a single table:
+
+```bash
+python3 hvdata.py list                                   # channels present on disk
+python3 hvdata.py info -c "gem top" --from -7d           # files, rows, units, gaps
+python3 hvdata.py dump -c "gem top" --from -7d --epoch   # ready for gnuplot or awk
+python3 hvdata.py dump -c cathode --from 2026-09-01 --to 2026-09-11 --csv -o out.csv
+```
+
+```python
+import hvdata
+df = hvdata.read_channel("cathode", "2026-09-01", "2026-09-11")  # pandas DataFrame
+df["vmon"].plot()
+hvdata.units_of(df)                          # {'vmon': 'V', 'imon': 'mA'}
+t, values, names = hvdata.to_numpy(df)       # unix seconds + a 2-D array, for ROOT
+```
+
+Dates accept ISO (`2026-09-11`, `2026-09-11 13:00`), the words `now`/`today`/`yesterday`,
+and offsets like `-7d` or `-12h`. A bare `--to` date includes the whole of that day. If
+sibling files disagree on units, they are rescaled to the units of the first file and
+each conversion is reported; `--units raise` refuses to guess and `--units keep` leaves
+the values alone and tags each row with the file it came from.
+
 ## Requirements
 
 - Python 3.x

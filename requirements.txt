@@ -1,6 +1,5 @@
 hvps
 toml
-datetime
 requests
 paramiko
 gspread
@@ -8,3 +7,5 @@ oauth2client
 pyvisa-py
 pymodbus
 pyserial
+pandas
+numpy
