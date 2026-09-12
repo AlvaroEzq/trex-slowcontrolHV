@@ -4,7 +4,31 @@ import copy
 import threading
 from dataclasses import dataclass, field
 
-LOG_DIR = "logs"
+def _default_data_dir():
+    """
+    Root directory for recorded channel values.
+
+    Resolved as $TREX_HV_DATA if set, else the "data" directory next to this file.
+    Deliberately NOT relative to the current working directory: that used to make
+    launching the GUI from somewhere else silently start a second, separate data
+    tree. Note this is only for recorded measurements; python logging of messages
+    writes to LOG_DIR in logger.py.
+    """
+    return os.environ.get("TREX_HV_DATA") or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "data"
+    )
+
+DATA_DIR = _default_data_dir()
+
+def set_data_dir(path):
+    """Override the recording root (used by the --data-dir command line option)."""
+    global DATA_DIR
+    DATA_DIR = os.path.abspath(os.path.expanduser(path))
+    return DATA_DIR
+
+def channel_slug(name):
+    """Channel name as it appears in a filename, e.g. "mesh right" -> "meshright"."""
+    return name.replace(" ", "")
 
 def create_directory_recursive(path):
     try:
@@ -13,11 +37,11 @@ def create_directory_recursive(path):
     except Exception as e:
         print(f"Error occurred while creating directory '{path}': {e}")
 
-def get_path_from_date(dt_obj):
-    return LOG_DIR + "/" + dt_obj.strftime("%Y/%m/%d")
+def get_record_dir_from_date(dt_obj):
+    return DATA_DIR + "/" + dt_obj.strftime("%Y/%m/%d")
 
-def get_full_filename_from_date(dt_obj, suffix="", extension="dat"):
-    path = get_path_from_date(dt_obj)
+def get_record_filename_from_date(dt_obj, suffix="", extension="dat"):
+    path = get_record_dir_from_date(dt_obj)
     return f"{path}/{dt_obj.strftime('%Y%m%d')}_{suffix}.{extension}"
 
 
@@ -61,8 +85,7 @@ class ChannelState:
     Features:
     - current/previous/last_saved snapshots
     - generic variable support
-    - threshold-based logging
-    - CSV writing
+    - threshold-based recording to file
     - immutable state snapshots
     """
 
@@ -71,7 +94,7 @@ class ChannelState:
         self.name = channel_name
         self.value_names = value_names
 
-        # Thresholds for deciding whether a value changed enough to trigger logging.
+        # Thresholds for deciding whether a value changed enough to trigger a recording.
         # Example: { "vmon": 0.5, "imon": 0.01, "pressure": 0.1,}
         self.thresholds = thresholds or {}
 
@@ -96,7 +119,7 @@ class ChannelState:
             print(
                 f"Warning: channel '{self.name}' saves {unwatched} to file but has no"
                 f" threshold for them, so a change in those values alone will not be"
-                f" logged. Add them to 'thresholds' to log them."
+                f" recorded. Add them to 'thresholds' to record them."
             )
 
         # Initialize state snapshots
@@ -157,7 +180,7 @@ class ChannelState:
         return False
 
     # ========================================================
-    # Logging
+    # Recording to file
     # ========================================================
     def save_state(self, force=False, save_previous=True):
         # Only the state snapshots are touched under self.lock. File I/O (and the
@@ -172,7 +195,7 @@ class ChannelState:
             write_previous = save_previous and self.last_saved != previous
             self.last_saved = current
 
-        filename = get_full_filename_from_date(current.timestamp, suffix=self.name.replace(" ", ""))
+        filename = get_record_filename_from_date(current.timestamp, suffix=channel_slug(self.name))
         with self.file_lock:
             if write_previous:
                 self.write_state_to_file(previous, filename, delimiter=' ')
@@ -224,7 +247,7 @@ class ChannelState:
         """
         Return the file to append to for the given header.
 
-        The header is only written when a file is created, so if the logged
+        The header is only written when a file is created, so if the recorded
         magnitudes change (save_value, units, value_names or their order), appending
         to an existing file would file the new rows under a stale header. Instead,
         roll over to "<base>_1.dat", "<base>_2.dat", ... until a file whose header

@@ -23,6 +23,7 @@ from daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
 from daqmetricsgui import DaqMetricsGUI
 from multidevicegui import MultiDeviceGUI
 import logger
+import channel
 
 
 class HVGUI(MultiDeviceGUI):
@@ -1060,8 +1061,15 @@ if __name__ == "__main__":
     parser.add_argument("--test", action="store_true", help="Enable test mode")
     parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB0")
     parser.add_argument("--checks", type=str, help="Select checks configuration file", default="checks_config.toml")
+    parser.add_argument("--data-dir", type=str, help="Directory to record channel values into "
+                        "(default: $TREX_HV_DATA, else the 'data' directory next to the code)")
 
     args = parser.parse_args()
+
+    if args.data_dir:
+        channel.set_data_dir(args.data_dir)
+    print("recording values to:", channel.DATA_DIR)
+    print("writing message logs to:", logger.LOG_DIR)
 
     checks_caen = load_checks_from_toml_file(args.checks, "caen")
     checks_spellman = load_checks_from_toml_file(args.checks, "spellman")

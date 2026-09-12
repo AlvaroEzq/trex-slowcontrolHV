@@ -1,11 +1,19 @@
 import datetime as dt
+import os
 import logging
 import queue
 import threading
 import requests
 import json
 
-LOG_DIR = "logs"
+# Directory for the python logging output (messages and alarms). Anchored next to
+# this file rather than relative to the working directory, so launching from
+# elsewhere does not scatter log files or crash the FileHandlers below.
+# Recorded channel values go to DATA_DIR in channel.py instead.
+LOG_DIR = os.environ.get("TREX_HV_LOGS") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "logs"
+)
+os.makedirs(LOG_DIR, exist_ok=True)
 SLACK_WEBHOOK_URL = "" # add here the webkook url
 MATTERMOST_WEBHOOK_URL = ""
 
