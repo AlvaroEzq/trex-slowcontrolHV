@@ -61,7 +61,7 @@ class DeviceGUI(ABC):
             print(f"Warning: {type(self).__name__} ignoring unknown options: {unknown}")
         
         base_channel_params = {
-            "save_previous": False,
+            "save_previous": True,
             "save_force": False,
             "thresholds": {},
             "precisions": {},
@@ -75,6 +75,7 @@ class DeviceGUI(ABC):
                 chstate = self.channels_state[name]
                 self.config_channels_params[name]["thresholds"] = chstate.thresholds
                 self.config_channels_params[name]["precisions"] = chstate.precisions
+                self.config_channels_params[name]["save_previous"] = chstate.save_previous
 
         # Validate input parameters
         if not isinstance(self.config_params["recording_enabled"], bool):

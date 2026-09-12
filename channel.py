@@ -89,7 +89,8 @@ class ChannelState:
     - immutable state snapshots
     """
 
-    def __init__(self, channel_name, value_names, thresholds=None, precisions=None, units=None, save_value=None):
+    def __init__(self, channel_name, value_names, thresholds=None, precisions=None, units=None, save_value=None,
+                 save_previous=True):
 
         self.name = channel_name
         self.value_names = value_names
@@ -106,6 +107,12 @@ class ChannelState:
         
         # flag to decide whether to save a specific variable (if None, all are saved). Example: {"vmon": True, "imon": True, "pressure": False,}
         self.save_value = save_value or {}
+
+        # Whether to also record the reading immediately before one that crosses a
+        # threshold. Without it, a value that sat still for days and then jumped
+        # leaves no trace of what it was just before the jump: the previous row in
+        # the file is days old.
+        self.save_previous = save_previous
 
         # A row is only written when is_different() says something moved, and it only
         # looks at keys present in thresholds. A magnitude that is saved to file but
@@ -182,24 +189,41 @@ class ChannelState:
     # ========================================================
     # Recording to file
     # ========================================================
-    def save_state(self, force=False, save_previous=True):
+    def save_state(self, force=False, save_previous=None):
         # Only the state snapshots are touched under self.lock. File I/O (and the
         # print() it may do, which is redirected to a Tk widget and therefore blocks
         # until the GUI main thread services it) must stay outside the lock, or the
         # main thread deadlocks against this one while waiting in get_values().
+        if save_previous is None:
+            save_previous = self.save_previous
+
         with self.lock:
             if not (force or self.is_different()):
                 return
             current = self.current
             previous = self.previous
-            write_previous = save_previous and self.last_saved != previous
+            # skip it when previous is what we wrote last time, or it duplicates
+            write_previous = (save_previous and self.last_saved != previous
+                              and bool(previous.values))
             self.last_saved = current
 
-        filename = get_record_filename_from_date(current.timestamp, suffix=channel_slug(self.name))
+        slug = channel_slug(self.name)
         with self.file_lock:
             if write_previous:
-                self.write_state_to_file(previous, filename, delimiter=' ')
-            self.write_state_to_file(current, filename, delimiter=' ')
+                # By its own date: when the threshold is crossed just after midnight
+                # the preceding reading belongs in yesterday's file. Filing it with
+                # current would put a row dated yesterday in today's file, where a
+                # query for yesterday never looks.
+                self.write_state_to_file(
+                    previous,
+                    get_record_filename_from_date(previous.timestamp, suffix=slug),
+                    delimiter=' ',
+                )
+            self.write_state_to_file(
+                current,
+                get_record_filename_from_date(current.timestamp, suffix=slug),
+                delimiter=' ',
+            )
 
     def file_header_row(self):
         header = ["Time"]
