@@ -1,16 +1,8 @@
 import datetime as dt
 import os
-import logging
-import queue
-import threading
-import requests
-import json
-
 import copy
-import csv
-import datetime as dt
+import threading
 from dataclasses import dataclass, field
-from pathlib import Path
 
 LOG_DIR = "logs"
 
@@ -228,13 +220,6 @@ class ChannelState:
             return ""
         return delimiter.join(row)
 
-    def _build_filename(self, directory):
-        date_str = self.current.timestamp.strftime("%Y-%m-%d")
-        safe_name = self.name.replace(" ", "_")
-        path = Path(directory)
-        path.mkdir(parents=True, exist_ok=True)
-        return path / f"{date_str}_{safe_name}.csv"
-    
     def _resolve_filename(self, base_filename: str, header_str: str):
         """
         Return the file to append to for the given header.
