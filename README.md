@@ -20,7 +20,8 @@ This repository contains software for remote control and monitoring of high volt
       It is recommended to set the slack/mattermost logging level to warning if you want to receive messages when trips happen or error if you want to ignore the messages of trips.
    - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) or [femdaq](https://github.com/juanangp/femdaq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication.
    - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `utils.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
-- CAEN and Spellman SL30 simulators for testing without hardware.
+- Monitoring of the sensor and alarm safety system for the use of flammable gas (isobutane): the gas sensors connected to an MX32v2 controller and the digital alarm signals of the safety system read by an Arduino. Every alarm raised or cleared is logged (the raised ones as critical records, so they reach the slack/mattermost webhook).
+- CAEN, Spellman SL30, Rigol, MX32v2 and Arduino simulators for testing without hardware.
 
 ## Usage
 
@@ -40,6 +41,8 @@ This repository contains software for remote control and monitoring of high volt
    ```bash
    python3 multiHVgui.py
    python3 multiHVgui.py --test
+   python3 multiflammablegasgui.py
+   python3 multiflammablegasgui.py --test
    ```
    Or even the GUI of an individual device. For example,
    ```bash
@@ -62,9 +65,9 @@ SuperGUI                     (sidebar + navigation, owns the Tk root)
 │   ├── CaenHVPSGUI (DeviceGUI)
 │   ├── SpellmanFrame (DeviceGUI)
 │   └── ...
-└── RigolsGUI (MultiDeviceGUI)
-    ├── RigolGUI (DeviceGUI)
-    └── ...
+└── FlammableGasGUI (MultiDeviceGUI)
+    ├── MX32v2GUI (DeviceGUI)
+    └── ArduinoGUI (DeviceGUI)
 ```
 
 Two rules define the architecture:
@@ -102,9 +105,9 @@ Tk root
     ├── HVGUI.frame
     │   ├── CaenHVPSGUI.frame
     │   └── SpellmanFrame.frame
-    └── RigolsGUI.frame
-        ├── RigolGUI.frame
-        └── RigolGUI.frame
+    └── FlammableGasGUI.frame
+        ├── MX32v2GUI.frame
+        └── ArduinoGUI.frame
 ```
 
 Only the top level runs `mainloop()`: a `DeviceGUI` or a `MultiDeviceGUI` starts it
@@ -116,17 +119,23 @@ only when it is the standalone/top-level GUI (i.e. when no `parent_frame` is giv
    - `supergui.py`: **Main GUI** that contains the different subsystems (HV, ...) and the sidebar to navigate between them. It owns the only GUI update scheduler of the application.
    - `multidevicegui.py`: Implementation of the abstract class that serves as base class for the subsystem GUIs (a group of device GUIs). Implement the `create_gui` abstract method, creating there the children `DeviceGUI`s with `auto_gui_update=False` inside `self.frame` and registering them in `self.all_guis`.
    - `multiHVgui.py`: **HV subsystem GUI** that contains individual interfaces for CAEN and Spellman HV devices, as well as multi-device control. It can be run on its own.
+   - `multiflammablegasgui.py`: **Flammable gas safety subsystem GUI**, grouping the GUIs of the two devices of the isobutane sensor and alarm safety system (the MX32v2 gas sensor controller and the Arduino). It can be run on its own.
    - `multirigolgui.py`: Subsystem GUI grouping several Rigol power supplies. It can be run on its own.
    - `devicegui.py`: Implementation of the abstract class that serves as base class for the individual devices GUIs. This abstract class implements a device lock for multithreading-safe communication with the device and a command queue to keep the order of the communications to the device. Please, use the `issue_command` method (or at least acquire the device lock manually) for any function (or statement) that requires to communicate with the device to avoid spurious errors. To write the individual device GUI, define your class as a children of this base class and implement the appropiate `read_values` (for background monitoring) and `create_gui` (for the GUI layout) abstract methods for your particular case. Do not forget to call the parent class constructor (`super().__init__`) at the end of your the class constructor (`__init__`), as it will start the GUI mainloop (when used standalone) and any line written after this will not be executed (until the GUI is closed). Build the widgets of the GUI inside `self.frame` and forward the `auto_gui_update` argument to `super().__init__`. You can use the following as examples:
       - `caengui.py`: GUI for CAEN HV devices.
       - `spellmangui.py`: GUI for Spellman HV devices.
       - `rigolgui.py`: GUI for Rigol power supplies.
+      - `mx32v2gui.py`: GUI for the gas sensors connected to an MX32v2 controller.
+      - `arduinogui.py`: GUI for the digital alarm signals of the safety system read by an Arduino.
       - `daqmetricsgui.py`: GUI for the DAQ metrics.
    - `checksframe.py`: Implementation of the ChecksFrame class to display and manage the checks.
    - `utilsgui.py`: Implementation of GUI utility classes such as ToolTip and PrintToTextWidget.
 - Device modules
    - `spellmanClass.py`: Class for managing the Spellman HV supply.
-   - `simulators.py`: CAEN and Spellman device simulator classes.
+   - `rigolClass.py`: Class for managing the Rigol power supplies.
+   - `mx32v2.py`: Class for managing the MX32v2 gas sensor controller (through Modbus) and the configuration of the sensors of the installation (which sensors are connected to each line and what their alarm thresholds are).
+   - `arduino.py`: Class for reading the digital alarm signals of the safety system from the Arduino serial line.
+   - `simulators.py`: CAEN, Spellman, Rigol, MX32v2 and Arduino device simulator classes.
 - Support modules
    - `check.py`: Implementation of the checks classes.
    - `logger.py`: Implementation of the ChannelState class and logging helper functions and classes.

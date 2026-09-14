@@ -28,7 +28,7 @@ class ArduinoGUI(DeviceGUI):
     Inherits from DeviceGUI and provides specific functionality for the Arduino device.
     """
 
-    def __init__(self, device, parent_frame=None, channel_names=None, log=True):
+    def __init__(self, device, parent_frame=None, channel_names=None, log=True, auto_gui_update=True):
         if channel_names is None:
             channel_names = CHANNEL_NAMES
 
@@ -49,12 +49,13 @@ class ArduinoGUI(DeviceGUI):
                         device=device,
                         channels_states=channels_states,
                         parent_frame=parent_frame,
+                        auto_gui_update=auto_gui_update,
                         logging_enabled=log,
                         read_loop_time=10,
                         )
 
     def create_gui(self):
-        self.main_frame = tk.LabelFrame(self.root, text="Arduino Control", padx=10, pady=10, bd=4)
+        self.main_frame = tk.LabelFrame(self.frame, text="Arduino Control", padx=10, pady=10, bd=4)
         self.main_frame.pack(fill="both", expand=True)
 
         self.channel_frame = self.create_channel_frame(self.main_frame, self.channels_name)
