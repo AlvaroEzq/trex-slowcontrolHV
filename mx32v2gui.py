@@ -34,7 +34,7 @@ class MX32v2GUI(DeviceGUI):
     Inherits from DeviceGUI and provides specific functionality for the MX32v2.
     """
 
-    def __init__(self, device, parent_frame=None, sensors=None, log=True):
+    def __init__(self, device, parent_frame=None, sensors=None, log=True, auto_gui_update=True):
         if sensors is None:
             sensors = SENSORS
         self.sensors = tuple(sensors)
@@ -64,12 +64,13 @@ class MX32v2GUI(DeviceGUI):
                         device=device,
                         channels_states=channels_states,
                         parent_frame=parent_frame,
+                        auto_gui_update=auto_gui_update,
                         logging_enabled=log,
                         read_loop_time=2,
                         )
 
     def create_gui(self):
-        self.main_frame = tk.LabelFrame(self.root, text=f"{self.device.name}", font=("", 16),
+        self.main_frame = tk.LabelFrame(self.frame, text=f"{self.device.name}", font=("", 16),
                                         padx=10, pady=10, labelanchor="n", bd=4)
         self.main_frame.pack(fill="both", expand=True)
 

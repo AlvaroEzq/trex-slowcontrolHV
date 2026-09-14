@@ -18,7 +18,7 @@ class DaqMetricsGUI(DeviceGUI):
     GUI for monitoring DAQ metrics, such as run number, run type, run duration, and DAQ speed. It fetches the metrics using a MetricsFetcher instance and updates the GUI accordingly. The GUI also provides buttons to add the metrics to a Google Sheet.
     """
 
-    def __init__(self, daqmetrics, all_channels=None, channels_vset_guilabel=None, parent_frame=None):
+    def __init__(self, daqmetrics, all_channels=None, channels_vset_guilabel=None, parent_frame=None, auto_gui_update=True):
 
         self.daqmetrics = daqmetrics
         self.all_channels = all_channels if all_channels is not None else {} # list of all channels of the main GUI
@@ -42,12 +42,13 @@ class DaqMetricsGUI(DeviceGUI):
                         device=daqmetrics,
                         channels_states={},
                         parent_frame=parent_frame,
+                        auto_gui_update=auto_gui_update,
                         logging_enabled=False,
                         read_loop_time=60,
                         )
     
     def create_gui(self):
-        self.main_frame = tk.LabelFrame(self.root, text=f"{self.daqmetrics.name}", font=("", 16), padx=10, pady=10, labelanchor="n", bd=4)
+        self.main_frame = tk.LabelFrame(self.frame, text=f"{self.daqmetrics.name}", font=("", 16), padx=10, pady=10, labelanchor="n", bd=4)
         self.main_frame.pack(expand=False)
         self.main_frame = self.create_main_frame(self.main_frame, self.channels_name)
     

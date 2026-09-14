@@ -34,7 +34,7 @@ class RigolGUI(DeviceGUI):
     Inherits from DeviceGUI and provides specific functionality for the BGA244 device.
     """
 
-    def __init__(self, device, parent_frame=None, channel_names=None, log=True):
+    def __init__(self, device, parent_frame=None, channel_names=None, log=True, auto_gui_update=True):
         if channel_names is None:
             channel_names = CHANNEL_NAMES
 
@@ -64,19 +64,10 @@ class RigolGUI(DeviceGUI):
                         )
     
     def create_gui(self):
-        start_mainloop = False
-        if self.root is None:
-            self.root = tk.Tk()
-            self.root.title("Rigol Monitor GUI")
-            start_mainloop = True
-
-        self.main_frame = tk.LabelFrame(self.root, text=f"{self.device.name}", font=("", 16), padx=10, pady=10, labelanchor="n", bd=4)
+        self.main_frame = tk.LabelFrame(self.frame, text=f"{self.device.name}", font=("", 16), padx=10, pady=10, labelanchor="n", bd=4)
         self.main_frame.pack(fill="both", expand=True)
         
         self.main_frame = self.create_main_frame(self.main_frame, self.channels_name)
-
-        if start_mainloop:
-            self.root.mainloop()
     
     def create_main_frame(self, frame, channels_name):
         main_frame = tk.Frame(frame)

@@ -21,11 +21,14 @@ from check import load_checks_from_toml_file
 from utilsgui import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
 from daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
 from daqmetricsgui import DaqMetricsGUI
+from multidevicegui import MultiDeviceGUI
 import logger
 
 
-class HVGUI:
-    def __init__(self, caen_module=None, spellman_module=None, rigol_module_1=None, rigol_module_2=None, checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True):
+class HVGUI(MultiDeviceGUI):
+    def __init__(self, caen_module=None, spellman_module=None, rigol_module_1=None, rigol_module_2=None,
+                 checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True,
+                 parent_frame=None, auto_gui_update=True, gui_update_time=1):
         if checks_caen is None:
             checks_caen = []
         if checks_spellman is None:
@@ -101,18 +104,22 @@ class HVGUI:
 
         self.logger = logger.configure_basic_logger("app", log_level=logging.DEBUG)
 
-        self.create_gui()
+        super().__init__(name="TREX HV SC",
+                         devices=[caen_module, spellman_module, rigol_module_1, rigol_module_2],
+                         parent_frame=parent_frame,
+                         auto_gui_update=auto_gui_update,
+                         gui_update_time=gui_update_time,
+                         log=log)
 
     def create_gui(self):
-        self.root = tk.Tk()
-        self.root.title("TREX HV SC")
         self.validate_numeric_input = (self.root.register(validate_numeric_entry_input), "%P")
 
         if self.caen_module is not None:
-            self.caen_frame = tk.Frame(self.root)
+            self.caen_frame = tk.Frame(self.frame)
             self.caen_frame.pack(side="left", fill="x", anchor="n", expand=True)
             self.caen_gui = caengui.CaenHVPSGUI(module=self.caen_module, parent_frame=self.caen_frame,
-                                                channel_names=caengui.CHANNEL_NAMES, checks=self.caen_checks, silence=False, log=self.logging_enabled)
+                                                channel_names=caengui.CHANNEL_NAMES, checks=self.caen_checks, silence=False,
+                                                log=self.logging_enabled, auto_gui_update=False)
             self.all_channels = {name: self.caen_module.channels[i] for i, name in enumerate(self.caen_gui.channels_name) if i < len(self.caen_module.channels)} # to avoid adding the board
             self.channels_gui = {name: self.caen_gui for name in self.caen_gui.channels_name}
             self.all_guis['caen'] = self.caen_gui
@@ -121,9 +128,10 @@ class HVGUI:
             self.channels_vset_guilabel = {name: label for name, label in zip(self.caen_gui.channels_name, self.caen_gui.vset_labels)}
 
         if self.spellman_module is not None:
-            self.spellman_frame = tk.Frame(self.root)
+            self.spellman_frame = tk.Frame(self.frame)
             self.spellman_frame.pack(side="right", fill="x", anchor="n", expand=False)
-            self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame, checks=self.spellman_checks, log=self.logging_enabled) # TODO: implement individual spellman checks
+            self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame, checks=self.spellman_checks,
+                                                          log=self.logging_enabled, auto_gui_update=False) # TODO: implement individual spellman checks
             self.all_channels = {'cathode' : self.spellman_module, **self.all_channels} # add the spellman module as cathode at the front of the dict
             self.channels_gui['cathode'] = self.spellman_gui
             self.all_guis['cathode'] = self.spellman_gui
@@ -132,26 +140,28 @@ class HVGUI:
             self.channels_vset_guilabel['cathode'] = self.spellman_gui.labels['voltage_dac_label']
 
 
-        electronics_frame = self.caen_frame if self.caen_frame else self.root
+        electronics_frame = self.caen_frame if self.caen_frame else self.frame
         daq_frame = tk.Frame(electronics_frame)
         daq_frame.pack(side="right", expand=False, fill='both', padx=20)
         self.create_daq_frame(daq_frame)
         if self.rigol_module_1 is not None:
             self.rigol_frame_1 = tk.Frame(electronics_frame)
             self.rigol_frame_1.pack(side="top", fill="x", anchor="n", expand=True)
-            self.rigol_gui_1 = rigolgui.RigolGUI(device=self.rigol_module_1, parent_frame=self.rigol_frame_1, channel_names=rigolgui.CHANNEL_NAMES_LEFT, log=self.logging_enabled)
+            self.rigol_gui_1 = rigolgui.RigolGUI(device=self.rigol_module_1, parent_frame=self.rigol_frame_1, channel_names=rigolgui.CHANNEL_NAMES_LEFT,
+                                                 log=self.logging_enabled, auto_gui_update=False)
             self.all_guis['rigol left'] = self.rigol_gui_1
         if self.rigol_module_2 is not None:
             self.rigol_frame_2 = tk.Frame(electronics_frame)
             self.rigol_frame_2.pack(side="top", fill="x", anchor="n", expand=True)
-            self.rigol_gui_2 = rigolgui.RigolGUI(device=self.rigol_module_2, parent_frame=self.rigol_frame_2, channel_names=rigolgui.CHANNEL_NAMES_RIGHT, log=self.logging_enabled)
+            self.rigol_gui_2 = rigolgui.RigolGUI(device=self.rigol_module_2, parent_frame=self.rigol_frame_2, channel_names=rigolgui.CHANNEL_NAMES_RIGHT,
+                                                 log=self.logging_enabled, auto_gui_update=False)
             self.all_guis['rigol right'] = self.rigol_gui_2
         
         # Create the toggle button with a downward triangle (initially visible text)
         if self.rigol_gui_1 is None and self.rigol_gui_2 is None:
             scrolled_text_frame = electronics_frame # place the text left from the DAQ metris frame
         else:
-            scrolled_text_frame = tk.Frame(self.root)
+            scrolled_text_frame = tk.Frame(self.frame)
             scrolled_text_frame.pack(side="bottom", fill="both", expand=True)
         scrolled_text_frame = electronics_frame if (self.rigol_gui_1 is None or self.rigol_gui_2 is None) else self.rigol_frame_2
         self.text_visible = True # State to track if the widget is hidden
@@ -160,16 +170,16 @@ class HVGUI:
         if self.caen_module is not None or self.spellman_module is not None:
             self.create_multidevice_frame(self.spellman_frame)
 
-        self.menu_bar = tk.Menu(self.root)
+        # self.menu_bar is created by MultiDeviceGUI, which attaches it to the window
+        # when this GUI is standalone (a SuperGUI attaches it when this subsystem is shown)
         self.menu_config = tk.Menu(self.menu_bar, tearoff=0)
         # self.menu_config.add_command(label="Load checks") # TODO: implement load checks
         self.menu_config.add_command(label="Verbose", command=self.open_verbose_window)
         self.menu_config.add_command(label="Checks", command=self.open_checks_window)
         self.menu_config.add_command(label="Device GUI configuration", command=self.open_devicegui_config_window)
         self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
-        self.root.config(menu=self.menu_bar)
 
-        self.root.mainloop()
+    def cleanup(self):
         self.reset_logging()
 
     def open_verbose_window(self):
@@ -407,7 +417,8 @@ class HVGUI:
         )
         
         daqmetrics = FemDaqMetrics(metrics_fetcher)
-        daqmetrics_gui = DaqMetricsGUI(daqmetrics, parent_frame=frame, all_channels=self.all_channels, channels_vset_guilabel=self.channels_vset_guilabel)
+        daqmetrics_gui = DaqMetricsGUI(daqmetrics, parent_frame=frame, all_channels=self.all_channels,
+                                       channels_vset_guilabel=self.channels_vset_guilabel, auto_gui_update=False)
         
         self.all_guis['daqmetrics'] = daqmetrics_gui
 
