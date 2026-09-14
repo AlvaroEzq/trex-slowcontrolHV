@@ -92,7 +92,7 @@ class ArduinoGUI(DeviceGUI):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Arduino GUI Control")
-    parser.add_argument("--port", type=str, required=True, help="Serial port for the Arduino device")
+    parser.add_argument("--port", type=str, default="/dev/ttyACM0", help="Serial port for the Arduino device")
     args = parser.parse_args()
 
     # Initialize the Arduino device
