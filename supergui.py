@@ -4,6 +4,15 @@ import tkinter as tk
 
 from multidevicegui import MultiDeviceGUI
 
+# Colours of the sidebar. They only affect the navigation chrome of the SuperGUI,
+# not the subsystems themselves (which keep the default Tk look).
+SIDEBAR_WIDTH = 170
+SIDEBAR_BG = "#2b2f38"
+SIDEBAR_FG = "#c8ccd4"
+SIDEBAR_TITLE_FG = "#8a93a3"
+SELECTED_BG = "#3d4757"
+SELECTED_FG = "#ffffff"
+
 
 class SuperGUI:
     """
@@ -35,10 +44,13 @@ class SuperGUI:
         self.root = tk.Tk()
         self.root.title(title)
 
-        self.sidebar_frame = tk.Frame(self.root, bd=2, relief="ridge")
+        self.sidebar_frame = tk.Frame(self.root, bg=SIDEBAR_BG, width=SIDEBAR_WIDTH,
+                                      bd=0, highlightthickness=0)
         self.sidebar_frame.pack(side="left", fill="y")
-        tk.Label(self.sidebar_frame, text="Subsystems", font=("", 12, "bold")).pack(
-            side="top", fill="x", padx=5, pady=5
+        self.sidebar_frame.pack_propagate(False) # keep the width of the sidebar fixed
+        tk.Label(self.sidebar_frame, text="SUBSYSTEMS", font=("", 9, "bold"),
+                 bg=SIDEBAR_BG, fg=SIDEBAR_TITLE_FG, anchor="w").pack(
+            side="top", fill="x", padx=16, pady=(14, 8)
         )
 
         self.content_frame = tk.Frame(self.root)
@@ -77,11 +89,22 @@ class SuperGUI:
         self.subsystems[name] = subsystem
 
         button = tk.Button(
-            self.sidebar_frame, text=name, command=lambda n=name: self.show_subsystem(n)
+            self.sidebar_frame, text=name, command=lambda n=name: self.show_subsystem(n),
+            bg=SIDEBAR_BG, fg=SIDEBAR_FG, activebackground=SELECTED_BG, activeforeground=SELECTED_FG,
+            relief="flat", bd=0, highlightthickness=0, anchor="w", padx=16, pady=10, cursor="hand2",
         )
-        button.pack(side="top", fill="x", padx=5, pady=2)
+        button.pack(side="top", fill="x")
+        # highlight the button under the pointer, without losing the selected one
+        button.bind("<Enter>", lambda event, b=button: b.config(bg=SELECTED_BG, fg=SELECTED_FG))
+        button.bind("<Leave>", lambda event, b=button, n=name: self.paint_button(b, n))
         self.buttons[name] = button
         return subsystem
+
+    def paint_button(self, button, name):
+        """Paint a sidebar button as selected or not, depending on what is shown."""
+        selected = name == self.current_name
+        button.config(bg=SELECTED_BG if selected else SIDEBAR_BG,
+                      fg=SELECTED_FG if selected else SIDEBAR_FG)
 
     def show_subsystem(self, name):
         """Display the given subsystem. Only the GUI rendering is affected."""
@@ -101,7 +124,7 @@ class SuperGUI:
         self.root.config(menu=subsystem.menu_bar)
 
         for button_name, button in self.buttons.items():
-            button.config(relief="sunken" if button_name == name else "raised")
+            self.paint_button(button, button_name)
 
         # refresh right away instead of waiting for the next tick
         self.update_gui()
