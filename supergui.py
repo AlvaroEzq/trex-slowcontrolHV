@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
-    parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB0")
+    parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB2")
     parser.add_argument("--checks", type=str, help="Select checks configuration file", default="checks_config.toml")
     parser.add_argument("--mx32-port", type=str, help="Serial port of the MX32v2 gas sensor controller", default="/dev/ttyUSB1")
     parser.add_argument("--arduino-port", type=str, help="Serial port of the Arduino of the safety system", default="/dev/ttyACM0")
