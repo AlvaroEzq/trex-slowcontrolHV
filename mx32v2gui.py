@@ -123,9 +123,43 @@ class MX32v2GUI(DeviceGUI):
                 except Exception as e:
                     self.logger.warning(f"Could not read sensor '{sensor.name}': {e}")
                     values = failed_sensor_reading()
+                previous_values = self.channels_state[sensor.name].get_values()
                 self.channels_state[sensor.name].set_state(values)
+                self.log_alarm_transitions(sensor, previous_values, values)
         finally:
             self.device.close()
+
+    def log_alarm_transitions(self, sensor, previous_values, values):
+        """
+        Log every alarm that has just been raised (critical) or cleared (info).
+
+        Only the transitions are logged: the read loop runs every few seconds and
+        the critical records are forwarded to Slack/Mattermost, so logging on every
+        read while an alarm is standing would flood those channels.
+        """
+        if not values.get("comm_ok", False):
+            # the flags of a failed reading are all False, which is not a real
+            # "alarm cleared". Alarms that are still standing get logged again once
+            # the communication comes back, which is what we want after going blind.
+            return
+
+        concentration = values.get("concentration", -1.0)
+        for alarm in sensor.alarms:
+            active = values.get(alarm.key, False)
+            if active == previous_values.get(alarm.key, False):
+                continue
+            if active:
+                self.logger.critical(
+                    f"{self.device.name} {sensor.name} (line {sensor.line}): GAS ALARM"
+                    f" {alarm.number} ACTIVATED at {concentration:.1f} {sensor.unit}"
+                    f" (threshold {alarm.level:g} {sensor.unit})"
+                )
+            else:
+                self.logger.info(
+                    f"{self.device.name} {sensor.name} (line {sensor.line}): gas alarm"
+                    f" {alarm.number} cleared at {concentration:.1f} {sensor.unit}"
+                    f" (threshold {alarm.level:g} {sensor.unit})"
+                )
 
     def update_gui(self):
         for sensor in self.sensors:
