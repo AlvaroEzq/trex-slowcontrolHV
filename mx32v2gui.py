@@ -56,7 +56,7 @@ class MX32v2GUI(DeviceGUI):
                     **{name: 1 for name in SENSOR_VALUE_NAMES},
                     "concentration": sensor.log_threshold,
                 },
-                precisions={"concentration": 1},
+                precisions={"concentration": 2},
                 units={"concentration": sensor.unit},
             )
 
@@ -151,13 +151,13 @@ class MX32v2GUI(DeviceGUI):
             if active:
                 self.logger.critical(
                     f"{self.device.name} {sensor.name} (line {sensor.line}): GAS ALARM"
-                    f" {alarm.number} ACTIVATED at {concentration:.1f} {sensor.unit}"
+                    f" {alarm.number} ACTIVATED at {concentration:.2f} {sensor.unit}"
                     f" (threshold {alarm.level:g} {sensor.unit})"
                 )
             else:
                 self.logger.info(
                     f"{self.device.name} {sensor.name} (line {sensor.line}): gas alarm"
-                    f" {alarm.number} cleared at {concentration:.1f} {sensor.unit}"
+                    f" {alarm.number} cleared at {concentration:.2f} {sensor.unit}"
                     f" (threshold {alarm.level:g} {sensor.unit})"
                 )
 
@@ -180,7 +180,7 @@ class MX32v2GUI(DeviceGUI):
 
         concentration = values.get("concentration", -1.0)
         self.value_labels[sensor.name].config(
-            text=f"{concentration:.1f} {sensor.unit}",
+            text=f"{concentration:.2f} {sensor.unit}",
             fg=COLOR_ALARM if any(alarms_active) else (COLOR_FAULT if flags_active else COLOR_OK),
         )
         for label, active in zip(self.alarm_labels[sensor.name], alarms_active):
