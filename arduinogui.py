@@ -12,6 +12,7 @@ SIGNAL_DISPLAY = {
     1: ("ALARM", "red"),
 }
 SIGNAL_DISPLAY_UNKNOWN = ("NO DATA", "orange")
+ALARM_SIGNAL = 1
 
 from arduino import ArduinoReader
 from channel import ChannelState
@@ -82,7 +83,32 @@ class ArduinoGUI(DeviceGUI):
             signals = self.device.get_both()
             for i, name in enumerate(self.channels_name):
                 value = signals[i] if signals is not None and i < len(signals) else -1
+                previous_value = self.channels_state[name].get_value("signal", -1)
                 self.channels_state[name].set_state({"signal": value})
+                self.log_alarm_transition(name, previous_value, value)
+
+    def log_alarm_transition(self, name, previous_value, value):
+        """
+        Log an alarm that has just been raised (critical) or cleared (info).
+
+        Only the transitions are logged: the read loop keeps polling and the
+        critical records are forwarded to Slack/Mattermost, so logging on every
+        read while an alarm is standing would flood those channels.
+        """
+        if value not in SIGNAL_DISPLAY:
+            # the reading failed, which is not an alarm being cleared. An alarm that
+            # is still standing is announced again once the Arduino answers, which is
+            # what we want after a blind period.
+            return
+
+        active = value == ALARM_SIGNAL
+        if active == (previous_value == ALARM_SIGNAL):
+            return
+
+        if active:
+            self.logger.critical(f"{self.device.name} {name}: SAFETY ALARM ACTIVATED")
+        else:
+            self.logger.info(f"{self.device.name} {name}: safety alarm cleared")
 
     def update_gui(self):
         for i, name in enumerate(self.channels_name):
