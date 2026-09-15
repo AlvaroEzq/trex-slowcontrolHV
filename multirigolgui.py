@@ -15,7 +15,7 @@ class RigolsGUI(MultiDeviceGUI):
     """
 
     def __init__(self, devices, channel_names=None, parent_frame=None,
-                 auto_gui_update=True, gui_update_time=1, log=True):
+                 auto_gui_update=True, gui_update_time=1, record=True):
         self.channel_names = channel_names if channel_names is not None else {}
         self.device_frames = {}
 
@@ -24,7 +24,7 @@ class RigolsGUI(MultiDeviceGUI):
                          parent_frame=parent_frame,
                          auto_gui_update=auto_gui_update,
                          gui_update_time=gui_update_time,
-                         log=log)
+                         record=record)
 
     def create_gui(self):
         for device in self.devices:
@@ -37,7 +37,7 @@ class RigolsGUI(MultiDeviceGUI):
                 device=device,
                 parent_frame=frame,
                 channel_names=self.channel_names.get(device.name),
-                log=self.logging_enabled,
+                record=self.recording_enabled,
                 auto_gui_update=False, # this subsystem owns the GUI update of its devices
             )
 
@@ -59,4 +59,4 @@ if __name__ == "__main__":
             exit(1)
         devices = [RigolPowerSupply(name=f"Rigol {i+1}", resource_name=r) for i, r in enumerate(args.resource)]
 
-    RigolsGUI(devices, log=False)
+    RigolsGUI(devices, record=False)

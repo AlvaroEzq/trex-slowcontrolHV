@@ -32,7 +32,7 @@ class DeviceGUI(ABC):
     - auto_gui_update (bool): Whether this GUI owns its own GUI update scheduler
         (default: True). Set it to False when the GUI is managed by a parent GUI
         (e.g. a MultiDeviceGUI), which then becomes responsible for calling
-        update_gui(). It never affects the background hardware reading nor the logging.
+        update_gui(). It never affects the background hardware reading nor the recording.
     - **kwargs: for more customization options:
         - recording_enabled (bool): Whether to record the channel values to file (default: True).
           Note this is unrelated to the python logging of messages, see logger.py for that.

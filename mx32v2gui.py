@@ -34,7 +34,7 @@ class MX32v2GUI(DeviceGUI):
     Inherits from DeviceGUI and provides specific functionality for the MX32v2.
     """
 
-    def __init__(self, device, parent_frame=None, sensors=None, log=True, auto_gui_update=True):
+    def __init__(self, device, parent_frame=None, sensors=None, record=True, auto_gui_update=True):
         if sensors is None:
             sensors = SENSORS
         self.sensors = tuple(sensors)
@@ -54,7 +54,7 @@ class MX32v2GUI(DeviceGUI):
                 # threshold configured for the sensor
                 thresholds={
                     **{name: 1 for name in SENSOR_VALUE_NAMES},
-                    "concentration": sensor.log_threshold,
+                    "concentration": sensor.record_threshold,
                 },
                 precisions={"concentration": 2},
                 units={"concentration": sensor.unit},
@@ -65,7 +65,7 @@ class MX32v2GUI(DeviceGUI):
                         channels_states=channels_states,
                         parent_frame=parent_frame,
                         auto_gui_update=auto_gui_update,
-                        logging_enabled=log,
+                        recording_enabled=record,
                         read_loop_time=2,
                         )
 

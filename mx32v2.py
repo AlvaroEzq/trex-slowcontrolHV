@@ -46,7 +46,7 @@ class SensorConfig:
     range_max: float = 100.0     # full scale, used to scale the raw measurement
     unit: str = "%LEL"
     alarms: tuple = ()
-    log_threshold: float = 0.5   # change (in 'unit') that triggers a line in the log
+    record_threshold: float = 0.5  # change (in 'unit') that triggers a recorded line
 
     @property
     def address(self):
@@ -67,7 +67,7 @@ SENSORS = (
     SensorConfig(name="Line 2", line=2, digital=False, alarms=lel_alarms()),
 )
 
-# Every magnitude read from a sensor, in the order they are written to the log file.
+# Every magnitude read from a sensor, in the order they are recorded to file.
 SENSOR_VALUE_NAMES = (
     "concentration",
     "alarm1",
