@@ -20,10 +20,11 @@ class MultiDeviceGUI(ABC):
     - auto_gui_update (bool): Whether this GUI owns its own GUI update scheduler
         (default: True). Set it to False when it is managed by a parent GUI
         (e.g. a SuperGUI), which then becomes responsible for calling update_gui().
-        It never affects the background hardware reading of the children nor the logging.
+        It never affects the background hardware reading of the children nor the recording.
     - gui_update_time (float): Period, in seconds, of the GUI update loop owned by
         this GUI (only relevant if auto_gui_update is True).
-    - log (bool): Whether to log the channels (default: True).
+    - record (bool): Whether to record the channel values of the children to file
+        (default: True). Unrelated to the python logging of messages, see logger.py.
 
     The child DeviceGUIs must be created inside create_gui() with
     auto_gui_update=False (so that there is a single GUI scheduler for the whole
@@ -31,13 +32,13 @@ class MultiDeviceGUI(ABC):
     """
 
     def __init__(self, name: str, devices=None, parent_frame=None,
-                 auto_gui_update=True, gui_update_time=1, log=True, **kwargs):
+                 auto_gui_update=True, gui_update_time=1, record=True, **kwargs):
         self.name = name
         self.devices = devices if devices is not None else []
         # children GUIs ({name: DeviceGUI}). A subclass may have filled it already.
         if getattr(self, "all_guis", None) is None:
             self.all_guis = {}
-        self.logging_enabled = log
+        self.recording_enabled = record
 
         self.gui_update_time = gui_update_time
         # Whether this GUI owns its GUI update scheduler. It does not affect the

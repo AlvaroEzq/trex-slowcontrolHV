@@ -1,18 +1,34 @@
 import datetime as dt
 import os
-import logging
-import queue
-import threading
-import requests
-import json
-
 import copy
-import csv
-import datetime as dt
+import threading
 from dataclasses import dataclass, field
-from pathlib import Path
 
-LOG_DIR = "logs"
+def _default_data_dir():
+    """
+    Root directory for recorded channel values.
+
+    Resolved as $TREX_SC_DATA if set, else the "data" directory next to this file.
+    Deliberately NOT relative to the current working directory: that used to make
+    launching the GUI from somewhere else silently start a second, separate data
+    tree. Note this is only for recorded measurements; python logging of messages
+    writes to LOG_DIR in logger.py.
+    """
+    return os.environ.get("TREX_SC_DATA") or os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "data"
+    )
+
+DATA_DIR = _default_data_dir()
+
+def set_data_dir(path):
+    """Override the recording root (used by the --data-dir command line option)."""
+    global DATA_DIR
+    DATA_DIR = os.path.abspath(os.path.expanduser(path))
+    return DATA_DIR
+
+def channel_slug(name):
+    """Channel name as it appears in a filename, e.g. "mesh right" -> "meshright"."""
+    return name.replace(" ", "")
 
 def create_directory_recursive(path):
     try:
@@ -21,11 +37,11 @@ def create_directory_recursive(path):
     except Exception as e:
         print(f"Error occurred while creating directory '{path}': {e}")
 
-def get_path_from_date(dt_obj):
-    return LOG_DIR + "/" + dt_obj.strftime("%Y/%m/%d")
+def get_record_dir_from_date(dt_obj):
+    return DATA_DIR + "/" + dt_obj.strftime("%Y/%m/%d")
 
-def get_full_filename_from_date(dt_obj, suffix="", extension="dat"):
-    path = get_path_from_date(dt_obj)
+def get_record_filename_from_date(dt_obj, suffix="", extension="dat"):
+    path = get_record_dir_from_date(dt_obj)
     return f"{path}/{dt_obj.strftime('%Y%m%d')}_{suffix}.{extension}"
 
 
@@ -69,17 +85,17 @@ class ChannelState:
     Features:
     - current/previous/last_saved snapshots
     - generic variable support
-    - threshold-based logging
-    - CSV writing
+    - threshold-based recording to file
     - immutable state snapshots
     """
 
-    def __init__(self, channel_name, value_names, thresholds=None, precisions=None, units=None, save_value=None):
+    def __init__(self, channel_name, value_names, thresholds=None, precisions=None, units=None, save_value=None,
+                 save_previous=True):
 
         self.name = channel_name
         self.value_names = value_names
 
-        # Thresholds for deciding whether a value changed enough to trigger logging.
+        # Thresholds for deciding whether a value changed enough to trigger a recording.
         # Example: { "vmon": 0.5, "imon": 0.01, "pressure": 0.1,}
         self.thresholds = thresholds or {}
 
@@ -91,6 +107,12 @@ class ChannelState:
         
         # flag to decide whether to save a specific variable (if None, all are saved). Example: {"vmon": True, "imon": True, "pressure": False,}
         self.save_value = save_value or {}
+
+        # Whether to also record the reading immediately before one that crosses a
+        # threshold. Without it, a value that sat still for days and then jumped
+        # leaves no trace of what it was just before the jump: the previous row in
+        # the file is days old.
+        self.save_previous = save_previous
 
         # A row is only written when is_different() says something moved, and it only
         # looks at keys present in thresholds. A magnitude that is saved to file but
@@ -104,7 +126,7 @@ class ChannelState:
             print(
                 f"Warning: channel '{self.name}' saves {unwatched} to file but has no"
                 f" threshold for them, so a change in those values alone will not be"
-                f" logged. Add them to 'thresholds' to log them."
+                f" recorded. Add them to 'thresholds' to record them."
             )
 
         # Initialize state snapshots
@@ -165,26 +187,43 @@ class ChannelState:
         return False
 
     # ========================================================
-    # Logging
+    # Recording to file
     # ========================================================
-    def save_state(self, force=False, save_previous=True):
+    def save_state(self, force=False, save_previous=None):
         # Only the state snapshots are touched under self.lock. File I/O (and the
         # print() it may do, which is redirected to a Tk widget and therefore blocks
         # until the GUI main thread services it) must stay outside the lock, or the
         # main thread deadlocks against this one while waiting in get_values().
+        if save_previous is None:
+            save_previous = self.save_previous
+
         with self.lock:
             if not (force or self.is_different()):
                 return
             current = self.current
             previous = self.previous
-            write_previous = save_previous and self.last_saved != previous
+            # skip it when previous is what we wrote last time, or it duplicates
+            write_previous = (save_previous and self.last_saved != previous
+                              and bool(previous.values))
             self.last_saved = current
 
-        filename = get_full_filename_from_date(current.timestamp, suffix=self.name.replace(" ", ""))
+        slug = channel_slug(self.name)
         with self.file_lock:
             if write_previous:
-                self.write_state_to_file(previous, filename, delimiter=' ')
-            self.write_state_to_file(current, filename, delimiter=' ')
+                # By its own date: when the threshold is crossed just after midnight
+                # the preceding reading belongs in yesterday's file. Filing it with
+                # current would put a row dated yesterday in today's file, where a
+                # query for yesterday never looks.
+                self.write_state_to_file(
+                    previous,
+                    get_record_filename_from_date(previous.timestamp, suffix=slug),
+                    delimiter=' ',
+                )
+            self.write_state_to_file(
+                current,
+                get_record_filename_from_date(current.timestamp, suffix=slug),
+                delimiter=' ',
+            )
 
     def file_header_row(self):
         header = ["Time"]
@@ -198,13 +237,14 @@ class ChannelState:
         row = self.file_header_row()
         if len(row) <= 1: # Only timestamp, no values
             return ""
-        return delimiter.join(row)
+        # "# " so numpy.loadtxt and gnuplot skip the header without extra options
+        return "# " + delimiter.join(row)
 
     def _state_to_row(self, state: State):
         # Iterate value_names, the same list file_header_row() uses, so a value can
         # never end up under the wrong column. Iterating state.values instead would
         # follow whatever order read_values() happened to build its dict in.
-        row = [state.timestamp.strftime("%Y-%m-%d %H:%M:%S")]
+        row = [state.timestamp.strftime("%Y-%m-%dT%H:%M:%S")]
 
         for key in self.value_names:
             if not self.save_value.get(key, True):
@@ -216,7 +256,10 @@ class ChannelState:
                 and isinstance(value, (int, float))
             ):
                 value = f"{value:.{precision}f}"
-            row.append(str(value))
+            # the file is whitespace delimited, so a value whose text contains
+            # whitespace (a status like "NOT READY", or a dict) would silently
+            # shift every column after it
+            row.append("_".join(str(value).split()) or "nan")
 
         return row
 
@@ -228,18 +271,11 @@ class ChannelState:
             return ""
         return delimiter.join(row)
 
-    def _build_filename(self, directory):
-        date_str = self.current.timestamp.strftime("%Y-%m-%d")
-        safe_name = self.name.replace(" ", "_")
-        path = Path(directory)
-        path.mkdir(parents=True, exist_ok=True)
-        return path / f"{date_str}_{safe_name}.csv"
-    
     def _resolve_filename(self, base_filename: str, header_str: str):
         """
         Return the file to append to for the given header.
 
-        The header is only written when a file is created, so if the logged
+        The header is only written when a file is created, so if the recorded
         magnitudes change (save_value, units, value_names or their order), appending
         to an existing file would file the new rows under a stale header. Instead,
         roll over to "<base>_1.dat", "<base>_2.dat", ... until a file whose header
@@ -254,8 +290,10 @@ class ChannelState:
         while os.path.isfile(path):
             with open(path) as file:
                 existing_header = file.readline().rstrip("\n")
-            # an empty leftover file is reusable: write_state_to_file re-writes its header
-            if existing_header in (header_str, ""):
+            # compare without the "# " prefix so files written before it was added
+            # still match; an empty leftover file is reusable, write_state_to_file
+            # re-writes its header
+            if existing_header.lstrip("# ") in (header_str.lstrip("# "), ""):
                 break
             index += 1
             path = f"{root}_{index}{extension}"

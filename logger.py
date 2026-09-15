@@ -6,22 +6,17 @@ import threading
 import requests
 import json
 
-LOG_DIR = "logs"
+# Directory for the python logging output (messages and alarms). Anchored next to
+# this file rather than relative to the working directory, so launching from
+# elsewhere does not scatter log files or crash the FileHandlers below.
+# Recorded channel values go to DATA_DIR in channel.py instead.
+LOG_DIR = os.environ.get("TREX_SC_LOGS") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "logs"
+)
+os.makedirs(LOG_DIR, exist_ok=True)
 SLACK_WEBHOOK_URL = "" # add here the webkook url
 MATTERMOST_WEBHOOK_URL = ""
 
-def create_directory_recursive(path):
-    try:
-        directory = os.path.dirname(path)
-        os.makedirs(directory, exist_ok=True)
-    except Exception as e:
-        print(f"Error occurred while creating directory '{path}': {e}")
-
-def get_path_from_date(dt_obj):
-    return LOG_DIR + "/" + dt_obj.strftime("%Y/%m/%d")
-def get_full_filename_from_date(dt_obj, suffix="", extension="dat"):
-    path = get_path_from_date(dt_obj)
-    return f"{path}/{dt_obj.strftime('%Y%m%d')}_{suffix}.{extension}"
 
 class ThreadedHandler(logging.Handler):
     def __init__(self):
@@ -31,9 +26,9 @@ class ThreadedHandler(logging.Handler):
         self.worker.daemon = True  # Ensures the thread exits with the main program
         self.worker.start()
 
-    def emit(self, record):
+    def emit(self, log_record):
         # Add the log record to the queue
-        self.log_queue.put(record)
+        self.log_queue.put(log_record)
 
     def logging_logic(self, log_message):
         raise NotImplementedError
@@ -64,11 +59,11 @@ class SlackHandler(ThreadedHandler):
         super().__init__()
         self.webhook_url = webhook_url
     
-    def logging_logic(self, record):
+    def logging_logic(self, log_record):
         try:
             # Enviar mensaje a Slack
-            message = record.getMessage()
-            log_level = record.levelno
+            message = log_record.getMessage()
+            log_level = log_record.levelno
             emoji = self.LEVEL_EMOJIS.get(log_level, "") + " "
             slack_data = {'text': f"{emoji}{message}"}
             requests.post(self.webhook_url, data=json.dumps(slack_data), headers={'Content-Type': 'application/json'})
@@ -99,20 +94,20 @@ class MattermostHandler(ThreadedHandler):
         super().__init__()
         self.webhook_url = webhook_url
 
-    def logging_logic(self, record):
+    def logging_logic(self, log_record):
         try:
-            message = record.getMessage()
-            log_level = record.levelno
+            message = log_record.getMessage()
+            log_level = log_record.levelno
             emoji = self.LEVEL_EMOJIS.get(log_level, "") + " "
             text = f"{emoji}{message}"
 
             mm_data = {}
 
             # For WARNING/ERROR/CRITICAL, use attachment with background color
-            if record.levelno in self.LEVEL_COLORS:
+            if log_record.levelno in self.LEVEL_COLORS:
                 mm_data["attachments"] = [{
                     "fallback": message,
-                    "color": self.LEVEL_COLORS[record.levelno],
+                    "color": self.LEVEL_COLORS[log_record.levelno],
                     "text": text
                 }]
             else:
@@ -136,8 +131,8 @@ class TextWidgetHandler(logging.Handler):
         super().__init__()
         self.text_widget = text_widget
 
-    def emit(self, record):
-        log_entry = self.format(record)
+    def emit(self, log_record):
+        log_entry = self.format(log_record)
         # use after() to avoid segmentation faults
         if self.text_widget:
             self.text_widget.after(0, self._write_log, log_entry)
@@ -260,104 +255,3 @@ def get_level_names():
     except AttributeError:
         return list(logging._nameToLevel.keys())
     return []
-
-class State:
-    def __init__(self, vmon=0, imon=0, stat=None):
-        if stat is None:
-            stat = {}
-        self.time = dt.datetime.now()
-        self.vmon = imon
-        self.imon = vmon
-        self.stat = stat
-    
-    def set_state(self, vmon, imon, stat):
-        self.time = dt.datetime.now()
-        self.vmon = vmon
-        self.imon = imon
-        self.stat = stat
-
-    def __str__(self):
-        return "vmon: {:.2f}V, imon: {:.2f}uA, stat: {}".format(self.vmon, self.imon, self.stat)
-
-    def print_state(self):
-        print("Time:", self.time.strftime("%Y-%m-%d %H:%M:%S"))
-        print("vmon: {:.2f}V, imon: {:.2f}uA, stat: {}".format(self.vmon, self.imon, self.stat))
-
-    def write_to_file(self, filename, delimiter=' ', precision_vmon=1, precision_imon=3):
-        create_directory_recursive(filename)
-        if not os.path.isfile(filename):
-            try:
-                # create the file if it does not exist
-                with open(filename, 'w') as file:
-                    file.write('Time' + delimiter + 'Vmon(V)' + delimiter + 'Imon(uA)' + '\n')
-                print("Writing to new file:", filename)
-            except:
-                print("Invalid file or directory:", filename)
-
-        with open(filename, 'a') as file:
-            file.write(f"{self.time.strftime('%Y-%m-%d %H:%M:%S')}{delimiter}{self.vmon:.{precision_vmon}f}{delimiter}{self.imon:.{precision_imon}f}\n")
-
-    def assign(self, other):
-        self.time = other.time
-        self.vmon = other.vmon
-        self.imon = other.imon
-        self.stat = other.stat
-
-    def __eq__(self, other):
-        return all([self.time == other.time, self.vmon == other.vmon, self.imon == other.imon, self.stat == other.stat])
-    
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-class ChannelState:
-    def __init__(self, name="", ch=None, diff_vmon=0.5, diff_imon=0.01, precision_vmon=1, precision_imon=3):
-        self.channel = ch
-        self.channel_name = name
-
-        self.current = State()
-        self.previous = State()
-        self.last_saved = State()
-
-        self.diff_vmon = diff_vmon
-        self.diff_imon = diff_imon
-        self.precision_vmon = precision_vmon
-        self.precision_imon = precision_imon
-
-    def __str__(self):
-        return self.channel_name + ": " + str(self.current)
-
-    def set_state(self, state):
-        '''
-        if not state: # avoid using this as it should use the device lock
-            time = dt.datetime.now()
-            vmon = self.channel.vmon
-            imon = self.channel.imon
-            stat = self.channel.stat
-            state = State(time, vmon, imon, stat)
-        '''
-        self.previous.assign(self.current)
-        self.current.assign(state)
-
-    def set_state(self, vmon, imon, stat=None):
-        if stat is None:
-            stat = {}
-        self.previous.assign(self.current)
-        self.current.set_state(vmon, imon, stat)
-
-    def print(self):
-        print(self.channel_name)
-        print("Time:", self.current.time.strftime("%Y-%m-%d %H:%M:%S"))
-        print(self.current)
-
-    def is_different(self):
-        return (abs(self.current.vmon - self.last_saved.vmon) >= self.diff_vmon) or (abs(self.current.imon - self.last_saved.imon) >= self.diff_imon)
-
-    def save_state(self, force=False, save_previous=True):
-        filename = get_full_filename_from_date(self.current.time, suffix=self.channel_name.replace(" ", ""))
-        if self.is_different() or force:
-            if self.last_saved != self.previous and save_previous:
-                self.previous.write_to_file(filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
-            self.current.write_to_file(filename, precision_vmon=self.precision_vmon, precision_imon=self.precision_imon)
-            self.last_saved.assign(self.current)
-
-

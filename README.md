@@ -4,10 +4,20 @@ This repository contains software for remote control and monitoring of high volt
 
 ![CAEN HV power supply GUI.](docs/maingui.png)
 
+## Terminology
+
+Two different things in this project could both be called "logging", so they are named apart:
+
+- **logging** — human-readable messages and alarms, handled with the python `logging` module
+  ([logger.py](logger.py)). Goes to the terminal pane, `logs/*.log`, and the Slack/Mattermost webhooks.
+- **recording** — measured channel values written to data files ([channel.py](channel.py)).
+  Controlled by the `recording_enabled` option ("Record values to file" in the *Config → Advanced
+  options* dialog).
+
 ## Features
 - Graphical User Interface (GUI) for individual and multiple HV power supply devices. Including:
    - Security checks for individual and multiple devices.
-   - Register of voltage and current monitor values of the channels of each device.
+   - Recording of voltage and current monitor values of the channels of each device to file.
    - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
    - Trip recovery system to automatically detect, handle and recover a trip. It uses the multidevice raising of voltages to recover a trip. Also, a configurable cooldown time is applied before recovering the trip.
    - Alert message to slack/mattermost webhook (to do so, copy your slack/mattermost webhook in the global variable SLACK/MATTERMOST_WEBHOOK_URL of [logger.py](logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
@@ -48,6 +58,70 @@ This repository contains software for remote control and monitoring of high volt
    ```bash
    python3 caengui.py --port /dev/ttyUSB0
    ```
+
+## Recorded data
+
+While the GUI runs, the monitored values of every channel are recorded to plain text
+files, one per channel per day:
+
+```
+data/2026/09/11/20260911_gemtop.dat
+   # Time vmon[V] imon[uA]
+   2026-09-11T13:05:39 100.1 0.010
+   2026-09-11T13:05:45 99.1 0.010
+```
+
+Spaces are removed from the channel name (`mesh right` becomes `meshright`). A row is
+only written when a value moves past its threshold, so the sampling is irregular. If
+the recorded magnitudes change (different units, or a different set of values saved),
+the day continues in `20260911_gemtop_1.dat` rather than filing new rows under a stale
+header.
+
+The root is the `data` directory next to the code, so it does not depend on where you
+launch from. Override it with `--data-dir` or the `TREX_SC_DATA` environment variable;
+the GUI prints the directory it settled on at startup. Recording can be turned off
+per device with `record=False`, or at runtime in *Config → Advanced options*.
+
+The header is commented and the timestamp is a single token, so the files load with no
+preparation:
+
+```bash
+gnuplot -e 'set xdata time; set timefmt "%Y-%m-%dT%H:%M:%S"; plot "20260911_gemtop.dat" using 1:2'
+```
+```python
+import numpy as np
+vmon, imon = np.loadtxt("20260911_gemtop.dat", usecols=(1, 2), unpack=True)
+```
+
+Files recorded before September 2026 have an uncommented header and a space between the
+date and the time, so those two examples need `skiprows=1` and a different `timefmt`.
+`datareader.py` below reads both layouts, including a single file that spans the change.
+
+### Reading a time range
+
+[datareader.py](datareader.py) gathers the day files across a range, including the `_1`/`_2`
+siblings, and hands back a single table:
+
+```bash
+python3 datareader.py list                                   # channels present on disk
+python3 datareader.py info -c "gem top" --from -7d           # files, rows, units, gaps
+python3 datareader.py dump -c "gem top" --from -7d --epoch   # ready for gnuplot or awk
+python3 datareader.py dump -c cathode --from 2026-09-01 --to 2026-09-11 --csv -o out.csv
+```
+
+```python
+import datareader
+df = datareader.read_channel("cathode", "2026-09-01", "2026-09-11")  # pandas DataFrame
+df["vmon"].plot()
+datareader.units_of(df)                          # {'vmon': 'V', 'imon': 'mA'}
+t, values, names = datareader.to_numpy(df)       # unix seconds + a 2-D array, for ROOT
+```
+
+Dates accept ISO (`2026-09-11`, `2026-09-11 13:00`), the words `now`/`today`/`yesterday`,
+and offsets like `-7d` or `-12h`. A bare `--to` date includes the whole of that day. If
+sibling files disagree on units, they are rescaled to the units of the first file and
+each conversion is reported; `--units raise` refuses to guess and `--units keep` leaves
+the values alone and tags each row with the file it came from.
 
 ## Requirements
 
@@ -128,7 +202,7 @@ only when it is the standalone/top-level GUI (i.e. when no `parent_frame` is giv
       - `mx32v2gui.py`: GUI for the gas sensors connected to an MX32v2 controller.
       - `arduinogui.py`: GUI for the digital alarm signals of the safety system read by an Arduino.
       - `daqmetricsgui.py`: GUI for the DAQ metrics.
-   - `checksframe.py`: Implementation of the ChecksFrame class to display and manage the checks.
+   - `checkframe.py`: Implementation of the ChecksFrame class to display and manage the checks.
    - `utilsgui.py`: Implementation of GUI utility classes such as ToolTip and PrintToTextWidget.
 - Device modules
    - `spellmanClass.py`: Class for managing the Spellman HV supply.
@@ -138,6 +212,9 @@ only when it is the standalone/top-level GUI (i.e. when no `parent_frame` is giv
    - `simulators.py`: CAEN, Spellman, Rigol, MX32v2 and Arduino device simulator classes.
 - Support modules
    - `check.py`: Implementation of the checks classes.
-   - `logger.py`: Implementation of the ChannelState class and logging helper functions and classes.
-   - `metrics_fetcher.py`: Implementation of MetricsFetcher and MetricsFetchcerSSH to extract the prometheus metrics of the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) acquisition program.
+   - `logger.py`: Logging helpers for human-readable messages and alarms: Slack, Mattermost and
+     Tk-widget handlers, plus the logger configuration functions. Nothing here writes measured values.
+   - `channel.py`: Implementation of the State and ChannelState classes, which hold the in-memory
+     snapshots of a channel's values and record them to file.
+   - `daqmetrics.py`: Implementation of MetricsFetcher and MetricsFetcherSSH to extract the prometheus metrics of the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) acquisition program.
    - `utils.py`: Other useful functions. For now, it includes the necessary functions for adding rows to the Google Sheet run list.

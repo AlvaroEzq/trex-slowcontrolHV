@@ -23,11 +23,12 @@ from daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
 from daqmetricsgui import DaqMetricsGUI
 from multidevicegui import MultiDeviceGUI
 import logger
+import channel
 
 
 class HVGUI(MultiDeviceGUI):
     def __init__(self, caen_module=None, spellman_module=None, rigol_module_1=None, rigol_module_2=None,
-                 checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True,
+                 checks_caen=None, checks_spellman=None, checks_multidevice=None, record=True,
                  parent_frame=None, auto_gui_update=True, gui_update_time=1):
         if checks_caen is None:
             checks_caen = []
@@ -61,7 +62,7 @@ class HVGUI(MultiDeviceGUI):
         self.channels_vset_guientries = {}
         self.channels_vset_guilabel = {}
 
-        self.logging_enabled = log
+        self.recording_enabled = record
         self.multidevice_frame = None
         self.checks_frame = None
         self.channel_optmenus = None
@@ -109,7 +110,7 @@ class HVGUI(MultiDeviceGUI):
                          parent_frame=parent_frame,
                          auto_gui_update=auto_gui_update,
                          gui_update_time=gui_update_time,
-                         log=log)
+                         record=record)
 
     def create_gui(self):
         self.validate_numeric_input = (self.root.register(validate_numeric_entry_input), "%P")
@@ -119,7 +120,7 @@ class HVGUI(MultiDeviceGUI):
             self.caen_frame.pack(side="left", fill="x", anchor="n", expand=True)
             self.caen_gui = caengui.CaenHVPSGUI(module=self.caen_module, parent_frame=self.caen_frame,
                                                 channel_names=caengui.CHANNEL_NAMES, checks=self.caen_checks, silence=False,
-                                                log=self.logging_enabled, auto_gui_update=False)
+                                                record=self.recording_enabled, auto_gui_update=False)
             self.all_channels = {name: self.caen_module.channels[i] for i, name in enumerate(self.caen_gui.channels_name) if i < len(self.caen_module.channels)} # to avoid adding the board
             self.channels_gui = {name: self.caen_gui for name in self.caen_gui.channels_name}
             self.all_guis['caen'] = self.caen_gui
@@ -131,7 +132,7 @@ class HVGUI(MultiDeviceGUI):
             self.spellman_frame = tk.Frame(self.frame)
             self.spellman_frame.pack(side="right", fill="x", anchor="n", expand=False)
             self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame, checks=self.spellman_checks,
-                                                          log=self.logging_enabled, auto_gui_update=False) # TODO: implement individual spellman checks
+                                                          record=self.recording_enabled, auto_gui_update=False) # TODO: implement individual spellman checks
             self.all_channels = {'cathode' : self.spellman_module, **self.all_channels} # add the spellman module as cathode at the front of the dict
             self.channels_gui['cathode'] = self.spellman_gui
             self.all_guis['cathode'] = self.spellman_gui
@@ -148,13 +149,13 @@ class HVGUI(MultiDeviceGUI):
             self.rigol_frame_1 = tk.Frame(electronics_frame)
             self.rigol_frame_1.pack(side="top", fill="x", anchor="n", expand=True)
             self.rigol_gui_1 = rigolgui.RigolGUI(device=self.rigol_module_1, parent_frame=self.rigol_frame_1, channel_names=rigolgui.CHANNEL_NAMES_LEFT,
-                                                 log=self.logging_enabled, auto_gui_update=False)
+                                                 record=self.recording_enabled, auto_gui_update=False)
             self.all_guis['rigol left'] = self.rigol_gui_1
         if self.rigol_module_2 is not None:
             self.rigol_frame_2 = tk.Frame(electronics_frame)
             self.rigol_frame_2.pack(side="top", fill="x", anchor="n", expand=True)
             self.rigol_gui_2 = rigolgui.RigolGUI(device=self.rigol_module_2, parent_frame=self.rigol_frame_2, channel_names=rigolgui.CHANNEL_NAMES_RIGHT,
-                                                 log=self.logging_enabled, auto_gui_update=False)
+                                                 record=self.recording_enabled, auto_gui_update=False)
             self.all_guis['rigol right'] = self.rigol_gui_2
         
         # Create the toggle button with a downward triangle (initially visible text)
@@ -180,7 +181,7 @@ class HVGUI(MultiDeviceGUI):
         self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
 
     def cleanup(self):
-        self.reset_logging()
+        self.restore_stdout()
 
     def open_verbose_window(self):
         new_window = tk.Toplevel(self.root)
@@ -429,7 +430,7 @@ class HVGUI(MultiDeviceGUI):
         self.scrolled_text = ScrolledText(frame, font=("Arial", "9", "normal"), state="disabled", height=9)
         self.scrolled_text.pack(side="left", fill="both", expand=True, padx=0)
         if self.scrolled_text:
-            self.redirect_logging(self.scrolled_text)
+            self.redirect_stdout_to_widget(self.scrolled_text)
             # redirect also the StreamHandler to the scrolled text using the TextWidgetHandler
             while self.logger.hasHandlers() and any([type(h) is logging.StreamHandler for h in self.logger.handlers]):
                 self.logger.removeHandler([h for h in self.logger.handlers if type(h) is logging.StreamHandler][0])
@@ -724,14 +725,16 @@ class HVGUI(MultiDeviceGUI):
 
         self.text_visible = not self.text_visible
 
-    def reset_logging(self):
+    def restore_stdout(self):
         sys.stdout = sys.__stdout__
         sys.stderr = sys.__stderr__
 
-    def redirect_logging(self, widget):
-        logger = PrintToTextWidget(widget)
-        sys.stdout = logger
-        sys.stderr = logger
+    def redirect_stdout_to_widget(self, widget):
+        # local name must not be `logger`: that would shadow the logger module
+        # imported at the top of this file.
+        redirector = PrintToTextWidget(widget)
+        sys.stdout = redirector
+        sys.stderr = redirector
 
     def raise_voltage_protocol_thread(self, step = 100):
         try:
@@ -1058,8 +1061,15 @@ if __name__ == "__main__":
     parser.add_argument("--test", action="store_true", help="Enable test mode")
     parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB0")
     parser.add_argument("--checks", type=str, help="Select checks configuration file", default="checks_config.toml")
+    parser.add_argument("--data-dir", type=str, help="Directory to record channel values into "
+                        "(default: $TREX_SC_DATA, else the 'data' directory next to the code)")
 
     args = parser.parse_args()
+
+    if args.data_dir:
+        channel.set_data_dir(args.data_dir)
+    print("recording values to:", channel.DATA_DIR)
+    print("writing message logs to:", logger.LOG_DIR)
 
     checks_caen = load_checks_from_toml_file(args.checks, "caen")
     checks_spellman = load_checks_from_toml_file(args.checks, "spellman")
@@ -1096,7 +1106,7 @@ if __name__ == "__main__":
                     checks_caen=checks_caen,
                     checks_spellman=checks_spellman,
                     checks_multidevice=checks_multidevice,
-                    log=False
+                    record=False
                 )
 
 

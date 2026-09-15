@@ -171,7 +171,7 @@ if __name__ == "__main__":
     checks_spellman = load_checks_from_toml_file(args.checks, "spellman")
     checks_multidevice = load_checks_from_toml_file(args.checks, "multidevice")
 
-    def build_app(caen_module, spellman_module, mx32_device, arduino_device, log=True):
+    def build_app(caen_module, spellman_module, mx32_device, arduino_device, record=True):
         subsystems = {
             # each subsystem is built inside the content frame of the SuperGUI and
             # without its own scheduler: the SuperGUI owns the only GUI update loop
@@ -181,7 +181,7 @@ if __name__ == "__main__":
                 checks_caen=checks_caen,
                 checks_spellman=checks_spellman,
                 checks_multidevice=checks_multidevice,
-                log=log,
+                record=record,
                 parent_frame=frame,
                 auto_gui_update=False,
             ),
@@ -190,7 +190,7 @@ if __name__ == "__main__":
             subsystems["Flammable gas"] = lambda frame: FlammableGasGUI(
                 mx32_device=mx32_device,
                 arduino_device=arduino_device,
-                log=log,
+                record=record,
                 parent_frame=frame,
                 auto_gui_update=False,
             )
@@ -209,4 +209,4 @@ if __name__ == "__main__":
         from simulators import (ArduinoSimulator, ModuleSimulator, MX32v2Simulator,
                                 SpellmanSimulator)
         build_app(ModuleSimulator(4, trip_probability=0), SpellmanSimulator(),
-                  MX32v2Simulator(), ArduinoSimulator(), log=False).run()
+                  MX32v2Simulator(), ArduinoSimulator(), record=False).run()

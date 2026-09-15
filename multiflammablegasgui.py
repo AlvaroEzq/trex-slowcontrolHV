@@ -25,7 +25,7 @@ class FlammableGasGUI(MultiDeviceGUI):
     """
 
     def __init__(self, mx32_device=None, arduino_device=None, sensors=None, channel_names=None,
-                 parent_frame=None, auto_gui_update=True, gui_update_time=1, log=True):
+                 parent_frame=None, auto_gui_update=True, gui_update_time=1, record=True):
         self.mx32_device = mx32_device
         self.mx32_frame = None
         self.mx32_gui = None
@@ -41,7 +41,7 @@ class FlammableGasGUI(MultiDeviceGUI):
                          parent_frame=parent_frame,
                          auto_gui_update=auto_gui_update,
                          gui_update_time=gui_update_time,
-                         log=log)
+                         record=record)
 
     def create_gui(self):
         # the children device GUIs are created with auto_gui_update=False: this
@@ -56,7 +56,7 @@ class FlammableGasGUI(MultiDeviceGUI):
                 device=self.mx32_device,
                 parent_frame=self.mx32_frame,
                 sensors=self.sensors,
-                log=self.logging_enabled,
+                record=self.recording_enabled,
                 auto_gui_update=False,
             )
             self.all_guis[self.mx32_device.name] = self.mx32_gui
@@ -68,7 +68,7 @@ class FlammableGasGUI(MultiDeviceGUI):
                 device=self.arduino_device,
                 parent_frame=self.arduino_frame,
                 channel_names=self.channel_names,
-                log=self.logging_enabled,
+                record=self.recording_enabled,
                 auto_gui_update=False,
             )
             self.all_guis[self.arduino_device.name] = self.arduino_gui
@@ -87,12 +87,12 @@ if __name__ == "__main__":
         from simulators import ArduinoSimulator, MX32v2Simulator
         mx32_device = MX32v2Simulator()
         arduino_device = ArduinoSimulator()
-        log = False
+        record = False
     else:
         from arduino import ArduinoReader
         from mx32v2 import MX32v2
         mx32_device = MX32v2(port=args.mx32_port, baudrate=args.mx32_baudrate, slave_id=args.mx32_slave_id)
         arduino_device = ArduinoReader(port=args.arduino_port)
-        log = True
+        record = True
 
-    FlammableGasGUI(mx32_device=mx32_device, arduino_device=arduino_device, log=log)
+    FlammableGasGUI(mx32_device=mx32_device, arduino_device=arduino_device, record=record)

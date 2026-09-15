@@ -43,7 +43,7 @@ class DaqMetricsGUI(DeviceGUI):
                         channels_states={},
                         parent_frame=parent_frame,
                         auto_gui_update=auto_gui_update,
-                        logging_enabled=False,
+                        recording_enabled=False,
                         read_loop_time=60,
                         )
     

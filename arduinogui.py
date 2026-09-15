@@ -28,7 +28,7 @@ class ArduinoGUI(DeviceGUI):
     Inherits from DeviceGUI and provides specific functionality for the Arduino device.
     """
 
-    def __init__(self, device, parent_frame=None, channel_names=None, log=True, auto_gui_update=True):
+    def __init__(self, device, parent_frame=None, channel_names=None, record=True, auto_gui_update=True):
         if channel_names is None:
             channel_names = CHANNEL_NAMES
 
@@ -50,7 +50,7 @@ class ArduinoGUI(DeviceGUI):
                         channels_states=channels_states,
                         parent_frame=parent_frame,
                         auto_gui_update=auto_gui_update,
-                        logging_enabled=log,
+                        recording_enabled=record,
                         read_loop_time=10,
                         )
 
