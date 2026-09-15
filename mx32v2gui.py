@@ -74,7 +74,7 @@ class MX32v2GUI(DeviceGUI):
                         parent_frame=parent_frame,
                         auto_gui_update=auto_gui_update,
                         logging_enabled=log,
-                        read_loop_time=2,
+                        read_loop_time=10,
                         )
 
     def create_gui(self):
