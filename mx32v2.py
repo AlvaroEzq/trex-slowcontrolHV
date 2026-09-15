@@ -63,8 +63,8 @@ def lel_alarms(levels=LEL_ALARM_LEVELS):
 
 # The installation: one analog sensor per line, each with the same three alarms.
 SENSORS = (
-    SensorConfig(name="Line 1", line=1, digital=False, alarms=lel_alarms()),
-    SensorConfig(name="Line 2", line=2, digital=False, alarms=lel_alarms()),
+    SensorConfig(name="Isobutane Sensor 1", line=1, digital=False, alarms=lel_alarms()),
+    SensorConfig(name="Isobutane Sensor 2", line=2, digital=False, alarms=lel_alarms()),
 )
 
 # Every magnitude read from a sensor, in the order they are written to the log file.
