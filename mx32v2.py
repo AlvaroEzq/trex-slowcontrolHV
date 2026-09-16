@@ -43,7 +43,7 @@ class SensorConfig:
     line: int
     digital: bool = False
     sensor_number: int = 0       # only used by digital sensors
-    range_max: float = 100.0     # full scale, used to scale the raw measurement
+    range_max: float = 10000.0     # the raw measurement is already in %LEL (I don't know why), so the range must be 10000.0
     unit: str = "%LEL"
     alarms: tuple = ()
     log_threshold: float = 0.5   # change (in 'unit') that triggers a line in the log
