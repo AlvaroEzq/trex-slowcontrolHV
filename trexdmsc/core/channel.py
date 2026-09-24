@@ -74,7 +74,8 @@ class ChannelState:
     - immutable state snapshots
     """
 
-    def __init__(self, channel_name, value_names, thresholds=None, precisions=None, units=None, save_value=None):
+    def __init__(self, channel_name, value_names, thresholds=None, precisions=None, units=None, save_value=None,
+                 relative_thresholds=None):
 
         self.name = channel_name
         self.value_names = value_names
@@ -82,6 +83,12 @@ class ChannelState:
         # Thresholds for deciding whether a value changed enough to trigger logging.
         # Example: { "vmon": 0.5, "imon": 0.01, "pressure": 0.1,}
         self.thresholds = thresholds or {}
+
+        # Relative thresholds, as a fraction of the last saved value, for magnitudes
+        # that span several orders of magnitude (e.g. a vacuum pressure), where no
+        # absolute threshold works. A key can have both, a change beyond any of them
+        # triggers logging. Example: {"pressure": 0.05,}
+        self.relative_thresholds = relative_thresholds or {}
 
         # Precision for file output (number of decimal places) for specific variables.Example:{"vmon": 1,"imon": 3,}
         self.precisions = precisions or {}
@@ -98,7 +105,8 @@ class ChannelState:
         # only updates when some other magnitude happens to move.
         unwatched = [
             key for key in self.value_names
-            if self.save_value.get(key, True) and key not in self.thresholds
+            if self.save_value.get(key, True)
+            and key not in self.thresholds and key not in self.relative_thresholds
         ]
         if unwatched:
             print(
@@ -161,6 +169,18 @@ class ChannelState:
             else:
                 if current_value != saved_value:
                     return True
+
+        for key, fraction in self.relative_thresholds.items():
+            current_value = self.current.get(key)
+            saved_value = self.last_saved.get(key)
+            if current_value is None and saved_value is None:
+                continue
+            if not isinstance(current_value, (int, float)) or not isinstance(saved_value, (int, float)):
+                if current_value != saved_value:
+                    return True
+                continue
+            if abs(current_value - saved_value) > fraction * abs(saved_value):
+                return True
 
         return False
 
