@@ -31,6 +31,7 @@ trexdm-sc-rigol-device = "trexdmsc.gui.devices.rigol:main"
 trexdm-sc-mx32v2 = "trexdmsc.gui.devices.mx32v2:main"
 trexdm-sc-arduino = "trexdmsc.gui.devices.arduino:main"
 trexdm-sc-daqmetrics = "trexdmsc.gui.devices.daqmetrics:main"
+trexdm-sc-bronkhorst = "trexdmsc.gui.devices.bronkhorst:main"
 
 [tool.setuptools.packages.find]
 include = ["trexdmsc*"]

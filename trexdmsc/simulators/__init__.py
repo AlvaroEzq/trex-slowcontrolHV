@@ -3,6 +3,7 @@ from trexdmsc.simulators.spellman import SpellmanSimulator
 from trexdmsc.simulators.rigol import RigolChannelSimulator, RigolSimulator
 from trexdmsc.simulators.mx32v2 import MX32v2Simulator
 from trexdmsc.simulators.arduino import ArduinoSimulator
+from trexdmsc.simulators.bronkhorst import BronkhorstSimulator
 
 __all__ = [
     "ChannelSimulator",
@@ -12,4 +13,5 @@ __all__ = [
     "RigolSimulator",
     "MX32v2Simulator",
     "ArduinoSimulator",
+    "BronkhorstSimulator",
 ]
