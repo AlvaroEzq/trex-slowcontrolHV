@@ -1,9 +1,9 @@
 import argparse
 import tkinter as tk
 
-from trexsc.gui.devices import arduino as arduinogui
-from trexsc.gui.devices import mx32v2 as mx32v2gui
-from trexsc.gui.base.multidevicegui import MultiDeviceGUI
+from trexdmsc.gui.devices import arduino as arduinogui
+from trexdmsc.gui.devices import mx32v2 as mx32v2gui
+from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
 
 
 class FlammableGasGUI(MultiDeviceGUI):
@@ -84,13 +84,13 @@ def main():
     args = parser.parse_args()
 
     if args.test:
-        from trexsc.simulators import ArduinoSimulator, MX32v2Simulator
+        from trexdmsc.simulators import ArduinoSimulator, MX32v2Simulator
         mx32_device = MX32v2Simulator()
         arduino_device = ArduinoSimulator()
         log = False
     else:
-        from trexsc.devices.arduino import ArduinoReader
-        from trexsc.devices.mx32v2 import MX32v2
+        from trexdmsc.devices.arduino import ArduinoReader
+        from trexdmsc.devices.mx32v2 import MX32v2
         mx32_device = MX32v2(port=args.mx32_port, baudrate=args.mx32_baudrate, slave_id=args.mx32_slave_id)
         arduino_device = ArduinoReader(port=args.arduino_port)
         log = True

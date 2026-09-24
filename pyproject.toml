@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "trexsc"
+name = "trexdm-sc"
 version = "0.1.0"
 description = "TREX-DM slow control: HV power supplies, flammable gas safety system and DAQ monitoring"
 readme = "README.md"
@@ -21,16 +21,16 @@ dependencies = [
 ]
 
 [project.scripts]
-trexsc = "trexsc.gui.supergui:main"
-trexsc-hv = "trexsc.gui.subsystems.hv:main"
-trexsc-flammablegas = "trexsc.gui.subsystems.flammablegas:main"
-trexsc-rigol = "trexsc.gui.subsystems.rigol:main"
-trexsc-caen = "trexsc.gui.devices.caen:main"
-trexsc-spellman = "trexsc.gui.devices.spellman:main"
-trexsc-rigol-device = "trexsc.gui.devices.rigol:main"
-trexsc-mx32v2 = "trexsc.gui.devices.mx32v2:main"
-trexsc-arduino = "trexsc.gui.devices.arduino:main"
-trexsc-daqmetrics = "trexsc.gui.devices.daqmetrics:main"
+trexdm-sc = "trexdmsc.gui.supergui:main"
+trexdm-sc-hv = "trexdmsc.gui.subsystems.hv:main"
+trexdm-sc-flammablegas = "trexdmsc.gui.subsystems.flammablegas:main"
+trexdm-sc-rigol = "trexdmsc.gui.subsystems.rigol:main"
+trexdm-sc-caen = "trexdmsc.gui.devices.caen:main"
+trexdm-sc-spellman = "trexdmsc.gui.devices.spellman:main"
+trexdm-sc-rigol-device = "trexdmsc.gui.devices.rigol:main"
+trexdm-sc-mx32v2 = "trexdmsc.gui.devices.mx32v2:main"
+trexdm-sc-arduino = "trexdmsc.gui.devices.arduino:main"
+trexdm-sc-daqmetrics = "trexdmsc.gui.devices.daqmetrics:main"
 
 [tool.setuptools.packages.find]
-include = ["trexsc*"]
+include = ["trexdmsc*"]

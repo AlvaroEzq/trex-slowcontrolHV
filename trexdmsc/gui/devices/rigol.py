@@ -20,12 +20,12 @@ CHANNEL_NAMES_RIGHT = [
                 'TCM',
                 ]
 
-from trexsc.devices.rigol import RigolPowerSupply
-from trexsc.core.channel import ChannelState
-from trexsc.core.check import Check
-from trexsc.gui.base.checkframe import ChecksFrame
-from trexsc.gui.base.widgets import ToolTip
-from trexsc.gui.base.devicegui import DeviceGUI
+from trexdmsc.devices.rigol import RigolPowerSupply
+from trexdmsc.core.channel import ChannelState
+from trexdmsc.core.check import Check
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.gui.base.widgets import ToolTip
+from trexdmsc.gui.base.devicegui import DeviceGUI
 
 class RigolGUI(DeviceGUI):
     """
@@ -149,7 +149,7 @@ def main():
     args = parser.parse_args()
 
     if args.test:
-        from trexsc.simulators import RigolSimulator
+        from trexdmsc.simulators import RigolSimulator
         print("Using Rigol Simulator")
         rigol_device = RigolSimulator()
     else:

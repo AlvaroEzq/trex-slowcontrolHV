@@ -3,12 +3,12 @@ from __future__ import annotations
 import tkinter as tk
 import argparse
 
-from trexsc.devices.mx32v2 import MX32v2, SENSORS, SENSOR_VALUE_NAMES, failed_sensor_reading
-from trexsc.core.channel import ChannelState
-from trexsc.core.check import Check
-from trexsc.gui.base.checkframe import ChecksFrame
-from trexsc.gui.base.widgets import ToolTip
-from trexsc.gui.base.devicegui import DeviceGUI
+from trexdmsc.devices.mx32v2 import MX32v2, SENSORS, SENSOR_VALUE_NAMES, failed_sensor_reading
+from trexdmsc.core.channel import ChannelState
+from trexdmsc.core.check import Check
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.gui.base.widgets import ToolTip
+from trexdmsc.gui.base.devicegui import DeviceGUI
 
 COLOR_OK = "green"
 COLOR_ALARM = "red"
@@ -201,7 +201,7 @@ def main():
     args = parser.parse_args()
 
     if args.test:
-        from trexsc.simulators import MX32v2Simulator
+        from trexdmsc.simulators import MX32v2Simulator
         print("Using MX32v2 Simulator")
         mx32_device = MX32v2Simulator()
     else:

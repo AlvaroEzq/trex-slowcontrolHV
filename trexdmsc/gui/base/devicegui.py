@@ -5,8 +5,8 @@ import time
 import logging
 from abc import ABC, abstractmethod
 
-from trexsc.core.logger import configure_basic_logger
-from trexsc.gui.base.widgets import validate_numeric_entry_input
+from trexdmsc.core.logger import configure_basic_logger
+from trexdmsc.gui.base.widgets import validate_numeric_entry_input
 
 class DeviceGUI(ABC):
     """

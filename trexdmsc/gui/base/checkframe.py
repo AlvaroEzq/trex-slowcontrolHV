@@ -3,8 +3,8 @@ from tkinter import messagebox
 import threading
 import time
 
-from trexsc.core.check import Check, CheckWithLock
-from trexsc.gui.base.widgets import ToolTip
+from trexdmsc.core.check import Check, CheckWithLock
+from trexdmsc.gui.base.widgets import ToolTip
 
 class ChecksFrame:
     def __init__(self, parent_frame = None, checks = None, channels = None, locks = None):

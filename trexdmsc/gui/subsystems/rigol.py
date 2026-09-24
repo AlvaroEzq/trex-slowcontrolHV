@@ -1,8 +1,8 @@
 import argparse
 import tkinter as tk
 
-from trexsc.gui.devices import rigol as rigolgui
-from trexsc.gui.base.multidevicegui import MultiDeviceGUI
+from trexdmsc.gui.devices import rigol as rigolgui
+from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
 
 
 class RigolsGUI(MultiDeviceGUI):
@@ -50,10 +50,10 @@ def main():
     args = parser.parse_args()
 
     if args.test:
-        from trexsc.simulators import RigolSimulator
+        from trexdmsc.simulators import RigolSimulator
         devices = [RigolSimulator(name="Rigol Left SIMULATOR"), RigolSimulator(name="Rigol Right SIMULATOR")]
     else:
-        from trexsc.devices.rigol import RigolPowerSupply
+        from trexdmsc.devices.rigol import RigolPowerSupply
         if not args.resource:
             print("Please provide at least one resource name using --resource")
             exit(1)

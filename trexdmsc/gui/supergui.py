@@ -2,7 +2,7 @@ import argparse
 import logging
 import tkinter as tk
 
-from trexsc.gui.base.multidevicegui import MultiDeviceGUI
+from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
 
 # Colours of the sidebar. They only affect the navigation chrome of the SuperGUI,
 # not the subsystems themselves (which keep the default Tk look).
@@ -154,10 +154,10 @@ class SuperGUI:
 
 def main():
     import hvps
-    from trexsc.devices import spellman as spll
-    from trexsc.core.check import load_checks_from_toml_file
-    from trexsc.gui.subsystems.hv import HVGUI
-    from trexsc.gui.subsystems.flammablegas import FlammableGasGUI
+    from trexdmsc.devices import spellman as spll
+    from trexdmsc.core.check import load_checks_from_toml_file
+    from trexdmsc.gui.subsystems.hv import HVGUI
+    from trexdmsc.gui.subsystems.flammablegas import FlammableGasGUI
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
@@ -197,8 +197,8 @@ def main():
         return SuperGUI(subsystems, title="TREX Slow Control")
 
     if not args.test:
-        from trexsc.devices.arduino import ArduinoReader
-        from trexsc.devices.mx32v2 import MX32v2
+        from trexdmsc.devices.arduino import ArduinoReader
+        from trexdmsc.devices.mx32v2 import MX32v2
         mx32_device = MX32v2(port=args.mx32_port)
         arduino_device = ArduinoReader(port=args.arduino_port)
         with hvps.Caen(port=args.port) as caen:
@@ -206,7 +206,7 @@ def main():
             print("baudrate:", caen.baudrate)
             build_app(caen.module(0), spll.Spellman(), mx32_device, arduino_device).run()
     else:
-        from trexsc.simulators import (ArduinoSimulator, ModuleSimulator, MX32v2Simulator,
+        from trexdmsc.simulators import (ArduinoSimulator, ModuleSimulator, MX32v2Simulator,
                                 SpellmanSimulator)
         build_app(ModuleSimulator(4, trip_probability=0), SpellmanSimulator(),
                   MX32v2Simulator(), ArduinoSimulator(), log=False).run()

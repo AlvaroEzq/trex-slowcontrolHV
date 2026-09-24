@@ -10,7 +10,7 @@ This repository contains software for remote control and monitoring of high volt
    - Register of voltage and current monitor values of the channels of each device.
    - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
    - Trip recovery system to automatically detect, handle and recover a trip. It uses the multidevice raising of voltages to recover a trip. Also, a configurable cooldown time is applied before recovering the trip.
-   - Alert message to slack/mattermost webhook (to do so, copy your slack/mattermost webhook in the global variable SLACK/MATTERMOST_WEBHOOK_URL of [trexsc/core/logger.py](trexsc/core/logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
+   - Alert message to slack/mattermost webhook (to do so, copy your slack/mattermost webhook in the global variable SLACK/MATTERMOST_WEBHOOK_URL of [trexdmsc/core/logger.py](trexdmsc/core/logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
       * CRITICAL: unexpected error happens which require the user to fix.
       * ERROR: expected error happens which require the users attention.
       * WARNING: expected event as trips.
@@ -19,7 +19,7 @@ This repository contains software for remote control and monitoring of high volt
 
       It is recommended to set the slack/mattermost logging level to warning if you want to receive messages when trips happen or error if you want to ignore the messages of trips.
    - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) or [femdaq](https://github.com/juanangp/femdaq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication.
-   - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `trexsc/utils/googlesheet.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
+   - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `trexdmsc/utils/googlesheet.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
 - Monitoring of the sensor and alarm safety system for the use of flammable gas (isobutane): the gas sensors connected to an MX32v2 controller and the digital alarm signals of the safety system read by an Arduino. Every alarm raised or cleared is logged (the raised ones as critical records, so they reach the slack/mattermost webhook).
 - CAEN, Spellman SL30, Rigol, MX32v2 and Arduino simulators for testing without hardware.
 
@@ -33,24 +33,24 @@ This repository contains software for remote control and monitoring of high volt
    ```
 2. Run the main GUI (all the subsystems, with the sidebar to switch between them) from the repository root (the `logs/` directory and the `config/checks_config.toml` default are relative to the working directory)
    ```bash
-   trexsc
+   trexdm-sc
    ```
    Or run it with the simulators for testing (so the hardware is not needed)
    ```bash
-   trexsc --test
+   trexdm-sc --test
    ```
    You can also run a single subsystem independently. For example, the HV one:
    ```bash
-   trexsc-hv
-   trexsc-hv --test
-   trexsc-flammablegas
-   trexsc-flammablegas --test
+   trexdm-sc-hv
+   trexdm-sc-hv --test
+   trexdm-sc-flammablegas
+   trexdm-sc-flammablegas --test
    ```
    Or even the GUI of an individual device. For example,
    ```bash
-   trexsc-caen --port /dev/ttyUSB0
+   trexdm-sc-caen --port /dev/ttyUSB0
    ```
-   The available commands are `trexsc`, `trexsc-hv`, `trexsc-flammablegas`, `trexsc-rigol`, `trexsc-caen`, `trexsc-spellman`, `trexsc-rigol-device`, `trexsc-mx32v2`, `trexsc-arduino` and `trexsc-daqmetrics`. Every module with a `main()` can also be run without installing the commands, e.g. `python3 -m trexsc.gui.devices.caen --port /dev/ttyUSB0`.
+   The available commands are `trexdm-sc`, `trexdm-sc-hv`, `trexdm-sc-flammablegas`, `trexdm-sc-rigol`, `trexdm-sc-caen`, `trexdm-sc-spellman`, `trexdm-sc-rigol-device`, `trexdm-sc-mx32v2`, `trexdm-sc-arduino` and `trexdm-sc-daqmetrics`. Every module with a `main()` can also be run without installing the commands, e.g. `python3 -m trexdmsc.gui.devices.caen --port /dev/ttyUSB0`.
 
 ## Requirements
 
@@ -118,12 +118,12 @@ only when it is the standalone/top-level GUI (i.e. when no `parent_frame` is giv
 
 ## Project Structure
 
-The code is organized in layers inside the `trexsc` package. The hardware modules never import tkinter, and the GUI modules never talk to the hardware outside `read_values()` / `issue_command()`.
+The code is organized in layers inside the `trexdmsc` package. The hardware modules never import tkinter, and the GUI modules never talk to the hardware outside `read_values()` / `issue_command()`.
 
 ```text
 config/checks_config.toml   default checks configuration
 logs/                       output logs (created at runtime)
-trexsc/
+trexdmsc/
 ├── core/                   framework support (no hardware, no GUI)
 ├── devices/                device API classes (hardware communication)
 ├── simulators/             device simulators for --test mode
@@ -135,7 +135,7 @@ trexsc/
 └── utils/
 ```
 
-- `trexsc/gui/`: GUI modules
+- `trexdmsc/gui/`: GUI modules
    - `supergui.py`: **Main GUI** that contains the different subsystems (HV, ...) and the sidebar to navigate between them. It owns the only GUI update scheduler of the application.
    - `base/multidevicegui.py`: Implementation of the abstract class that serves as base class for the subsystem GUIs (a group of device GUIs). Implement the `create_gui` abstract method, creating there the children `DeviceGUI`s with `auto_gui_update=False` inside `self.frame` and registering them in `self.all_guis`.
    - `base/devicegui.py`: Implementation of the abstract class that serves as base class for the individual devices GUIs. This abstract class implements a device lock for multithreading-safe communication with the device and a command queue to keep the order of the communications to the device. Please, use the `issue_command` method (or at least acquire the device lock manually) for any function (or statement) that requires to communicate with the device to avoid spurious errors. To write the individual device GUI, define your class as a children of this base class and implement the appropiate `read_values` (for background monitoring) and `create_gui` (for the GUI layout) abstract methods for your particular case. Do not forget to call the parent class constructor (`super().__init__`) at the end of your the class constructor (`__init__`), as it will start the GUI mainloop (when used standalone) and any line written after this will not be executed (until the GUI is closed). Build the widgets of the GUI inside `self.frame` and forward the `auto_gui_update` argument to `super().__init__`.
@@ -152,22 +152,22 @@ trexsc/
       - `mx32v2.py`: GUI for the gas sensors connected to an MX32v2 controller.
       - `arduino.py`: GUI for the digital alarm signals of the safety system read by an Arduino.
       - `daqmetrics.py`: GUI for the DAQ metrics.
-- `trexsc/devices/`: device modules (the CAEN one is the external `hvps` library)
+- `trexdmsc/devices/`: device modules (the CAEN one is the external `hvps` library)
    - `spellman.py`: Class for managing the Spellman HV supply.
    - `rigol.py`: Class for managing the Rigol power supplies.
    - `mx32v2.py`: Class for managing the MX32v2 gas sensor controller (through Modbus) and the configuration of the sensors of the installation (which sensors are connected to each line and what their alarm thresholds are).
    - `arduino.py`: Class for reading the digital alarm signals of the safety system from the Arduino serial line.
    - `daqmetrics.py`: Implementation of MetricsFetcher and MetricsFetcherSSH to extract the prometheus metrics of the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) acquisition program.
-- `trexsc/simulators/`: CAEN, Spellman, Rigol, MX32v2 and Arduino device simulator classes (one module per device, all of them importable from `trexsc.simulators`).
-- `trexsc/core/`: support modules
+- `trexdmsc/simulators/`: CAEN, Spellman, Rigol, MX32v2 and Arduino device simulator classes (one module per device, all of them importable from `trexdmsc.simulators`).
+- `trexdmsc/core/`: support modules
    - `channel.py`: Implementation of the State and ChannelState classes.
    - `check.py`: Implementation of the checks classes.
    - `logger.py`: Logging helper functions and classes (slack/mattermost/text widget handlers).
-- `trexsc/utils/googlesheet.py`: Other useful functions. For now, it includes the necessary functions for adding rows to the Google Sheet run list.
+- `trexdmsc/utils/googlesheet.py`: Other useful functions. For now, it includes the necessary functions for adding rows to the Google Sheet run list.
 
 ### Adding a new device
 
-1. Write the device API class in `trexsc/devices/` and its simulator in `trexsc/simulators/` (and export it in `trexsc/simulators/__init__.py`).
-2. Write its `DeviceGUI` in `trexsc/gui/devices/`, with a `main()` for standalone use.
-3. Add it to a subsystem in `trexsc/gui/subsystems/` (or create a new one and register it in `trexsc/gui/supergui.py`).
+1. Write the device API class in `trexdmsc/devices/` and its simulator in `trexdmsc/simulators/` (and export it in `trexdmsc/simulators/__init__.py`).
+2. Write its `DeviceGUI` in `trexdmsc/gui/devices/`, with a `main()` for standalone use.
+3. Add it to a subsystem in `trexdmsc/gui/subsystems/` (or create a new one and register it in `trexdmsc/gui/supergui.py`).
 4. Optionally, add a console script for it in `pyproject.toml`.

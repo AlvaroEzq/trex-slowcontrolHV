@@ -8,10 +8,10 @@ import argparse
 import datetime
 import time
 
-from trexsc.utils import googlesheet as utils
-from trexsc.devices.daqmetrics import MetricsFetcher, MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
-from trexsc.gui.base.widgets import ToolTip
-from trexsc.gui.base.devicegui import DeviceGUI
+from trexdmsc.utils import googlesheet as utils
+from trexdmsc.devices.daqmetrics import MetricsFetcher, MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
+from trexdmsc.gui.base.widgets import ToolTip
+from trexdmsc.gui.base.devicegui import DeviceGUI
 
 class DaqMetricsGUI(DeviceGUI):
     """

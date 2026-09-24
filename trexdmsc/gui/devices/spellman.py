@@ -2,11 +2,11 @@ import tkinter as tk
 import argparse
 
 # import spellmanModule as spll  # Assuming spellmanModule has required functions
-from trexsc.devices.spellman import Spellman
-from trexsc.core.channel import ChannelState
-from trexsc.gui.base.checkframe import ChecksFrame
-from trexsc.gui.base.devicegui import DeviceGUI
-from trexsc.gui.base.widgets import ToolTip
+from trexdmsc.devices.spellman import Spellman
+from trexdmsc.core.channel import ChannelState
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.gui.base.devicegui import DeviceGUI
+from trexdmsc.gui.base.widgets import ToolTip
 
 class SpellmanFrame(DeviceGUI):
     def __init__(self, spellman, checks=None, parent=None, log=True, auto_gui_update=True):
@@ -369,7 +369,7 @@ def main():
         spll = Spellman(args.host, args.port)
         app = SpellmanFrame(spll)
     else:
-        from trexsc.simulators import SpellmanSimulator
+        from trexdmsc.simulators import SpellmanSimulator
         spll = SpellmanSimulator()
         app = SpellmanFrame(spll, log=False)
 

@@ -1,6 +1,6 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from trexsc.core.logger import LOG_DIR
+from trexdmsc.core.logger import LOG_DIR
 
 GOOGLE_SHEET_SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 GOOGLE_SHEET_CREDENTIALS_FILENAME = "trex-slowcontrolHV-credentials.json"

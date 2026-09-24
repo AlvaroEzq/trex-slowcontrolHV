@@ -3,15 +3,15 @@ from __future__ import annotations
 import tkinter as tk
 import argparse
 import threading
-from trexsc.core.channel import ChannelState
+from trexdmsc.core.channel import ChannelState
 import hvps
 
 CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
 
-from trexsc.core.check import Check
-from trexsc.gui.base.checkframe import ChecksFrame
-from trexsc.gui.base.widgets import ToolTip
-from trexsc.gui.base.devicegui import DeviceGUI
+from trexdmsc.core.check import Check
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.gui.base.widgets import ToolTip
+from trexdmsc.gui.base.devicegui import DeviceGUI
 
 class CaenHVPSGUI(DeviceGUI):
     def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False, auto_gui_update=True):
@@ -677,7 +677,7 @@ def main():
             CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS)
 
     else:
-        from trexsc.simulators import ModuleSimulator
+        from trexdmsc.simulators import ModuleSimulator
 
         m = ModuleSimulator(4)
         CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS, log=False)

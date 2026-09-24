@@ -14,12 +14,12 @@ SIGNAL_DISPLAY = {
 SIGNAL_DISPLAY_UNKNOWN = ("NO DATA", "orange")
 ALARM_SIGNAL = 1
 
-from trexsc.devices.arduino import ArduinoReader
-from trexsc.core.channel import ChannelState
-from trexsc.core.check import Check
-from trexsc.gui.base.checkframe import ChecksFrame
-from trexsc.gui.base.widgets import ToolTip
-from trexsc.gui.base.devicegui import DeviceGUI
+from trexdmsc.devices.arduino import ArduinoReader
+from trexdmsc.core.channel import ChannelState
+from trexdmsc.core.check import Check
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.gui.base.widgets import ToolTip
+from trexdmsc.gui.base.devicegui import DeviceGUI
 
 class ArduinoGUI(DeviceGUI):
     """

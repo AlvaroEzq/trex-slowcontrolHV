@@ -5,7 +5,7 @@ import threading
 import requests
 import json
 
-from trexsc.core.channel import LOG_DIR
+from trexdmsc.core.channel import LOG_DIR
 
 SLACK_WEBHOOK_URL = "" # add here the webkook url
 MATTERMOST_WEBHOOK_URL = ""
