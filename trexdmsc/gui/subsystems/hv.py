@@ -284,25 +284,6 @@ class HVGUI(MultiDeviceGUI):
                     all_guis[name].checks_frame.set_config_param(key, var.get())
             new_window.destroy()
 
-    def open_devicegui_config_window(self):
-        new_window = tk.Toplevel(self.root)
-        new_window.title("Device GUI Configuration")
-
-        row = 0
-        checks_configuration = {}
-        all_guis = self.all_guis.copy()
-        #all_guis["multidevice"] = self # the multidevice.checks_frame is self.checks_frame
-        for name, gui in all_guis.items():
-            #print(f"DeviceGUI: {name}")
-            if not hasattr(gui, "config_params"):
-                continue
-            if gui.config_params is None:
-                continue
-            device_frame = tk.LabelFrame(new_window, text=name, font=("", 12, "bold"))
-            device_frame.grid(row=row, column=0, sticky="w", padx=10, pady=5)
-            gui.make_config_menu(device_frame)
-            row += 1
-
     def create_multidevice_frame(self, frame):
         self.multidevice_frame = tk.LabelFrame(frame, text="Multi-device control", font=("", 16), labelanchor="n", padx=10, pady=10, bd=4)
         self.multidevice_frame.pack(side="bottom", fill="both", expand=False)

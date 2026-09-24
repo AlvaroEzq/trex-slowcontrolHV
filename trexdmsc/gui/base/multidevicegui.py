@@ -114,6 +114,27 @@ class MultiDeviceGUI(ABC):
             except Exception as e:
                 self.logger.debug(f"Error updating GUI for device {name}: {e}")
 
+    def add_devicegui_config_menu(self):
+        """Add the Config > Device GUI configuration entry to the menu bar."""
+        self.menu_config = tk.Menu(self.menu_bar, tearoff=0)
+        self.menu_config.add_command(label="Device GUI configuration",
+                                     command=self.open_devicegui_config_window)
+        self.menu_bar.add_cascade(label="Config", menu=self.menu_config)
+
+    def open_devicegui_config_window(self):
+        """Window with the advanced options (config_params) of every child GUI."""
+        new_window = tk.Toplevel(self.root)
+        new_window.title("Device GUI Configuration")
+
+        row = 0
+        for name, gui in self.all_guis.copy().items():
+            if getattr(gui, "config_params", None) is None:
+                continue
+            device_frame = tk.LabelFrame(new_window, text=name, font=("", 12, "bold"))
+            device_frame.grid(row=row, column=0, sticky="w", padx=10, pady=5)
+            gui.make_config_menu(device_frame)
+            row += 1
+
     def cleanup(self):
         """Hook called after the mainloop ends when this GUI is standalone."""
         pass
