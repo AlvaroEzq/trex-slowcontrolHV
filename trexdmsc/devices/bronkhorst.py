@@ -1,11 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from trexdmsc.devices.bridge import BridgeClient
-
-# Raspberry Pi of the gas panel, where the bridge servers of the three Bronkhorsts
-# (and of the gas Arduino) run (servers/bronkhorstServer*.py of the old slow control)
-GAS_PANEL_HOST = "192.168.15.100"
+from trexdmsc.devices.bridge import BridgeClient, GAS_PANEL_HOST
 
 # ProPar integer values: 32000 is 100% of the full scale of the instrument. The value
 # travels as an unsigned 16 bit word, and the instrument can go from -23593 to 41942

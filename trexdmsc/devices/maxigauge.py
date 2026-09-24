@@ -2,11 +2,8 @@ import math
 from dataclasses import dataclass
 from typing import Optional
 
-from trexdmsc.devices.bridge import BridgeClient
+from trexdmsc.devices.bridge import BridgeClient, VACUUM_ELECTRONICS_HOST
 
-# Raspberry Pi of the vacuum and electronics, where the MaxiGauge bridge server runs
-# (servers/maxigaugeServer.py of the old slow control)
-VACUUM_HOST = "192.168.15.101"
 MAXIGAUGE_PORT = 50001
 
 STX = b"\x02"
@@ -86,7 +83,7 @@ class MaxiGauge:
     exactly as in the old slow control (slowcontrol/maxiGaugeModule.py).
     """
 
-    def __init__(self, host=VACUUM_HOST, port=MAXIGAUGE_PORT, timeout=3, name="MaxiGauge"):
+    def __init__(self, host=VACUUM_ELECTRONICS_HOST, port=MAXIGAUGE_PORT, timeout=3, name="MaxiGauge"):
         self.name = name
         self.bridge = BridgeClient(host, port, timeout=timeout, name=name)
 

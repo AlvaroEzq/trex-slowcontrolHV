@@ -1,5 +1,12 @@
 import socket
 
+# The two Raspberry Pis where the bridge servers of the old slow control run
+# (one systemd service per device, see servers/*.py and services/*.service there):
+# - gas panel: Bronkhorsts P, Q and M (ports 50002-50004) and the gas Arduino (50000)
+# - vacuum and electronics: MaxiGauge (50001) and the electronics Arduino (50000)
+GAS_PANEL_HOST = "192.168.15.100"
+VACUUM_ELECTRONICS_HOST = "192.168.15.101"
+
 
 class BridgeError(ConnectionError):
     """The bridge server answered, but reports that it could not talk to the device."""

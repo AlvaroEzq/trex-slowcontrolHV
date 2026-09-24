@@ -5,6 +5,7 @@ from trexdmsc.simulators.mx32v2 import MX32v2Simulator
 from trexdmsc.simulators.arduino import ArduinoSimulator
 from trexdmsc.simulators.bronkhorst import BronkhorstSimulator
 from trexdmsc.simulators.maxigauge import MaxiGaugeSimulator
+from trexdmsc.simulators.arduinoio import ArduinoIOSimulator
 
 __all__ = [
     "ChannelSimulator",
@@ -16,4 +17,5 @@ __all__ = [
     "ArduinoSimulator",
     "BronkhorstSimulator",
     "MaxiGaugeSimulator",
+    "ArduinoIOSimulator",
 ]

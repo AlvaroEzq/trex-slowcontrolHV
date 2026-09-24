@@ -4,8 +4,9 @@ import argparse
 import tkinter as tk
 
 from trexdmsc.devices.maxigauge import (MaxiGauge, MaxiGaugeError, GAUGES, GAUGE_VALUE_NAMES,
-                                        STATUS_NAMES, STATUS_OK, VACUUM_HOST, MAXIGAUGE_PORT,
+                                        STATUS_NAMES, STATUS_OK, MAXIGAUGE_PORT,
                                         failed_gauge_reading)
+from trexdmsc.devices.bridge import VACUUM_ELECTRONICS_HOST
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
@@ -173,8 +174,8 @@ class MaxiGaugeGUI(ReadFailureMixin, DeviceGUI):
 
 def main():
     parser = argparse.ArgumentParser(description="MaxiGauge GUI Monitor")
-    parser.add_argument("--host", type=str, default=VACUUM_HOST,
-                        help=f"Host of the MaxiGauge bridge server (default: {VACUUM_HOST})")
+    parser.add_argument("--host", type=str, default=VACUUM_ELECTRONICS_HOST,
+                        help=f"Host of the MaxiGauge bridge server (default: {VACUUM_ELECTRONICS_HOST})")
     parser.add_argument("--port", type=int, default=MAXIGAUGE_PORT,
                         help=f"TCP port of the MaxiGauge bridge server (default: {MAXIGAUGE_PORT})")
     parser.add_argument("--test", action="store_true", help="Use a simulated device for testing")
