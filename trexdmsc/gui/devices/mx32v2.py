@@ -9,12 +9,7 @@ from trexdmsc.core.check import Check
 from trexdmsc.gui.base.checkframe import ChecksFrame
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
-
-# Consecutive failed reads that a sensor (or the controller) is allowed before the
-# failure is reported. A single Modbus timeout every few hours is normal and solves
-# itself, and at the default read_loop_time this still reports a real outage in a
-# few seconds. Configurable at run time from the advanced options menu.
-DEFAULT_READ_FAILURES_TO_WARN = 3
+from trexdmsc.gui.base.readfailures import ReadFailureMixin
 
 COLOR_OK = "green"
 COLOR_ALARM = "red"
@@ -33,7 +28,7 @@ STATUS_FLAGS = {
 }
 
 
-class MX32v2GUI(DeviceGUI):
+class MX32v2GUI(ReadFailureMixin, DeviceGUI):
     """
     A GUI class for monitoring the gas sensors connected to an MX32v2 controller.
 
@@ -49,8 +44,6 @@ class MX32v2GUI(DeviceGUI):
         self.value_labels = {}
         self.alarm_labels = {}
         self.status_labels = {}
-        # consecutive failed reads, per sensor name (None: the controller itself)
-        self.read_failures = {}
 
         channels_states = {}
         for sensor in self.sensors:
@@ -78,10 +71,7 @@ class MX32v2GUI(DeviceGUI):
                         )
 
     def create_gui(self):
-        # create_gui() is called by DeviceGUI.__init__ after config_params is built
-        # and before the read loop starts, so this is where an extra parameter can
-        # join the ones offered by the advanced options menu.
-        self.config_params.setdefault("read_failures_to_warn", DEFAULT_READ_FAILURES_TO_WARN)
+        self.add_read_failures_config_param()
 
         self.main_frame = tk.LabelFrame(self.frame, text=f"{self.device.name}", font=("", 16),
                                         padx=10, pady=10, labelanchor="n", bd=4)
@@ -151,44 +141,6 @@ class MX32v2GUI(DeviceGUI):
         finally:
             self.device.close()
 
-    def read_failures_to_warn(self):
-        return max(1, int(self.config_params.get("read_failures_to_warn",
-                                                 DEFAULT_READ_FAILURES_TO_WARN)))
-
-    def handle_read_failure(self, key, message):
-        """
-        Count a failed read and report it only once it has persisted.
-
-        A single Modbus timeout every few hours is normal and solves itself, so the
-        first failures are only recorded at debug level, where they do not reach the
-        Slack/Mattermost handlers. Once the same sensor (or the controller) has
-        failed 'read_failures_to_warn' reads in a row the problem is real and gets
-        logged as a warning, once, until it recovers.
-
-        Returns True when the failure has lasted long enough to be published as a
-        failed reading; while it returns False the caller keeps the last values.
-        """
-        failures = self.read_failures.get(key, 0) + 1
-        self.read_failures[key] = failures
-        to_warn = self.read_failures_to_warn()
-
-        if failures < to_warn:
-            self.logger.debug(f"{message} (failure {failures} of {to_warn}, tolerated)")
-            return False
-        if failures == to_warn:
-            self.logger.warning(f"{message} (failed {failures} reads in a row)")
-        else:
-            self.logger.debug(message) # already warned about this one
-        return True
-
-    def handle_read_recovery(self, key, message):
-        """Report a sensor (or the controller) that reads again, if it was warned about."""
-        failures = self.read_failures.pop(key, 0)
-        if failures >= self.read_failures_to_warn():
-            self.logger.info(f"{message} after {failures} failed reads")
-        elif failures:
-            self.logger.debug(f"{message} after {failures} failed reads")
-
     def log_alarm_transitions(self, sensor, previous_values, values):
         """
         Log every alarm that has just been raised (critical) or cleared (info).
@@ -205,21 +157,16 @@ class MX32v2GUI(DeviceGUI):
 
         concentration = values.get("concentration", -1.0)
         for alarm in sensor.alarms:
-            active = values.get(alarm.key, False)
-            if active == previous_values.get(alarm.key, False):
-                continue
-            if active:
-                self.logger.critical(
-                    f"{self.device.name} {sensor.name} (line {sensor.line}): GAS ALARM"
-                    f" {alarm.number} ACTIVATED at {concentration:.0f} {sensor.unit}"
-                    f" (threshold {alarm.level:g} {sensor.unit})"
-                )
-            else:
-                self.logger.info(
-                    f"{self.device.name} {sensor.name} (line {sensor.line}): gas alarm"
-                    f" {alarm.number} cleared at {concentration:.0f} {sensor.unit}"
-                    f" (threshold {alarm.level:g} {sensor.unit})"
-                )
+            self.log_alarm_transition(
+                previous_values.get(alarm.key, False),
+                values.get(alarm.key, False),
+                f"{self.device.name} {sensor.name} (line {sensor.line}): GAS ALARM"
+                f" {alarm.number} ACTIVATED at {concentration:.0f} {sensor.unit}"
+                f" (threshold {alarm.level:g} {sensor.unit})",
+                f"{self.device.name} {sensor.name} (line {sensor.line}): gas alarm"
+                f" {alarm.number} cleared at {concentration:.0f} {sensor.unit}"
+                f" (threshold {alarm.level:g} {sensor.unit})",
+            )
 
     def update_gui(self):
         for sensor in self.sensors:
