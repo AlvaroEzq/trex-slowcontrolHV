@@ -43,7 +43,7 @@ class SensorConfig:
     line: int
     digital: bool = False
     sensor_number: int = 0       # only used by digital sensors
-    range_max: float = 100.0     # full scale, used to scale the raw measurement
+    range_max: float = 10000.0     # the raw measurement is already in %LEL (I don't know why), so the range must be 10000.0
     unit: str = "%LEL"
     alarms: tuple = ()
     log_threshold: float = 0.5   # change (in 'unit') that triggers a line in the log
@@ -63,8 +63,8 @@ def lel_alarms(levels=LEL_ALARM_LEVELS):
 
 # The installation: one analog sensor per line, each with the same three alarms.
 SENSORS = (
-    SensorConfig(name="Line 1", line=1, digital=False, alarms=lel_alarms()),
-    SensorConfig(name="Line 2", line=2, digital=False, alarms=lel_alarms()),
+    SensorConfig(name="Isobutane Sensor 1", line=1, digital=False, alarms=lel_alarms()),
+    SensorConfig(name="Isobutane Sensor 2", line=2, digital=False, alarms=lel_alarms()),
 )
 
 # Every magnitude read from a sensor, in the order they are written to the log file.
