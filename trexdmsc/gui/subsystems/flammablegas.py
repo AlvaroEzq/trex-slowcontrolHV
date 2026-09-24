@@ -44,6 +44,8 @@ class FlammableGasGUI(MultiDeviceGUI):
                          log=log)
 
     def create_gui(self):
+        self.add_devicegui_config_menu()
+
         # the children device GUIs are created with auto_gui_update=False: this
         # subsystem owns the GUI update of all of them.
         # Their frames are packed without fill nor expand so that each device GUI

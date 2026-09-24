@@ -158,6 +158,9 @@ def main():
     from trexdmsc.core.check import load_checks_from_toml_file
     from trexdmsc.gui.subsystems.hv import HVGUI
     from trexdmsc.gui.subsystems.flammablegas import FlammableGasGUI
+    from trexdmsc.gui.subsystems.gas import GasGUI, build_gas_devices
+    from trexdmsc.gui.subsystems.electronics import ElectronicsGUI, build_electronics_devices
+    from trexdmsc.devices.bridge import GAS_PANEL_HOST, VACUUM_ELECTRONICS_HOST
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
@@ -165,13 +168,22 @@ def main():
     parser.add_argument("--checks", type=str, help="Select checks configuration file", default="config/checks_config.toml")
     parser.add_argument("--mx32-port", type=str, help="Serial port of the MX32v2 gas sensor controller", default="/dev/ttyUSB1")
     parser.add_argument("--arduino-port", type=str, help="Serial port of the Arduino of the safety system", default="/dev/ttyACM0")
+    parser.add_argument("--gas-host", type=str, default=GAS_PANEL_HOST,
+                        help=f"Host of the gas panel bridge servers (default: {GAS_PANEL_HOST})")
+    parser.add_argument("--vacuum-host", type=str, default=VACUUM_ELECTRONICS_HOST,
+                        help=f"Host of the MaxiGauge bridge server (default: {VACUUM_ELECTRONICS_HOST})")
+    parser.add_argument("--electronics-host", type=str, default=VACUUM_ELECTRONICS_HOST,
+                        help=f"Host of the electronics Arduino bridge server (default: {VACUUM_ELECTRONICS_HOST})")
+    parser.add_argument("--read-only", action="store_true",
+                        help="Disable the commands of the gas and electronics subsystems (setpoints and relays)")
     args = parser.parse_args()
 
     checks_caen = load_checks_from_toml_file(args.checks, "caen")
     checks_spellman = load_checks_from_toml_file(args.checks, "spellman")
     checks_multidevice = load_checks_from_toml_file(args.checks, "multidevice")
 
-    def build_app(caen_module, spellman_module, mx32_device, arduino_device, log=True):
+    def build_app(caen_module, spellman_module, mx32_device, arduino_device, gas_devices,
+                  electronics_devices, log=True):
         subsystems = {
             # each subsystem is built inside the content frame of the SuperGUI and
             # without its own scheduler: the SuperGUI owns the only GUI update loop
@@ -194,6 +206,20 @@ def main():
                 parent_frame=frame,
                 auto_gui_update=False,
             )
+        subsystems["Gas"] = lambda frame: GasGUI(
+            **gas_devices,
+            log=log,
+            parent_frame=frame,
+            auto_gui_update=False,
+            read_only=args.read_only,
+        )
+        subsystems["Electronics"] = lambda frame: ElectronicsGUI(
+            **electronics_devices,
+            log=log,
+            parent_frame=frame,
+            auto_gui_update=False,
+            read_only=args.read_only,
+        )
         return SuperGUI(subsystems, title="TREX Slow Control")
 
     if not args.test:
@@ -201,15 +227,19 @@ def main():
         from trexdmsc.devices.mx32v2 import MX32v2
         mx32_device = MX32v2(port=args.mx32_port)
         arduino_device = ArduinoReader(port=args.arduino_port)
+        gas_devices = build_gas_devices(gas_host=args.gas_host, vacuum_host=args.vacuum_host)
+        electronics_devices = build_electronics_devices(host=args.electronics_host)
         with hvps.Caen(port=args.port) as caen:
             print("port:", caen.port)
             print("baudrate:", caen.baudrate)
-            build_app(caen.module(0), spll.Spellman(), mx32_device, arduino_device).run()
+            build_app(caen.module(0), spll.Spellman(), mx32_device, arduino_device,
+                      gas_devices, electronics_devices).run()
     else:
         from trexdmsc.simulators import (ArduinoSimulator, ModuleSimulator, MX32v2Simulator,
                                 SpellmanSimulator)
         build_app(ModuleSimulator(4, trip_probability=0), SpellmanSimulator(),
-                  MX32v2Simulator(), ArduinoSimulator(), log=False).run()
+                  MX32v2Simulator(), ArduinoSimulator(),
+                  build_gas_devices(test=True), build_electronics_devices(test=True), log=False).run()
 
 
 if __name__ == "__main__":
