@@ -915,7 +915,7 @@ class FemDaqMetrics(DaqMetricsBase):
         else:
             raise TypeError("Unsupported fetcher type.")
 
-if __name__ == "__main__":
+def main():
     # Example usage of the MetricsFetcherSSH class
     metrics_fetcher = MetricsFetcher(url="http://localhost:8080/metrics")
     metrics_fetcher.fetch_metrics()
@@ -923,3 +923,7 @@ if __name__ == "__main__":
     # Get a list of available metrics
     print("Available metrics (SSH):")
     print(metrics_fetcher.get_metrics_list())
+
+
+if __name__ == "__main__":
+    main()

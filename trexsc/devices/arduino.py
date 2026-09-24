@@ -72,7 +72,7 @@ class ArduinoReader:
                 return data
         return None
 
-if __name__ == "__main__":
+def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Arduino Serial Reader")
@@ -88,3 +88,6 @@ if __name__ == "__main__":
             else:
                 print("No data received.")
             time.sleep(1)
+
+if __name__ == "__main__":
+    main()

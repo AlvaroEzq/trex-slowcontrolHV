@@ -7,22 +7,22 @@ import sys
 import logging
 import datetime
 
-import caengui
-import spellmangui
-import rigolgui
+from trexsc.gui.devices import caen as caengui
+from trexsc.gui.devices import spellman as spellmangui
+from trexsc.gui.devices import rigol as rigolgui
 
 import hvps
-import spellmanClass as spll
-import rigolClass as rgl
+from trexsc.devices import spellman as spll
+from trexsc.devices import rigol as rgl
 
-import utils
-from checkframe import ChecksFrame
-from check import load_checks_from_toml_file
-from utilsgui import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
-from daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
-from daqmetricsgui import DaqMetricsGUI
-from multidevicegui import MultiDeviceGUI
-import logger
+from trexsc.utils import googlesheet as utils
+from trexsc.gui.base.checkframe import ChecksFrame
+from trexsc.core.check import load_checks_from_toml_file
+from trexsc.gui.base.widgets import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
+from trexsc.devices.daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
+from trexsc.gui.devices.daqmetrics import DaqMetricsGUI
+from trexsc.gui.base.multidevicegui import MultiDeviceGUI
+from trexsc.core import logger
 
 
 class HVGUI(MultiDeviceGUI):
@@ -1052,7 +1052,7 @@ class HVGUI(MultiDeviceGUI):
         self.protocol_cleanup()
 
 
-if __name__ == "__main__":
+def main():
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
@@ -1084,7 +1084,7 @@ if __name__ == "__main__":
                 )
 
     else:
-        from simulators import ModuleSimulator, SpellmanSimulator, RigolSimulator
+        from trexsc.simulators import ModuleSimulator, SpellmanSimulator, RigolSimulator
         caen_module = ModuleSimulator(4, trip_probability=0)
         spellman_module = SpellmanSimulator()
         rigol_module_1 = RigolSimulator()
@@ -1100,3 +1100,5 @@ if __name__ == "__main__":
                 )
 
 
+if __name__ == "__main__":
+    main()

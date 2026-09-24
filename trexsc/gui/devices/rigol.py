@@ -20,12 +20,12 @@ CHANNEL_NAMES_RIGHT = [
                 'TCM',
                 ]
 
-from rigolClass import RigolPowerSupply
-from channel import ChannelState
-from check import Check
-from checkframe import ChecksFrame
-from utilsgui import ToolTip
-from devicegui import DeviceGUI
+from trexsc.devices.rigol import RigolPowerSupply
+from trexsc.core.channel import ChannelState
+from trexsc.core.check import Check
+from trexsc.gui.base.checkframe import ChecksFrame
+from trexsc.gui.base.widgets import ToolTip
+from trexsc.gui.base.devicegui import DeviceGUI
 
 class RigolGUI(DeviceGUI):
     """
@@ -142,14 +142,14 @@ class RigolGUI(DeviceGUI):
         with self.device:
             self.device.turn_off_channel(channel_index)
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="BGA244 GUI Control")
     parser.add_argument("--resource", type=str, help="Resource name for the BGA244 device")
     parser.add_argument("--test", action="store_true", help="Use a simulated device for testing")
     args = parser.parse_args()
 
     if args.test:
-        from simulators import RigolSimulator
+        from trexsc.simulators import RigolSimulator
         print("Using Rigol Simulator")
         rigol_device = RigolSimulator()
     else:
@@ -160,3 +160,6 @@ if __name__ == "__main__":
         rigol_device = RigolPowerSupply(resource_name=args.resource)
     
     RigolGUI(device=rigol_device, channel_names=CHANNEL_NAMES)
+
+if __name__ == "__main__":
+    main()
