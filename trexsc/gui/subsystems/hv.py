@@ -1057,7 +1057,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
     parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB0")
-    parser.add_argument("--checks", type=str, help="Select checks configuration file", default="checks_config.toml")
+    parser.add_argument("--checks", type=str, help="Select checks configuration file", default="config/checks_config.toml")
 
     args = parser.parse_args()
 
