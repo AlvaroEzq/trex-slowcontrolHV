@@ -3,12 +3,12 @@ from __future__ import annotations
 import tkinter as tk
 import argparse
 
-from mx32v2 import MX32v2, SENSORS, SENSOR_VALUE_NAMES, failed_sensor_reading
-from channel import ChannelState
-from check import Check
-from checkframe import ChecksFrame
-from utilsgui import ToolTip
-from devicegui import DeviceGUI
+from trexdmsc.devices.mx32v2 import MX32v2, SENSORS, SENSOR_VALUE_NAMES, failed_sensor_reading
+from trexdmsc.core.channel import ChannelState
+from trexdmsc.core.check import Check
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.gui.base.widgets import ToolTip
+from trexdmsc.gui.base.devicegui import DeviceGUI
 
 # Consecutive failed reads that a sensor (or the controller) is allowed before the
 # failure is reported. A single Modbus timeout every few hours is normal and solves
@@ -251,7 +251,7 @@ class MX32v2GUI(DeviceGUI):
         )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="MX32v2 GUI Monitor")
     parser.add_argument("--port", type=str, default="/dev/ttyUSB1", help="Serial port of the MX32v2 (e.g. /dev/ttyUSB0)")
     parser.add_argument("--baudrate", type=int, default=9600, help="Modbus baudrate (default: 9600)")
@@ -260,7 +260,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.test:
-        from simulators import MX32v2Simulator
+        from trexdmsc.simulators import MX32v2Simulator
         print("Using MX32v2 Simulator")
         mx32_device = MX32v2Simulator()
     else:
@@ -270,3 +270,7 @@ if __name__ == "__main__":
         mx32_device = MX32v2(port=args.port, baudrate=args.baudrate, slave_id=args.slave_id)
 
     MX32v2GUI(device=mx32_device)
+
+
+if __name__ == "__main__":
+    main()

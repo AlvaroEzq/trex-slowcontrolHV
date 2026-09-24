@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trexdm-sc"
+version = "0.1.0"
+description = "TREX-DM slow control: HV power supplies, flammable gas safety system and DAQ monitoring"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "hvps",
+    "toml",
+    "requests",
+    "paramiko",
+    "gspread",
+    "oauth2client",
+    "pyvisa-py",
+    "pymodbus",
+    "pyserial",
+]
+
+[project.scripts]
+trexdm-sc = "trexdmsc.gui.supergui:main"
+trexdm-sc-hv = "trexdmsc.gui.subsystems.hv:main"
+trexdm-sc-flammablegas = "trexdmsc.gui.subsystems.flammablegas:main"
+trexdm-sc-rigol = "trexdmsc.gui.subsystems.rigol:main"
+trexdm-sc-caen = "trexdmsc.gui.devices.caen:main"
+trexdm-sc-spellman = "trexdmsc.gui.devices.spellman:main"
+trexdm-sc-rigol-device = "trexdmsc.gui.devices.rigol:main"
+trexdm-sc-mx32v2 = "trexdmsc.gui.devices.mx32v2:main"
+trexdm-sc-arduino = "trexdmsc.gui.devices.arduino:main"
+trexdm-sc-daqmetrics = "trexdmsc.gui.devices.daqmetrics:main"
+
+[tool.setuptools.packages.find]
+include = ["trexdmsc*"]

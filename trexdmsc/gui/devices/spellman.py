@@ -2,11 +2,11 @@ import tkinter as tk
 import argparse
 
 # import spellmanModule as spll  # Assuming spellmanModule has required functions
-from spellmanClass import Spellman
-from channel import ChannelState
-from checkframe import ChecksFrame
-from devicegui import DeviceGUI
-from utilsgui import ToolTip
+from trexdmsc.devices.spellman import Spellman
+from trexdmsc.core.channel import ChannelState
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.gui.base.devicegui import DeviceGUI
+from trexdmsc.gui.base.widgets import ToolTip
 
 class SpellmanFrame(DeviceGUI):
     def __init__(self, spellman, checks=None, parent=None, log=True, auto_gui_update=True):
@@ -357,7 +357,7 @@ class SpellmanFrame(DeviceGUI):
         self.state_tooltip.change_text(state_tooltip_text)
 
 # Usage
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
     parser.add_argument("--port", type=int, help="Select port", default=50001)
@@ -369,7 +369,10 @@ if __name__ == "__main__":
         spll = Spellman(args.host, args.port)
         app = SpellmanFrame(spll)
     else:
-        from simulators import SpellmanSimulator
+        from trexdmsc.simulators import SpellmanSimulator
         spll = SpellmanSimulator()
         app = SpellmanFrame(spll, log=False)
 
+
+if __name__ == "__main__":
+    main()

@@ -1,8 +1,8 @@
 import argparse
 import tkinter as tk
 
-import rigolgui
-from multidevicegui import MultiDeviceGUI
+from trexdmsc.gui.devices import rigol as rigolgui
+from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
 
 
 class RigolsGUI(MultiDeviceGUI):
@@ -42,7 +42,7 @@ class RigolsGUI(MultiDeviceGUI):
             )
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="GUI for several Rigol power supplies")
     parser.add_argument("--resource", type=str, action="append", default=[],
                         help="Resource name of a Rigol power supply (repeatable)")
@@ -50,13 +50,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.test:
-        from simulators import RigolSimulator
+        from trexdmsc.simulators import RigolSimulator
         devices = [RigolSimulator(name="Rigol Left SIMULATOR"), RigolSimulator(name="Rigol Right SIMULATOR")]
     else:
-        from rigolClass import RigolPowerSupply
+        from trexdmsc.devices.rigol import RigolPowerSupply
         if not args.resource:
             print("Please provide at least one resource name using --resource")
             exit(1)
         devices = [RigolPowerSupply(name=f"Rigol {i+1}", resource_name=r) for i, r in enumerate(args.resource)]
 
     RigolsGUI(devices, log=False)
+
+
+if __name__ == "__main__":
+    main()

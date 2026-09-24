@@ -14,12 +14,12 @@ SIGNAL_DISPLAY = {
 SIGNAL_DISPLAY_UNKNOWN = ("NO DATA", "orange")
 ALARM_SIGNAL = 1
 
-from arduino import ArduinoReader
-from channel import ChannelState
-from check import Check
-from checkframe import ChecksFrame
-from utilsgui import ToolTip
-from devicegui import DeviceGUI
+from trexdmsc.devices.arduino import ArduinoReader
+from trexdmsc.core.channel import ChannelState
+from trexdmsc.core.check import Check
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.gui.base.widgets import ToolTip
+from trexdmsc.gui.base.devicegui import DeviceGUI
 
 class ArduinoGUI(DeviceGUI):
     """
@@ -117,7 +117,7 @@ class ArduinoGUI(DeviceGUI):
             text, color = SIGNAL_DISPLAY.get(value, SIGNAL_DISPLAY_UNKNOWN)
             self.channels_labels[i].config(text=text, fg=color)
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Arduino GUI Control")
     parser.add_argument("--port", type=str, default="/dev/ttyACM0", help="Serial port for the Arduino device")
     args = parser.parse_args()
@@ -125,3 +125,7 @@ if __name__ == "__main__":
     # Initialize the Arduino device
     arduino_device = ArduinoReader(port=args.port)
     ArduinoGUI(device=arduino_device, channel_names=CHANNEL_NAMES)
+
+
+if __name__ == "__main__":
+    main()

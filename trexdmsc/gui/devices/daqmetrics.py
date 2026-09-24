@@ -8,10 +8,10 @@ import argparse
 import datetime
 import time
 
-import utils
-from daqmetrics import MetricsFetcher, MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
-from utilsgui import ToolTip
-from devicegui import DeviceGUI
+from trexdmsc.utils import googlesheet as utils
+from trexdmsc.devices.daqmetrics import MetricsFetcher, MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
+from trexdmsc.gui.base.widgets import ToolTip
+from trexdmsc.gui.base.devicegui import DeviceGUI
 
 class DaqMetricsGUI(DeviceGUI):
     """
@@ -254,7 +254,7 @@ class DaqMetricsGUI(DeviceGUI):
         ):
             self.add_run_to_googlesheet()
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Daq metrics GUI")
     args = parser.parse_args()
 
@@ -265,3 +265,6 @@ if __name__ == "__main__":
     daqmetrics = FemDaqMetrics(metrics_fetcher)
     
     DaqMetricsGUI(daqmetrics)
+
+if __name__ == "__main__":
+    main()

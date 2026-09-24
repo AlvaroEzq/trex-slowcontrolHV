@@ -2,7 +2,7 @@ import argparse
 import logging
 import tkinter as tk
 
-from multidevicegui import MultiDeviceGUI
+from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
 
 # Colours of the sidebar. They only affect the navigation chrome of the SuperGUI,
 # not the subsystems themselves (which keep the default Tk look).
@@ -152,17 +152,17 @@ class SuperGUI:
             subsystem.cleanup()
 
 
-if __name__ == "__main__":
+def main():
     import hvps
-    import spellmanClass as spll
-    from check import load_checks_from_toml_file
-    from multiHVgui import HVGUI
-    from multiflammablegasgui import FlammableGasGUI
+    from trexdmsc.devices import spellman as spll
+    from trexdmsc.core.check import load_checks_from_toml_file
+    from trexdmsc.gui.subsystems.hv import HVGUI
+    from trexdmsc.gui.subsystems.flammablegas import FlammableGasGUI
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
     parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB2")
-    parser.add_argument("--checks", type=str, help="Select checks configuration file", default="checks_config.toml")
+    parser.add_argument("--checks", type=str, help="Select checks configuration file", default="config/checks_config.toml")
     parser.add_argument("--mx32-port", type=str, help="Serial port of the MX32v2 gas sensor controller", default="/dev/ttyUSB1")
     parser.add_argument("--arduino-port", type=str, help="Serial port of the Arduino of the safety system", default="/dev/ttyACM0")
     args = parser.parse_args()
@@ -197,8 +197,8 @@ if __name__ == "__main__":
         return SuperGUI(subsystems, title="TREX Slow Control")
 
     if not args.test:
-        from arduino import ArduinoReader
-        from mx32v2 import MX32v2
+        from trexdmsc.devices.arduino import ArduinoReader
+        from trexdmsc.devices.mx32v2 import MX32v2
         mx32_device = MX32v2(port=args.mx32_port)
         arduino_device = ArduinoReader(port=args.arduino_port)
         with hvps.Caen(port=args.port) as caen:
@@ -206,7 +206,11 @@ if __name__ == "__main__":
             print("baudrate:", caen.baudrate)
             build_app(caen.module(0), spll.Spellman(), mx32_device, arduino_device).run()
     else:
-        from simulators import (ArduinoSimulator, ModuleSimulator, MX32v2Simulator,
+        from trexdmsc.simulators import (ArduinoSimulator, ModuleSimulator, MX32v2Simulator,
                                 SpellmanSimulator)
         build_app(ModuleSimulator(4, trip_probability=0), SpellmanSimulator(),
                   MX32v2Simulator(), ArduinoSimulator(), log=False).run()
+
+
+if __name__ == "__main__":
+    main()

@@ -3,15 +3,15 @@ from __future__ import annotations
 import tkinter as tk
 import argparse
 import threading
-from channel import ChannelState
+from trexdmsc.core.channel import ChannelState
 import hvps
 
 CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
 
-from check import Check
-from checkframe import ChecksFrame
-from utilsgui import ToolTip
-from devicegui import DeviceGUI
+from trexdmsc.core.check import Check
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.gui.base.widgets import ToolTip
+from trexdmsc.gui.base.devicegui import DeviceGUI
 
 class CaenHVPSGUI(DeviceGUI):
     def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False, auto_gui_update=True):
@@ -646,7 +646,7 @@ class CaenHVPSGUI(DeviceGUI):
         self.logger.warning(message)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
     parser.add_argument("--port", type=str, help="Select port", default="/dev/ttyUSB0")
@@ -677,7 +677,11 @@ if __name__ == "__main__":
             CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS)
 
     else:
-        from simulators import *  # noqa: F403
+        from trexdmsc.simulators import ModuleSimulator
 
-        m = ModuleSimulator(4)  # noqa: F405
+        m = ModuleSimulator(4)
         CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS, log=False)
+
+
+if __name__ == "__main__":
+    main()

@@ -7,22 +7,22 @@ import sys
 import logging
 import datetime
 
-import caengui
-import spellmangui
-import rigolgui
+from trexdmsc.gui.devices import caen as caengui
+from trexdmsc.gui.devices import spellman as spellmangui
+from trexdmsc.gui.devices import rigol as rigolgui
 
 import hvps
-import spellmanClass as spll
-import rigolClass as rgl
+from trexdmsc.devices import spellman as spll
+from trexdmsc.devices import rigol as rgl
 
-import utils
-from checkframe import ChecksFrame
-from check import load_checks_from_toml_file
-from utilsgui import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
-from daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
-from daqmetricsgui import DaqMetricsGUI
-from multidevicegui import MultiDeviceGUI
-import logger
+from trexdmsc.utils import googlesheet as utils
+from trexdmsc.gui.base.checkframe import ChecksFrame
+from trexdmsc.core.check import load_checks_from_toml_file
+from trexdmsc.gui.base.widgets import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
+from trexdmsc.devices.daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
+from trexdmsc.gui.devices.daqmetrics import DaqMetricsGUI
+from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
+from trexdmsc.core import logger
 
 
 class HVGUI(MultiDeviceGUI):
@@ -1052,12 +1052,12 @@ class HVGUI(MultiDeviceGUI):
         self.protocol_cleanup()
 
 
-if __name__ == "__main__":
+def main():
     
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
     parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB0")
-    parser.add_argument("--checks", type=str, help="Select checks configuration file", default="checks_config.toml")
+    parser.add_argument("--checks", type=str, help="Select checks configuration file", default="config/checks_config.toml")
 
     args = parser.parse_args()
 
@@ -1084,7 +1084,7 @@ if __name__ == "__main__":
                 )
 
     else:
-        from simulators import ModuleSimulator, SpellmanSimulator, RigolSimulator
+        from trexdmsc.simulators import ModuleSimulator, SpellmanSimulator, RigolSimulator
         caen_module = ModuleSimulator(4, trip_probability=0)
         spellman_module = SpellmanSimulator()
         rigol_module_1 = RigolSimulator()
@@ -1100,3 +1100,5 @@ if __name__ == "__main__":
                 )
 
 
+if __name__ == "__main__":
+    main()

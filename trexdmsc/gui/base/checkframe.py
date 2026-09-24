@@ -3,8 +3,8 @@ from tkinter import messagebox
 import threading
 import time
 
-from check import Check, CheckWithLock
-from utilsgui import ToolTip
+from trexdmsc.core.check import Check, CheckWithLock
+from trexdmsc.gui.base.widgets import ToolTip
 
 class ChecksFrame:
     def __init__(self, parent_frame = None, checks = None, channels = None, locks = None):
@@ -312,10 +312,14 @@ class ChecksFrame:
     def start_background_threads(self):
         threading.Thread(target=self.check_loop, daemon=True).start()
 
-if __name__ == "__main__":
+def main():
     checks = [
         Check("Check 1", "ch1 > 10", {"ch1": 15}, "Check if ch1 is greater than 10"),
         Check("Check 2", "ch2 < 10", {"ch2": 5}, "Check if ch2 is less than 10"),
         Check("Check 3", "ch1 + ch2 == 20", {"ch1": 15, "ch2": 5}, "Check if ch1 + ch2 is equal to 20"),
     ]
     checks_frame = ChecksFrame(checks=checks)
+
+
+if __name__ == "__main__":
+    main()

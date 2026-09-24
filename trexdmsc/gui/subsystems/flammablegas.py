@@ -1,9 +1,9 @@
 import argparse
 import tkinter as tk
 
-import arduinogui
-import mx32v2gui
-from multidevicegui import MultiDeviceGUI
+from trexdmsc.gui.devices import arduino as arduinogui
+from trexdmsc.gui.devices import mx32v2 as mx32v2gui
+from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
 
 
 class FlammableGasGUI(MultiDeviceGUI):
@@ -74,7 +74,7 @@ class FlammableGasGUI(MultiDeviceGUI):
             self.all_guis[self.arduino_device.name] = self.arduino_gui
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="GUI of the flammable gas (isobutane) safety system")
     parser.add_argument("--mx32-port", type=str, default="/dev/ttyUSB1", help="Serial port of the MX32v2")
     parser.add_argument("--mx32-baudrate", type=int, default=9600, help="Modbus baudrate of the MX32v2 (default: 9600)")
@@ -84,15 +84,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.test:
-        from simulators import ArduinoSimulator, MX32v2Simulator
+        from trexdmsc.simulators import ArduinoSimulator, MX32v2Simulator
         mx32_device = MX32v2Simulator()
         arduino_device = ArduinoSimulator()
         log = False
     else:
-        from arduino import ArduinoReader
-        from mx32v2 import MX32v2
+        from trexdmsc.devices.arduino import ArduinoReader
+        from trexdmsc.devices.mx32v2 import MX32v2
         mx32_device = MX32v2(port=args.mx32_port, baudrate=args.mx32_baudrate, slave_id=args.mx32_slave_id)
         arduino_device = ArduinoReader(port=args.arduino_port)
         log = True
 
     FlammableGasGUI(mx32_device=mx32_device, arduino_device=arduino_device, log=log)
+
+
+if __name__ == "__main__":
+    main()
