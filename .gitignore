@@ -1,2 +1,4 @@
 logs/*
-__pycache__/
+__pycache__/*
+email_config.toml
+trex-slowcontrolHV-credentials.json
