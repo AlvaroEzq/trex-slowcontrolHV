@@ -894,9 +894,9 @@ class HVGUI(MultiDeviceGUI):
                 self.channels_vset_guientries[ch].insert(0, str(v))
                 channel = self.all_channels[ch]
                 try:
-                    self.channels_gui[ch].issue_command(channel.vset(v))
-                except (AttributeError, TypeError): # for the simulators
-                    channel.vset = v
+                    # synchronously, so that a failed set stops the protocol
+                    with self.channels_gui[ch].device_lock:
+                        channel.vset = v
                 except Exception as e:
                     print(f"Error setting voltage for channel {ch}: {e}")
                     self.protocol_cleanup()
@@ -1013,9 +1013,9 @@ class HVGUI(MultiDeviceGUI):
                 self.channels_vset_guientries[ch].insert(0, str(v))
                 channel = self.all_channels[ch]
                 try:
-                    self.channels_gui[ch].issue_command(channel.vset(v))
-                except (AttributeError, TypeError):
-                    channel.vset = v
+                    # synchronously, so that a failed set stops the protocol
+                    with self.channels_gui[ch].device_lock:
+                        channel.vset = v
                 except Exception as e:
                     print(f"Error setting voltage for channel {ch}: {e}")
                     self.protocol_cleanup()
