@@ -212,7 +212,7 @@ class DaqMetricsGUI(DeviceGUI):
                     if time_diff.total_seconds() > 3600*24: # 24 hours without new entries
                         # Send alarm only if lower level was sent
                         if self.alarm_level_sent < logging.CRITICAL:
-                            self.logger.critical("No new entries in the DAQ for more than 24 hours! Check TCM state...")
+                            self.logger.error("No new entries in the DAQ for more than 24 hours! Check TCM state...")
                             self.alarm_level_sent = logging.CRITICAL
                     elif time_diff.total_seconds() > 3600*10: # 10 hours without new entries
                         if self.alarm_level_sent < logging.ERROR:

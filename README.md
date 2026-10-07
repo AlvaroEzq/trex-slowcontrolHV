@@ -11,8 +11,8 @@ This repository contains software for remote control and monitoring of high volt
    - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
    - Trip recovery system to automatically detect, handle and recover a trip. It uses the multidevice raising of voltages to recover a trip. Also, a configurable cooldown time is applied before recovering the trip.
    - Alert message to slack/mattermost webhook (to do so, copy your slack/mattermost webhook in the global variable SLACK/MATTERMOST_WEBHOOK_URL of [logger.py](logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
-      * CRITICAL: unexpected error happens which require the user to fix.
-      * ERROR: expected error happens which require the users attention.
+      * CRITICAL: alarms related to safety systems (flammable gas sensor for example).
+      * ERROR: error happens which require the users attention.
       * WARNING: expected event as trips.
       * INFO: information on the normal functioning of the program, including trip recovery messages when a trip is detected and recovered successfully.
       * DEBUG: debugging information.
