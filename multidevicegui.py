@@ -80,7 +80,10 @@ class MultiDeviceGUI(ABC):
         if self.auto_gui_update:
             self.schedule_gui_update()
         if self.standalone:
-            self.root.mainloop() # this will block the main thread until the window is closed
+            try:
+                self.root.mainloop() # this will block the main thread until the window is closed
+            finally:
+                self.close()
             self.cleanup()
 
     def warn_about_children_schedulers(self):
@@ -113,6 +116,12 @@ class MultiDeviceGUI(ABC):
                 gui.update_gui()
             except Exception as e:
                 self.logger.debug(f"Error updating GUI for device {name}: {e}")
+
+    def close(self):
+        """Stop reading and release the devices of every child GUI (the window is closed)."""
+        for gui in self.all_guis.values():
+            if hasattr(gui, "close"):
+                gui.close()
 
     def cleanup(self):
         """Hook called after the mainloop ends when this GUI is standalone."""

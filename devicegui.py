@@ -14,6 +14,10 @@ from utilsgui import validate_numeric_entry_input
 # seconds. Configurable at run time from the advanced options menu.
 DEFAULT_READ_FAILURES_TO_WARN = 3
 
+# Seconds that close() waits for the command being run before releasing the device
+# anyway, so that a device that does not answer cannot block closing the window.
+CLOSE_TIMEOUT = 5
+
 class DeviceGUI(ABC):
     """
     A GUI class for controlling a single device.
@@ -129,6 +133,7 @@ class DeviceGUI(ABC):
         
         self.command_queue = queue.Queue()
         self.device_lock = threading.Lock()
+        self.closed = False # set by close(): stops the background reading
 
         # Whether this GUI owns its GUI update scheduler. It does not affect the
         # background hardware reading (which always runs) in any way.
@@ -157,7 +162,10 @@ class DeviceGUI(ABC):
         if self.auto_gui_update:
             self.schedule_gui_update()
         if self.standalone:
-            self.root.mainloop() # this will block the main thread until the window is closed
+            try:
+                self.root.mainloop() # this will block the main thread until the window is closed
+            finally:
+                self.close()
             self.cleanup()
 
     def schedule_in_main_thread(self, func, *args):
@@ -235,7 +243,7 @@ class DeviceGUI(ABC):
         )
 
     def read_loop(self):
-        while True:
+        while not self.closed:
             try:
                 self.issue_command(self.read_cycle)
                 if self.config_params["logging_enabled"]:
@@ -250,6 +258,8 @@ class DeviceGUI(ABC):
 
     def read_cycle(self):
         """One read of the hardware: read_values() plus the connection handling around it."""
+        if self.closed:
+            return # do not read (nor reconnect!) a device that has been released
         try:
             if self.read_failures.get(self.DEVICE, 0):
                 self.reconnect_device() # the last read could not reach the device
@@ -417,6 +427,26 @@ class DeviceGUI(ABC):
                 self.set_config_param(key, var.get())
             #new_window.destroy()
     
+    def close(self):
+        """
+        Stop reading the device and release it. Called when the window is closed (by
+        whoever owns the window), so that a device that keeps its connection open
+        (e.g. the CAEN serial port) is not left open, nor reopened by the read loop,
+        while the process finishes.
+        """
+        if self.closed:
+            return
+        self.closed = True
+        # wait for the command being run, if any, but not forever
+        locked = self.device_lock.acquire(timeout=CLOSE_TIMEOUT)
+        try:
+            self.disconnect_device()
+        except Exception as e:
+            self.logger.debug(f"Error disconnecting {self.device_name}: {e}")
+        finally:
+            if locked:
+                self.device_lock.release()
+
     def cleanup(self):
         """Hook called after the mainloop ends when this GUI is standalone."""
         pass
