@@ -14,6 +14,8 @@ SIGNAL_DISPLAY = {
 SIGNAL_DISPLAY_UNKNOWN = ("NO DATA", "orange")
 ALARM_SIGNAL = 1
 
+from serial import SerialException
+
 from arduino import ArduinoReader
 from channel import ChannelState
 from check import Check
@@ -27,6 +29,9 @@ class ArduinoGUI(DeviceGUI):
 
     Inherits from DeviceGUI and provides specific functionality for the Arduino device.
     """
+
+    # the serial port cannot be opened (e.g. the Arduino is unplugged)
+    connection_errors = (SerialException,)
 
     def __init__(self, device, parent_frame=None, channel_names=None, log=True, auto_gui_update=True):
         if channel_names is None:
@@ -109,7 +114,7 @@ class ArduinoGUI(DeviceGUI):
         if active:
             self.logger.critical(f"{self.device.name} {name}: SAFETY ALARM ACTIVATED")
         else:
-            self.logger.info(f"{self.device.name} {name}: safety alarm cleared")
+            self.logger.critical(f"{self.device.name} {name}: safety alarm cleared")
 
     def update_gui(self):
         for i, name in enumerate(self.channels_name):

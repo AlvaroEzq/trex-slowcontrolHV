@@ -5,6 +5,7 @@ import argparse
 import threading
 from channel import ChannelState
 import hvps
+from serial import SerialException
 
 CHANNEL_NAMES = ["mesh right", "mesh left", "gem top", "gem bottom"]
 
@@ -14,6 +15,9 @@ from utilsgui import ToolTip
 from devicegui import DeviceGUI
 
 class CaenHVPSGUI(DeviceGUI):
+    # e.g. "write failed: [Errno 5] Input/output error" once the CAEN is turned off
+    connection_errors = (SerialException,)
+
     def __init__(self, module, channel_names=None, checks=None, parent_frame=None, log=True, silence=False, auto_gui_update=True):
         if channel_names is None:
             channel_names = []
@@ -46,6 +50,13 @@ class CaenHVPSGUI(DeviceGUI):
         self.alarm_detected = True # to avoid sending the alarm message when the GUI is started with the module alarm already active
         self.ilk_detected = True # same as above but for the interlock
         self.silence_alarm = silence
+
+        # The hvps.Caen object that owns the serial port behind the module, used to
+        # reopen the port when the connection is lost (e.g. the CAEN is power cycled).
+        # hvps does not expose it from the module, so take it from the module's bound
+        # write method. None for devices without a serial port (simulators).
+        write_method = getattr(module, "_write_command_read_response", None)
+        self.hvps_device = getattr(write_method, "__self__", None)
 
         if len(channel_names) < module.number_of_channels:
             for i in range(module.number_of_channels):
@@ -534,6 +545,17 @@ class CaenHVPSGUI(DeviceGUI):
         self.device.channels[channel_number].turn_on()
         entry.delete(0, tk.END)
         entry.insert(0, str(self.device.channels[channel_number].vset))
+
+    def disconnect_device(self):
+        # the serial port is dead once the CAEN is turned off: close it right away so
+        # that the kernel can give the same name (e.g. /dev/ttyUSB0) to the CAEN when
+        # it comes back
+        if self.hvps_device is not None:
+            self.hvps_device.disconnect()
+
+    def reconnect_device(self):
+        if self.hvps_device is not None:
+            self.hvps_device.connect()
 
     def read_values(self):
         for i, ch in enumerate(self.device.channels):

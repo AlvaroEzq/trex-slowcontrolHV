@@ -20,6 +20,8 @@ CHANNEL_NAMES_RIGHT = [
                 'TCM',
                 ]
 
+import pyvisa
+
 from rigolClass import RigolPowerSupply
 from channel import ChannelState
 from check import Check
@@ -33,6 +35,9 @@ class RigolGUI(DeviceGUI):
 
     Inherits from DeviceGUI and provides specific functionality for the BGA244 device.
     """
+
+    # the power supply cannot be reached (e.g. it is turned off or unplugged)
+    connection_errors = (pyvisa.errors.Error, OSError)
 
     def __init__(self, device, parent_frame=None, channel_names=None, log=True, auto_gui_update=True):
         if channel_names is None:

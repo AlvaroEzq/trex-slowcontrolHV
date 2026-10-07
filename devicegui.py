@@ -8,6 +8,12 @@ from abc import ABC, abstractmethod
 from logger import configure_basic_logger
 from utilsgui import validate_numeric_entry_input
 
+# Consecutive failed reads that a device (or one of its sensors) is allowed before
+# the failure is reported. A single timeout every few hours is normal and solves
+# itself, and at the usual read_loop_time this still reports a real outage in a few
+# seconds. Configurable at run time from the advanced options menu.
+DEFAULT_READ_FAILURES_TO_WARN = 3
+
 class DeviceGUI(ABC):
     """
     A GUI class for controlling a single device.
@@ -34,7 +40,23 @@ class DeviceGUI(ABC):
         - channel_state_prec_vmon (int): Voltage precision (default: 1).
         - channel_state_prec_imon (int): Current precision (default: 3).
         - read_loop_time (float): Time interval for reading channel data (default: 1 second).
+        - read_failures_to_warn (int): Consecutive failed reads before a failure is
+            reported (default: DEFAULT_READ_FAILURES_TO_WARN).
+
+    Connection handling: read_values() raising one of the connection_errors means the
+    device could not be reached. That is not logged with a traceback on every read:
+    it is counted by handle_read_failure(), reported once it persists, shown in the
+    GUI, and the device gets disconnect_device()/reconnect_device() to recover. The
+    subclasses only say which errors are connection errors and, if the device keeps
+    a connection open between reads, how to reopen it.
     """
+
+    # exceptions raised by read_values() that mean the device could not be reached.
+    # Empty by default: anything raised is then a bug and logged as such.
+    connection_errors = ()
+
+    # read_failures key of the device itself, as opposed to one of its sensors/channels
+    DEVICE = None
 
     def __init__(self, device, channels_states, parent_frame=None, auto_gui_update=True, **kwargs):
         self.device = device
@@ -45,7 +67,10 @@ class DeviceGUI(ABC):
             "logging_enabled" : kwargs.get("logging_enabled", True),
             "read_loop_time" : kwargs.get("read_loop_time", 1),
             "gui_update_time" : kwargs.get("gui_update_time", 1),
+            "read_failures_to_warn" : kwargs.get("read_failures_to_warn", DEFAULT_READ_FAILURES_TO_WARN),
         }
+        # consecutive failed reads, per sensor/channel name (DEVICE: the device itself)
+        self.read_failures = {}
         
         base_channel_params = {
             "save_previous": False,
@@ -69,17 +94,19 @@ class DeviceGUI(ABC):
         if not isinstance(self.config_params["read_loop_time"], (int, float)) or self.config_params["read_loop_time"] <= 0:
             raise ValueError("read_loop_time must be a positive number")
 
+        # some device APIs query the hardware for the name: read it only once
+        try:
+            self.device_name = device.name
+        except AttributeError:
+            self.device_name = "unknown device"
+
         # Initialize GUI basic components.
         # self.root is always the actual Tk root/application context, while
         # self.frame is the widget container owned by this GUI.
         self.standalone = parent_frame is None
         if self.standalone:
             self.root = tk.Tk()
-            try:
-                title = f"{device.name} GUI"
-            except AttributeError:
-                title = "Unknown device GUI"
-            self.root.title(title)
+            self.root.title(f"{self.device_name} GUI")
             self.parent_frame = self.root
         else:
             self.parent_frame = parent_frame
@@ -109,10 +136,7 @@ class DeviceGUI(ABC):
         self.is_visible = True
 
         #Initialize logger
-        try:
-            logger_name = f"app.{self.device.name}"
-        except AttributeError:
-            logger_name = "app.unknown"
+        logger_name = f"app.{self.device_name}"
         self.logger = logging.getLogger(logger_name)
         if self.logger.parent.name == "root": # if it is not embedded in another GUI with its own logger
             self.logger = configure_basic_logger(logger_name)
@@ -121,6 +145,11 @@ class DeviceGUI(ABC):
 
         # Create GUI
         self.create_gui()
+        # shown (on top of the GUI) only while the device cannot be reached
+        self.connection_label = tk.Label(
+            self.frame, text=f"NO COMMUNICATION WITH {self.device_name}",
+            fg="white", bg="red", font=("", 12, "bold"),
+        )
         # The hardware acquisition always runs, no matter who renders the GUI
         # the background threads talk to tkinter, so they must not start before
         # the main loop is running (otherwise: "main thread is not in main loop")
@@ -169,20 +198,20 @@ class DeviceGUI(ABC):
                 self.logger.exception(f"{func.__name__} command failed: {e}")
             finally:
                 self.command_queue.task_done()
-            if func.__name__ != "read_values":
+            if func != self.read_cycle:
                 self.schedule_in_main_thread(self.set_cursor, "")
 
     def issue_command(self, func, *args, **kwargs):
-        # do not stack read_values commands (critical if reading values is slow)
+        # do not stack read commands (critical if reading values is slow)
         if (
-            func.__name__ == "read_values"
+            func == self.read_cycle
             and (func, args, kwargs) in self.command_queue.queue
         ):
             return
         # print('\n'), [print(i) for i in self.command_queue.queue] # debug
         self.command_queue.put((func, args, kwargs))
         if (
-            func.__name__ != "read_values"
+            func != self.read_cycle
         ):  # because it is constantly reading values in the background
             self.schedule_in_main_thread(self.set_cursor, "watch")
 
@@ -208,7 +237,7 @@ class DeviceGUI(ABC):
     def read_loop(self):
         while True:
             try:
-                self.issue_command(self.read_values)
+                self.issue_command(self.read_cycle)
                 if self.config_params["logging_enabled"]:
                     for name, chstate in self.channels_state.items():
                         chstate.save_state(
@@ -218,6 +247,104 @@ class DeviceGUI(ABC):
             except Exception as e:
                 self.logger.exception(f"{self.device.name} read loop failed: {e}")
             time.sleep(self.config_params["read_loop_time"])
+
+    def read_cycle(self):
+        """One read of the hardware: read_values() plus the connection handling around it."""
+        try:
+            if self.read_failures.get(self.DEVICE, 0):
+                self.reconnect_device() # the last read could not reach the device
+            self.read_values()
+        except self.connection_errors as e:
+            if self.handle_read_failure(self.DEVICE, f"Could not communicate with {self.device_name}: {e}"):
+                self.on_device_lost()
+            try:
+                self.disconnect_device()
+            except Exception as e:
+                self.logger.debug(f"Error disconnecting {self.device_name}: {e}")
+        else:
+            self.handle_read_recovery(self.DEVICE, f"{self.device_name} is answering again")
+        finally:
+            self.schedule_in_main_thread(self.update_connection_indicator)
+
+    def disconnect_device(self):
+        """
+        Hook called after a connection error. Devices that keep a connection open
+        between reads close it here (it is probably broken). Nothing by default:
+        most devices open and close the connection on every read.
+        """
+        pass
+
+    def reconnect_device(self):
+        """
+        Hook called before reading again after a connection error. Devices that keep
+        a connection open between reads reopen it here, raising one of the
+        connection_errors if they cannot. Nothing by default.
+        """
+        pass
+
+    def on_device_lost(self):
+        """
+        Hook called on every failed read once the device has been unreachable for
+        'read_failures_to_warn' reads, e.g. to mark the values as unknown. Nothing by
+        default: the last values read are kept (the GUI shows the device is unreachable).
+        """
+        pass
+
+    @property
+    def device_connected(self):
+        """False once the device has been unreachable long enough to be reported."""
+        return self.read_failures.get(self.DEVICE, 0) < self.read_failures_to_warn()
+
+    def update_connection_indicator(self):
+        try:
+            shown = self.connection_label.winfo_manager() != ""
+            if self.device_connected and shown:
+                self.connection_label.pack_forget()
+            elif not self.device_connected and not shown:
+                others = [w for w in self.frame.pack_slaves() if w is not self.connection_label]
+                if others:
+                    self.connection_label.pack(fill="x", before=others[0])
+                else:
+                    self.connection_label.pack(fill="x")
+        except tk.TclError:
+            pass # the widget is already destroyed
+
+    def read_failures_to_warn(self):
+        return max(1, int(self.config_params.get("read_failures_to_warn",
+                                                 DEFAULT_READ_FAILURES_TO_WARN)))
+
+    def handle_read_failure(self, key, message):
+        """
+        Count a failed read and report it only once it has persisted.
+
+        The first failures are only recorded at debug level, where they do not
+        reach the Slack/Mattermost handlers. Once the same key (DEVICE, or one of its
+        sensors/channels) has failed 'read_failures_to_warn' reads in a row the
+        problem is real and gets logged as a warning, once, until it recovers.
+
+        Returns True when the failure has lasted long enough to be published as a
+        failed reading; while it returns False the caller keeps the last values.
+        """
+        failures = self.read_failures.get(key, 0) + 1
+        self.read_failures[key] = failures
+        to_warn = self.read_failures_to_warn()
+
+        if failures < to_warn:
+            self.logger.debug(f"{message} (failure {failures} of {to_warn}, tolerated)")
+            return False
+        if failures == to_warn:
+            self.logger.warning(f"{message} (failed {failures} reads in a row)")
+        else:
+            self.logger.debug(message) # already warned about this one
+        return True
+
+    def handle_read_recovery(self, key, message):
+        """Report a device (or sensor/channel) that reads again, if it was warned about."""
+        failures = self.read_failures.pop(key, 0)
+        if failures >= self.read_failures_to_warn():
+            self.logger.info(f"{message} after {failures} failed reads")
+        elif failures:
+            self.logger.debug(f"{message} after {failures} failed reads")
 
     def set_config_param(self, key : str, value):
         if key in self.config_params:
