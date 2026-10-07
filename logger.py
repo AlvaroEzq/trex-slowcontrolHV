@@ -5,10 +5,18 @@ import queue
 import threading
 import requests
 import json
+import smtplib
+import time
+from email.message import EmailMessage
+
+import toml
 
 LOG_DIR = "logs"
 SLACK_WEBHOOK_URL = "" # add here the webkook url
 MATTERMOST_WEBHOOK_URL = ""
+# local file with the email sender settings and password (not in git, see
+# email_config.example.toml). Without it, no emails are sent.
+EMAIL_CONFIG_FILENAME = "email_config.toml"
 
 def create_directory_recursive(path):
     try:
@@ -130,6 +138,100 @@ class MattermostHandler(ThreadedHandler):
         except Exception as e:
             print(f"Error sending message to Mattermost: {e}")
 
+class EmailHandler(ThreadedHandler):
+    """
+    Send the log records by email through an SMTP server (e.g. Gmail with an App Password).
+
+    Unlike a webhook, every email counts, so the records are batched: the first one is
+    sent right away, together with any other already waiting, and the ones arriving
+    less than 'min_interval' seconds after an email go together in the next one.
+    """
+
+    def __init__(self, smtp_server: str, smtp_port: int, sender: str, app_password: str,
+                 recipients: list, min_interval: float = 60, subject_prefix: str = "[TREX SC]"):
+        # set before starting the worker thread (in ThreadedHandler.__init__), which uses them
+        self.smtp_server = smtp_server
+        self.smtp_port = smtp_port
+        self.sender = sender
+        self.app_password = app_password
+        self.recipients = list(recipients)
+        self.min_interval = min_interval
+        self.subject_prefix = subject_prefix
+        self.last_sent = -float("inf") # time.monotonic() of the last email
+        super().__init__()
+        self.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s",
+                                            datefmt="%Y-%m-%d %H:%M:%S"))
+
+    def _process_queue(self):
+        pending = []
+        while True:
+            # with records pending, wait only until the next email is allowed
+            timeout = None
+            if pending:
+                timeout = max(0, self.last_sent + self.min_interval - time.monotonic())
+            try:
+                record = self.log_queue.get(timeout=timeout)
+            except queue.Empty:
+                self.send_records(pending)
+                pending = []
+                continue
+            if record is None:  # Sentinel to shut down the thread
+                break
+            pending.append(record)
+        if pending:
+            self.send_records(pending) # do not lose the last ones when closing
+
+    def send_records(self, records):
+        # never log from here: the records would come back to this handler
+        try:
+            first = records[0]
+            subject = f"{self.subject_prefix} {first.levelname} {first.name}: {first.getMessage()}"
+            subject = " ".join(subject.split()) # no line breaks in the subject
+            if len(subject) > 150:
+                subject = subject[:147] + "..."
+            if len(records) > 1:
+                subject += f" (and {len(records) - 1} more)"
+
+            message = EmailMessage()
+            message["Subject"] = subject
+            message["From"] = self.sender
+            message["To"] = ", ".join(self.recipients)
+            message.set_content("\n".join(self.format(record) for record in records))
+
+            with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10) as smtp:
+                smtp.starttls()
+                smtp.login(self.sender, self.app_password)
+                smtp.send_message(message)
+        except Exception as e:
+            print(f"Error sending email: {e}")
+        finally:
+            self.last_sent = time.monotonic() # also after a failure, not to hammer the server
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.sender} -> {', '.join(self.recipients)})"
+
+def load_email_config(filename=EMAIL_CONFIG_FILENAME):
+    """Return the [email] settings of the file, or None (no emails) if it is missing or incomplete."""
+    if not os.path.isfile(filename):
+        return None
+    try:
+        config = toml.load(filename).get("email", {})
+    except Exception as e:
+        print(f"Error reading the email configuration '{filename}': {e}")
+        return None
+    missing = [key for key in ("sender", "app_password", "recipients") if not config.get(key)]
+    if missing:
+        print(f"Email configuration '{filename}' is missing {missing}: emails disabled")
+        return None
+    return {
+        "smtp_server": config.get("smtp_server", "smtp.gmail.com"),
+        "smtp_port": int(config.get("smtp_port", 587)),
+        "sender": config["sender"],
+        "app_password": config["app_password"],
+        "recipients": list(config["recipients"]),
+        "min_interval": float(config.get("min_interval", 60)),
+    }
+
 # Custom handler for logging to a Text widget
 class TextWidgetHandler(logging.Handler):
     def __init__(self, text_widget):
@@ -169,6 +271,12 @@ def configure_basic_logger(logger_name:str, log_level=logging.DEBUG):
         mattermost_webhook_url=MATTERMOST_WEBHOOK_URL,
         log_level=logging.INFO
     )
+    logger = configure_email_logger(
+        logger_name,
+        log_filename=f"{LOG_DIR}/email_{logger_name}.log",
+        email_config=load_email_config(),
+        log_level=logging.CRITICAL
+    )
     logger = configure_streamer_logger(
         logger_name,
         log_filename=f"{LOG_DIR}/stream_{logger_name}.log",
@@ -201,6 +309,18 @@ def configure_mattermost_logger(logger_name:str, log_filename:str, mattermost_we
         file_mattermost_handler.setLevel(mattermost_handler.level)
         logger.addHandler(mattermost_handler)
         logger.addHandler(file_mattermost_handler)
+    return logger
+
+def configure_email_logger(logger_name:str, log_filename:str, email_config:dict, log_level=logging.CRITICAL):
+    logger = logging.getLogger(logger_name)
+    if email_config:
+        email_handler = EmailHandler(**email_config)
+        email_handler.setLevel(log_level)
+        file_email_handler = logging.FileHandler(log_filename)
+        file_email_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+        file_email_handler.setLevel(email_handler.level)
+        logger.addHandler(email_handler)
+        logger.addHandler(file_email_handler)
     return logger
 
 def configure_streamer_logger(logger_name:str, text_widget=None, log_filename:str=None, log_level=logging.DEBUG):
