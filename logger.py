@@ -148,7 +148,7 @@ class EmailHandler(ThreadedHandler):
     """
 
     def __init__(self, smtp_server: str, smtp_port: int, sender: str, app_password: str,
-                 recipients: list, min_interval: float = 60, subject_prefix: str = "[TREX SC]"):
+                 recipients: list, min_interval: float = 60, subject_prefix: str = "[TREX-DM SC]"):
         # set before starting the worker thread (in ThreadedHandler.__init__), which uses them
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
@@ -185,7 +185,7 @@ class EmailHandler(ThreadedHandler):
         # never log from here: the records would come back to this handler
         try:
             first = records[0]
-            subject = f"{self.subject_prefix} {first.levelname} {first.name}: {first.getMessage()}"
+            subject = f"{self.subject_prefix} {first.levelname}: {first.getMessage()}"
             subject = " ".join(subject.split()) # no line breaks in the subject
             if len(subject) > 150:
                 subject = subject[:147] + "..."
