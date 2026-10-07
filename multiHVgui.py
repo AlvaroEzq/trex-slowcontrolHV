@@ -526,7 +526,7 @@ class HVGUI(MultiDeviceGUI):
                     protocol_finished_with_exceptions = False
                     break
                 except (ValueError, NameError, AssertionError) as e:
-                    self.triprec_logger.critical(f"Critical error while recovering trip: {e}.")
+                    self.triprec_logger.error(f"Critical error while recovering trip: {e}.")
                     protocol_finished_with_exceptions = True
                     break
                 except (PermissionError, TimeoutError) as e:
@@ -548,13 +548,13 @@ class HVGUI(MultiDeviceGUI):
                     break
             if protocol_finished_with_exceptions:
                 if attempt >= max_attempts:
-                    self.triprec_logger.critical("Trip recovery failed. Maximum attempts reached.")
+                    self.triprec_logger.error("Trip recovery failed. Maximum attempts reached.")
                     success = False
                 elif self.is_there_a_trip():
                     self.triprec_logger.debug("Trip recovery failed. Trip detected when raising voltage.")
                     success = True # nothing really wrong, just restart the trip recovery
                 else:
-                    self.triprec_logger.critical("Trip recovery failed.")
+                    self.triprec_logger.error("Trip recovery failed.")
                     success = False
             else:
                 self.triprec_logger.info("Trip recovery finished succesfully.")
@@ -590,7 +590,7 @@ class HVGUI(MultiDeviceGUI):
                 try:
                     self.wait_for_channels_to_be_down(channels=self.triprec_channels, timeout=5*60, active_flag_attribute="triprec_active")
                 except TimeoutError as e:
-                    self.triprec_logger.critical(f"Error while waiting for channels to be down: {e}.")
+                    self.triprec_logger.error(f"Error while waiting for channels to be down: {e}.")
                     break
                 except KeyboardInterrupt as e:
                     self.triprec_logger.info(f"Error while waiting for channels to be down: {e}.")
