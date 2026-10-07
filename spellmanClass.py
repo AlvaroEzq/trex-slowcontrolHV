@@ -18,6 +18,10 @@ class Spellman:
         self._vmon = None
         self._imon = None
         self._stat = None
+        # The methods below return -1 / '??' when the Spellman cannot be reached, so
+        # the error of the last failed request is kept here for whoever needs to know
+        # (e.g. the GUI). Reset it to None before the requests to check.
+        self.last_comm_error = None
 
     def send_recv(self, message, tOp=0, tOut=1):
         """ Send a message and wait for the response. """
@@ -42,6 +46,7 @@ class Spellman:
                     break
         except Exception as e:
             #print(f"Unexpected error with message {msg}: {e}")
+            self.last_comm_error = e
             so.close()
             raise
         finally:

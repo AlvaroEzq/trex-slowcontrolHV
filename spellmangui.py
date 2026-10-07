@@ -9,6 +9,10 @@ from devicegui import DeviceGUI
 from utilsgui import ToolTip
 
 class SpellmanFrame(DeviceGUI):
+    # the Spellman API returns -1 / '??' when it cannot be reached: read_values()
+    # turns that into this error (it opens a new socket per request, nothing to reconnect)
+    connection_errors = (ConnectionError,)
+
     def __init__(self, spellman, checks=None, parent=None, log=True, auto_gui_update=True):
         if checks is None:
             checks = []
@@ -284,12 +288,21 @@ class SpellmanFrame(DeviceGUI):
         self.labels['lastring_v_right'].config(text=f"{vmon_right:.0f}")
         self.labels['lastring_i_right'].config(text=f"{imon_right:.5f}")
 
+    def check_communication(self):
+        error = self.device.last_comm_error
+        if error is not None:
+            raise ConnectionError(f"{error} ({self.device.server_host}:{self.device.server_port})")
+
     def read_values(self):
+        self.device.last_comm_error = None
         vmon = self.device.vmon
+        # every request waits for the timeout while the Spellman is off: give up early
+        self.check_communication()
         imon = self.device.imon
         vset = self.device.vset
         iset = self.device.iset
         stat = self.device.stat
+        self.check_communication()
         self.channels_state['cathode'].set_state(
             {   # keep this order in sync with value_names, above
                 'vset': vset,
