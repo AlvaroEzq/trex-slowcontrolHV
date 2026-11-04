@@ -800,6 +800,13 @@ class FemDaqMetrics(DaqMetricsBase):
         except ValueError:
             return None
     
+    def get_number_of_desync_events(self):
+        try:
+            n_events = self.fetcher.get_metric("desync_events_total")
+            return n_events
+        except ValueError:
+            return None
+
     def get_run_metadata(self):
         try:
             run_config = self.fetcher.get_metric("run_metadata_info")
