@@ -27,8 +27,6 @@ class DaqMetricsGUI(DeviceGUI):
         self.run_number_label = None
         self.run_tag_label = None
         self.run_endtime_label = None
-        self.daq_speed_label = None
-        self.daq_events_label = None
         self.events_number_label = None
         self.desync_events_label = None
         self.desync_alarm_sent = False
@@ -80,24 +78,20 @@ class DaqMetricsGUI(DeviceGUI):
         self.subrun_number_label = tk.Label(daq_frame, text="N/A")
         self.subrun_number_label.grid(row=4, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="Speed (events/s)").grid(row=5, column=0, sticky="w")
-        self.daq_events_label = tk.Label(daq_frame, text="N/A")
-        self.daq_events_label.grid(row=5, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Number of events").grid(row=6, column=0, sticky="w")
+        tk.Label(daq_frame, text="Number of events").grid(row=5, column=0, sticky="w")
         self.events_number_label = tk.Label(daq_frame, text="N/A")
-        self.events_number_label.grid(row=6, column=1, sticky="e")
+        self.events_number_label.grid(row=5, column=1, sticky="e")
 
         if self.is_fem_daq_metrics:
-            tk.Label(daq_frame, text="Desync events").grid(row=7, column=0, sticky="w")
+            tk.Label(daq_frame, text="Desync events").grid(row=6, column=0, sticky="w")
             self.desync_events_label = tk.Label(daq_frame, text="N/A")
-            self.desync_events_label.grid(row=7, column=1, sticky="e")
+            self.desync_events_label.grid(row=6, column=1, sticky="e")
 
         self.check_entries_var = tk.IntVar()
         self.check_entries_var.set(0)
         self.check_entries_change_checkbox = tk.Checkbutton(daq_frame, text="Check entries (TCM)", variable=self.check_entries_var, selectcolor="gray")
         self.check_entries_var.set(1) # enable by default
-        self.check_entries_change_checkbox.grid(row=8, column=0, columnspan=2, pady=5, sticky="nsew")
+        self.check_entries_change_checkbox.grid(row=7, column=0, columnspan=2, pady=5, sticky="nsew")
 
         self.auto_add_var = tk.IntVar()
         self.auto_add_var.set(0)
@@ -105,12 +99,12 @@ class DaqMetricsGUI(DeviceGUI):
         self.auto_add_var.trace_add("write", lambda *args : self.set_last_run_number_from_google_sheet())
         self.auto_add_var.set(1)
         self.auto_add_to_googlesheet_checkbox = tk.Checkbutton(daq_frame, text="Auto add to Google Sheet", variable=self.auto_add_var, selectcolor="gray")
-        self.auto_add_to_googlesheet_checkbox.grid(row=9, column=0, columnspan=2, pady=0, sticky="nsew")
+        self.auto_add_to_googlesheet_checkbox.grid(row=8, column=0, columnspan=2, pady=0, sticky="nsew")
 
 
         self.add_to_googlesheet_button = tk.Button(daq_frame, text="Add to Google Sheet",
                                         command=self.add_run_to_googlesheet) # state="disabled"
-        self.add_to_googlesheet_button.grid(row=10, column=0, columnspan=2, pady=10, sticky="nsew")
+        self.add_to_googlesheet_button.grid(row=9, column=0, columnspan=2, pady=10, sticky="nsew")
 
         #threading.Thread(target=self.daq_metrics_loop, daemon=True).start()
     
@@ -174,7 +168,6 @@ class DaqMetricsGUI(DeviceGUI):
                 self.run_starttime_label.config(text=f'')
                 self.run_endtime_label.config(text=f'')
 
-            self.daq_events_label.config(text=f'{self.daqmetrics.get_rate():.2f}')
             number_of_events = self.daqmetrics.get_number_of_events()
             self.events_number_label.config(text=f'{number_of_events:,.0f}')
 
@@ -198,7 +191,6 @@ class DaqMetricsGUI(DeviceGUI):
             self.run_tag_label.config(text="N/A")
             self.run_starttime_label.config(text="N/A")
             self.run_endtime_label.config(text="N/A")
-            self.daq_events_label.config(text="N/A")
             self.events_number_label.config(text="N/A")
             self.subrun_number_label.config(text="N/A")
             if self.desync_events_label is not None:
