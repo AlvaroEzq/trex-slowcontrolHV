@@ -212,20 +212,20 @@ class BronkhorstGUI(DeviceGUI):
 
     # ------------------------------------------------------------- GUI (Tk thread)
     def request_setpoint(self):
-        """Validate the setpoint entry and queue the command that writes it."""
+        """
+        Validate the setpoint entry and queue the command that writes it. An invalid
+        or out of range value is not logged: it is only shown in red in the entry
+        (whose tooltip gives the valid range).
+        """
         if self.read_only:
             return
-        text = self.setpoint_entry.get()
         try:
-            value = float(text)
+            value = float(self.setpoint_entry.get())
         except ValueError:
             self.setpoint_entry.config(fg=COLOR_ALARM)
-            self.logger.warning(f"{self.config.name}: setpoint '{text}' is not a number")
             return
         if not self.config.setpoint_min <= value <= self.config.max_setpoint:
             self.setpoint_entry.config(fg=COLOR_ALARM)
-            self.logger.warning(f"{self.config.name}: setpoint {value:g} {self.config.unit} out of"
-                                f" [{self.config.setpoint_min:g}, {self.config.max_setpoint:g}]")
             return
         self.setpoint_entry.config(fg="black")
         self.issue_command(self.set_setpoint, value)
