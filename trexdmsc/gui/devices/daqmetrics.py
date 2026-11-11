@@ -21,14 +21,15 @@ class DaqMetricsGUI(DeviceGUI):
     def __init__(self, daqmetrics, all_channels=None, channels_vset_guilabel=None, parent_frame=None, auto_gui_update=True):
 
         self.daqmetrics = daqmetrics
+        self.is_fem_daq_metrics = isinstance(daqmetrics, FemDaqMetrics)
         self.all_channels = all_channels if all_channels is not None else {} # list of all channels of the main GUI
         self.channels_vset_guilabel = channels_vset_guilabel if channels_vset_guilabel is not None else {} # list of all channels vset guilabels of the main GUI, to be able to fetch the vset values when adding to google sheet
         self.run_number_label = None
         self.run_tag_label = None
         self.run_endtime_label = None
-        self.daq_speed_label = None
-        self.daq_events_label = None
         self.events_number_label = None
+        self.desync_events_label = None
+        self.desync_alarm_sent = False
         self.add_to_googlesheet_button = None
         self.add_to_googlesheet_thread = None
         self.auto_add_var = None
@@ -77,13 +78,14 @@ class DaqMetricsGUI(DeviceGUI):
         self.subrun_number_label = tk.Label(daq_frame, text="N/A")
         self.subrun_number_label.grid(row=4, column=1, sticky="e")
 
-        tk.Label(daq_frame, text="Speed (events/s)").grid(row=5, column=0, sticky="w")
-        self.daq_events_label = tk.Label(daq_frame, text="N/A")
-        self.daq_events_label.grid(row=5, column=1, sticky="e")
-
-        tk.Label(daq_frame, text="Number of events").grid(row=6, column=0, sticky="w")
+        tk.Label(daq_frame, text="Number of events").grid(row=5, column=0, sticky="w")
         self.events_number_label = tk.Label(daq_frame, text="N/A")
-        self.events_number_label.grid(row=6, column=1, sticky="e")
+        self.events_number_label.grid(row=5, column=1, sticky="e")
+
+        if self.is_fem_daq_metrics:
+            tk.Label(daq_frame, text="Desync events").grid(row=6, column=0, sticky="w")
+            self.desync_events_label = tk.Label(daq_frame, text="N/A")
+            self.desync_events_label.grid(row=6, column=1, sticky="e")
 
         self.check_entries_var = tk.IntVar()
         self.check_entries_var.set(0)
@@ -166,9 +168,15 @@ class DaqMetricsGUI(DeviceGUI):
                 self.run_starttime_label.config(text=f'')
                 self.run_endtime_label.config(text=f'')
 
-            self.daq_events_label.config(text=f'{self.daqmetrics.get_rate():.2f}')
             number_of_events = self.daqmetrics.get_number_of_events()
             self.events_number_label.config(text=f'{number_of_events:,.0f}')
+
+            if self.is_fem_daq_metrics:
+                desync_events = self.daqmetrics.get_number_of_desync_events()
+                if desync_events is None:
+                    self.desync_events_label.config(text="N/A", fg="black")
+                else:
+                    self.desync_events_label.config(text=f'{desync_events:,.0f}', fg="red" if desync_events > 0 else "black")
             
             run_tag = self.daqmetrics.get_run_tag()
             if any(b in run_tag.lower() for b in ["background", "bg", "bckg", "bkg"]):
@@ -183,9 +191,10 @@ class DaqMetricsGUI(DeviceGUI):
             self.run_tag_label.config(text="N/A")
             self.run_starttime_label.config(text="N/A")
             self.run_endtime_label.config(text="N/A")
-            self.daq_events_label.config(text="N/A")
             self.events_number_label.config(text="N/A")
             self.subrun_number_label.config(text="N/A")
+            if self.desync_events_label is not None:
+                self.desync_events_label.config(text="N/A", fg="black")
             self.add_to_googlesheet_button.config(state="disabled")
             # don't reset here the number of entries and datetime_last_entries_change, just in case the metrics server is down for a while
 
@@ -212,7 +221,7 @@ class DaqMetricsGUI(DeviceGUI):
                     if time_diff.total_seconds() > 3600*24: # 24 hours without new entries
                         # Send alarm only if lower level was sent
                         if self.alarm_level_sent < logging.CRITICAL:
-                            self.logger.critical("No new entries in the DAQ for more than 24 hours! Check TCM state...")
+                            self.logger.error("No new entries in the DAQ for more than 24 hours! Check TCM state...")
                             self.alarm_level_sent = logging.CRITICAL
                     elif time_diff.total_seconds() > 3600*10: # 10 hours without new entries
                         if self.alarm_level_sent < logging.ERROR:
@@ -228,6 +237,16 @@ class DaqMetricsGUI(DeviceGUI):
                 self.datetime_last_entries_change = None
                 self.alarm_level_sent = logging.NOTSET
             
+            # Desynchronization in the DAQ requires the user to restart the run manually
+            if self.is_fem_daq_metrics:
+                desync_events = self.daqmetrics.get_number_of_desync_events()
+                if desync_events is not None and desync_events > 0:
+                    if not self.desync_alarm_sent:
+                        self.logger.error(f"DAQ desynchronization detected ({desync_events:.0f} desync events)! Restart the run manually...")
+                        self.desync_alarm_sent = True
+                elif desync_events is not None:
+                    self.desync_alarm_sent = False # reset when desync count goes back to 0 (e.g. new run)
+
             # Check for background runs that have finished or will finish soon
             run_tag = self.daqmetrics.get_run_tag()
             run_duration = self.daqmetrics.get_run_time_seconds()

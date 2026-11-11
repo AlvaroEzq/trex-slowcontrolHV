@@ -147,7 +147,11 @@ class SuperGUI:
         )
 
     def run(self):
-        self.root.mainloop()
+        try:
+            self.root.mainloop()
+        finally:
+            for subsystem in self.subsystems.values():
+                subsystem.close()
         for subsystem in self.subsystems.values():
             subsystem.cleanup()
 

@@ -1,4 +1,4 @@
-from trexdmsc.simulators.caen import ChannelSimulator, ModuleSimulator
+from trexdmsc.simulators.caen import CaenSimulator, ChannelSimulator, ModuleSimulator
 from trexdmsc.simulators.spellman import SpellmanSimulator
 from trexdmsc.simulators.rigol import RigolChannelSimulator, RigolSimulator
 from trexdmsc.simulators.mx32v2 import MX32v2Simulator
@@ -8,6 +8,7 @@ from trexdmsc.simulators.maxigauge import MaxiGaugeSimulator
 from trexdmsc.simulators.arduinoio import ArduinoIOSimulator
 
 __all__ = [
+    "CaenSimulator",
     "ChannelSimulator",
     "ModuleSimulator",
     "SpellmanSimulator",

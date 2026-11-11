@@ -8,7 +8,6 @@ from trexdmsc.devices.bronkhorst import Bronkhorst, BRONKHORSTS, GAS_PANEL_HOST
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
-from trexdmsc.gui.base.readfailures import ReadFailureMixin
 from trexdmsc.gui.base.readonly import write_command
 
 # Consecutive reads the measurement has to stay above setpoint + margin before the
@@ -33,7 +32,7 @@ def failed_reading(controller=True):
     return values
 
 
-class BronkhorstGUI(ReadFailureMixin, DeviceGUI):
+class BronkhorstGUI(DeviceGUI):
     """
     A GUI class for one Bronkhorst of the gas panel: a pressure/flow controller
     (measurement and setpoint) or a flow meter (measurement only).
@@ -42,6 +41,11 @@ class BronkhorstGUI(ReadFailureMixin, DeviceGUI):
     - the measurement goes above config.max_alarm.
     - the measurement stays above the setpoint + config.setpoint_margin_alarm.
     """
+
+    # the device cannot be reached (bridge server, serial link) or answers nonsense:
+    # every ConnectionError of the device modules (BridgeError, ...) is an OSError,
+    # and a garbled answer can also fail its hexadecimal conversion (ValueError)
+    connection_errors = (OSError, ValueError)
 
     def __init__(self, device, parent_frame=None, log=True, auto_gui_update=True, read_only=False):
         self.config = device.config
@@ -86,7 +90,6 @@ class BronkhorstGUI(ReadFailureMixin, DeviceGUI):
 
     # ------------------------------------------------------------------ GUI layout
     def create_gui(self):
-        self.add_read_failures_config_param()
         self.config_params.setdefault("setpoint_alarm_reads", DEFAULT_SETPOINT_ALARM_READS)
 
         title = f"{self.config.name}: {self.config.description}"
@@ -147,17 +150,15 @@ class BronkhorstGUI(ReadFailureMixin, DeviceGUI):
     def read_values(self):
         # Runs on the read_values background thread: only touch the device and the
         # channel state here. Widgets are updated by update_gui(), on the main thread.
-        try:
-            values = self.device.read()
-        except Exception as e:
-            if self.handle_read_failure(None, f"Could not read {self.config.name}: {e}"):
-                self.channel_state.set_state(failed_reading(self.config.controller))
-            return # while tolerated, keep the values read last time
-        self.handle_read_recovery(None, f"{self.config.name} is answering again")
-
+        values = self.device.read() # a failure is handled by DeviceGUI.read_cycle()
         values["comm_ok"] = True
         self.channel_state.set_state(values)
         self.check_alarms(values)
+
+    def on_device_lost(self):
+        # unreachable long enough to be a real outage: the values on screen are
+        # meaningless, mark them as unknown (while tolerated, the last ones are kept)
+        self.channel_state.set_state(failed_reading(self.config.controller))
 
     def check_alarms(self, values):
         measure = values["measure"]

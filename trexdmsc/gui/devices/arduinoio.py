@@ -9,7 +9,6 @@ from trexdmsc.devices.arduinoio import ArduinoIO, ArduinoIOError, ARDUINOS, WATC
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
-from trexdmsc.gui.base.readfailures import ReadFailureMixin
 from trexdmsc.gui.base.readonly import write_command
 
 # Read loop period (s). Every read cycle talks to the Arduino, which keeps its
@@ -37,7 +36,7 @@ def failed_output_reading():
     return {"on": None, "comm_ok": False}
 
 
-class ArduinoIOGUI(ReadFailureMixin, DeviceGUI):
+class ArduinoIOGUI(DeviceGUI):
     """
     A GUI class for an Arduino of the slow control with the trexdm_serial firmware:
     its analog sensors (with their alarms) and its relays (with their ON/OFF buttons).
@@ -49,6 +48,10 @@ class ArduinoIOGUI(ReadFailureMixin, DeviceGUI):
     less often with the 'analog_read_every' parameter (advanced options menu) if a
     cycle takes too long.
     """
+
+    # the device cannot be reached (bridge server, serial link) or answers nonsense:
+    # every ConnectionError of the device modules (BridgeError, ...) is an OSError
+    connection_errors = (OSError,)
 
     def __init__(self, device, parent_frame=None, log=True, auto_gui_update=True, read_only=False):
         self.config = device.config
@@ -102,7 +105,6 @@ class ArduinoIOGUI(ReadFailureMixin, DeviceGUI):
 
     # ------------------------------------------------------------------ GUI layout
     def create_gui(self):
-        self.add_read_failures_config_param()
         self.config_params.setdefault("analog_read_every", 1)
 
         title = self.device.name + (" (read-only)" if self.read_only else "")
@@ -184,19 +186,20 @@ class ArduinoIOGUI(ReadFailureMixin, DeviceGUI):
             if self.cycle % every == 0:
                 for channel in self.analog_channels:
                     self.read_analog_channel(channel)
-        except ConnectionError as e:
-            # no answer at all (bridge server or serial link): the other channels
-            # would fail the same way, so count it once, for the whole device
-            if self.handle_read_failure(None, f"Could not read {self.device.name}: {e}"):
-                for channel in self.analog_channels:
-                    self.channels_state[channel.name].set_state(failed_channel_reading())
-                for output in self.outputs:
-                    self.channels_state[output.name].set_state(failed_output_reading())
-            return
+        # a ConnectionError other than ArduinoIOError is no answer at all (bridge server
+        # or serial link): the other channels would fail the same way, so it reaches
+        # DeviceGUI.read_cycle() and is counted once, for the whole device
         finally:
             self.cycle += 1
-        self.handle_read_recovery(None, f"{self.device.name} is answering again")
         self.check_cycle_time(time.monotonic() - start)
+
+    def on_device_lost(self):
+        # unreachable long enough to be a real outage: the values on screen are
+        # meaningless, mark them as unknown (while tolerated, the last ones are kept)
+        for channel in self.analog_channels:
+            self.channels_state[channel.name].set_state(failed_channel_reading())
+        for output in self.outputs:
+            self.channels_state[output.name].set_state(failed_output_reading())
 
     def read_output(self, output):
         try:

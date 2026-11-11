@@ -1,0 +1,16 @@
+# Copy this file to email_config.toml (not tracked by git) and fill it in to receive
+# the CRITICAL log records (e.g. gas alarms) by email. Without email_config.toml no
+# emails are sent.
+#
+# Use a dedicated Gmail account: turn on its 2-Step Verification and create an App
+# Password (Google Account > Security > App passwords). The normal account password
+# does not work.
+
+[email]
+smtp_server = "smtp.gmail.com"
+smtp_port = 587
+sender = "your.account@gmail.com"
+app_password = "xxxx xxxx xxxx xxxx"
+recipients = ["someone@example.com"]
+# minimum seconds between emails: the records arriving in between are sent together
+min_interval = 60

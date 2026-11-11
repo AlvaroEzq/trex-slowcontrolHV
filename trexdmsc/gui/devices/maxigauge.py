@@ -10,7 +10,6 @@ from trexdmsc.devices.bridge import VACUUM_ELECTRONICS_HOST
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
-from trexdmsc.gui.base.readfailures import ReadFailureMixin
 
 COLOR_OK = "green"
 COLOR_ALARM = "red"
@@ -23,13 +22,17 @@ STATUS_OVERRANGE = 2
 STATUS_NO_SENSOR = 5
 
 
-class MaxiGaugeGUI(ReadFailureMixin, DeviceGUI):
+class MaxiGaugeGUI(DeviceGUI):
     """
     A GUI class for monitoring the vacuum gauges connected to the MaxiGauge.
 
     A gauge with a max_alarm raises an alarm (logged as critical, so it reaches
     Slack/Mattermost) when its pressure goes above it, or when it is over range.
     """
+
+    # the device cannot be reached (bridge server, serial link) or answers nonsense:
+    # every ConnectionError of the device modules (BridgeError, ...) is an OSError
+    connection_errors = (OSError,)
 
     def __init__(self, device, parent_frame=None, gauges=None, log=True, auto_gui_update=True):
         self.gauges = tuple(GAUGES if gauges is None else gauges)
@@ -61,8 +64,6 @@ class MaxiGaugeGUI(ReadFailureMixin, DeviceGUI):
 
     # ------------------------------------------------------------------ GUI layout
     def create_gui(self):
-        self.add_read_failures_config_param()
-
         self.main_frame = tk.LabelFrame(self.frame, text=f"{self.device.name}", font=("", 12),
                                         padx=10, pady=5, labelanchor="n", bd=3)
         self.main_frame.pack(fill="both", expand=True)
@@ -103,19 +104,20 @@ class MaxiGaugeGUI(ReadFailureMixin, DeviceGUI):
                 if not self.handle_read_failure(gauge.name, f"Could not read {gauge.name}: {e}"):
                     continue # probably a blip: keep the values read last time
                 values = failed_gauge_reading()
-            except Exception as e:
-                # no answer at all (bridge server or serial link): the other gauges
-                # would fail the same way, so count it once, for the whole device
-                if self.handle_read_failure(None, f"Could not read {self.device.name}: {e}"):
-                    for g in self.gauges:
-                        self.channels_state[g.name].set_state(failed_gauge_reading())
-                return
+            # any other error is no answer at all (bridge server or serial link): the
+            # other gauges would fail the same way, so it reaches DeviceGUI.read_cycle()
+            # and is counted once, for the whole device
             else:
-                self.handle_read_recovery(None, f"{self.device.name} is answering again")
                 self.handle_read_recovery(gauge.name, f"{gauge.name} is answering again")
 
             self.channels_state[gauge.name].set_state(values)
             self.check_alarm(gauge, values)
+
+    def on_device_lost(self):
+        # unreachable long enough to be a real outage: the values on screen are
+        # meaningless, mark them as unknown (while tolerated, the last ones are kept)
+        for gauge in self.gauges:
+            self.channels_state[gauge.name].set_state(failed_gauge_reading())
 
     def check_alarm(self, gauge, values):
         if gauge.name not in self.alarms or not values.get("comm_ok", False):

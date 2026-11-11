@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import tkinter as tk
 import argparse
 
@@ -9,7 +10,6 @@ from trexdmsc.core.check import Check
 from trexdmsc.gui.base.checkframe import ChecksFrame
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
-from trexdmsc.gui.base.readfailures import ReadFailureMixin
 
 COLOR_OK = "green"
 COLOR_ALARM = "red"
@@ -28,12 +28,15 @@ STATUS_FLAGS = {
 }
 
 
-class MX32v2GUI(ReadFailureMixin, DeviceGUI):
+class MX32v2GUI(DeviceGUI):
     """
     A GUI class for monitoring the gas sensors connected to an MX32v2 controller.
 
     Inherits from DeviceGUI and provides specific functionality for the MX32v2.
     """
+
+    # the controller cannot be reached (e.g. the Modbus port could not be opened)
+    connection_errors = (OSError,)
 
     def __init__(self, device, parent_frame=None, sensors=None, log=True, auto_gui_update=True):
         if sensors is None:
@@ -71,8 +74,6 @@ class MX32v2GUI(ReadFailureMixin, DeviceGUI):
                         )
 
     def create_gui(self):
-        self.add_read_failures_config_param()
-
         self.main_frame = tk.LabelFrame(self.frame, text=f"{self.device.name}", font=("", 16),
                                         padx=10, pady=10, labelanchor="n", bd=4)
         self.main_frame.pack(fill="both", expand=True)
@@ -110,17 +111,7 @@ class MX32v2GUI(ReadFailureMixin, DeviceGUI):
     def read_values(self):
         # Runs on the read_values background thread: only touch the device and the
         # channel states here. Widgets are updated by update_gui(), on the main thread.
-        try:
-            self.device.open()
-        except Exception as e:
-            if self.handle_read_failure(None, f"Could not connect to {self.device.name}: {e}"):
-                # the controller has been unreachable long enough to be a real
-                # outage: the values on screen are meaningless, mark them as unknown
-                for sensor in self.sensors:
-                    self.channels_state[sensor.name].set_state(failed_sensor_reading())
-            return
-        self.handle_read_recovery(None, f"{self.device.name} is answering again")
-
+        self.device.open() # a failure is handled by DeviceGUI.read_cycle()
         try:
             for sensor in self.sensors:
                 try:
@@ -141,9 +132,15 @@ class MX32v2GUI(ReadFailureMixin, DeviceGUI):
         finally:
             self.device.close()
 
+    def on_device_lost(self):
+        # the controller has been unreachable long enough to be a real outage: the
+        # values on screen are meaningless, mark them as unknown
+        for sensor in self.sensors:
+            self.channels_state[sensor.name].set_state(failed_sensor_reading())
+
     def log_alarm_transitions(self, sensor, previous_values, values):
         """
-        Log every alarm that has just been raised (critical) or cleared (info).
+        Log every alarm that has just been raised or cleared (both critical).
 
         Only the transitions are logged: the read loop runs every few seconds and
         the critical records are forwarded to Slack/Mattermost, so logging on every
@@ -166,6 +163,7 @@ class MX32v2GUI(ReadFailureMixin, DeviceGUI):
                 f"{self.device.name} {sensor.name} (line {sensor.line}): gas alarm"
                 f" {alarm.number} cleared at {concentration:.0f} {sensor.unit}"
                 f" (threshold {alarm.level:g} {sensor.unit})",
+                cleared_level=logging.CRITICAL,
             )
 
     def update_gui(self):

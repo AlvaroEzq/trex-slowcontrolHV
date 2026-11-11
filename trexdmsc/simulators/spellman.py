@@ -8,6 +8,7 @@ class SpellmanSimulator:
         self.server_host = "ip"
         self.server_port = 50001
         self.name = 'Spellman SL30 SIMULATOR'
+        self.last_comm_error = None # the communication never fails
         self.vset = 0 # V
         self.iset = 0
         self.vmon = 0 # mA

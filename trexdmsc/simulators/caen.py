@@ -111,9 +111,28 @@ class ChannelSimulator:
 
 
 
+class CaenSimulator:
+    """Simulates the hvps.Caen object that owns the serial port of the modules."""
+    def __init__(self, port="SIMULATOR"):
+        self.port = port
+        self.connected = True
+
+    def connect(self):
+        self.connected = True
+
+    def disconnect(self):
+        self.connected = False
+
+    def _write_command_read_response(self, bd, command):
+        return None # the serial communication is not simulated
+
+
+
 class ModuleSimulator:
     def __init__(self, n_channels, trip_probability=0.05):
         self.name = "N1471H SIMULATOR"
+        # like the real module: the write method is bound to the hvps.Caen object
+        self._write_command_read_response = CaenSimulator()._write_command_read_response
         self.number_of_channels = n_channels
         self.channels = [
             ChannelSimulator(
