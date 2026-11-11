@@ -59,12 +59,9 @@ class GasGUI(MultiDeviceGUI):
         circuit_frame = tk.LabelFrame(self.frame, text=title, font=("", 14), labelanchor="n")
         circuit_frame.pack(side="left", anchor="n", padx=5, pady=5)
 
-        # the pressure controller first, then the transmitters, pump and valve of the
-        # gas panel Arduino, and the flow controller and meter, as in the old GUI
-        devices = list(self.bronkhorst_devices)
-        first_bronkhorsts = devices[:1]
-        other_bronkhorsts = devices[1:]
-        for device in first_bronkhorsts:
+        # the Bronkhorsts first (pressure controller, flow controller and flow meter),
+        # then the transmitters, pump and valve of the gas panel Arduino
+        for device in self.bronkhorst_devices:
             self.add_bronkhorst_gui(circuit_frame, device)
         if self.gas_arduino_device is not None:
             frame = tk.Frame(circuit_frame)
@@ -77,8 +74,6 @@ class GasGUI(MultiDeviceGUI):
                 read_only=self.read_only,
             )
             self.all_guis[self.gas_arduino_device.name] = self.gas_arduino_gui
-        for device in other_bronkhorsts:
-            self.add_bronkhorst_gui(circuit_frame, device)
 
         if self.maxigauge_device is not None:
             vacuum_frame = tk.LabelFrame(self.frame, text="Vacuum", font=("", 14), labelanchor="n")
