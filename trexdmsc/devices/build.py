@@ -9,7 +9,7 @@ standalone=True to start it anyway).
 """
 import contextlib
 
-from trexdmsc.core.devicesconfig import is_disabled
+from trexdmsc.core.devicesconfig import DisabledDevice, is_disabled
 
 
 # ------------------------------------------------------------------ HV subsystem
@@ -54,14 +54,23 @@ def build_spellman(config, test=False, standalone=False):
 
 
 def build_daq_metrics_fetcher(config, test=False, standalone=False):
-    """The SSH fetcher of the DAQ metrics. There is no simulator: also used in test mode."""
+    """
+    The SSH fetcher of the DAQ metrics. There is no simulator: also used in test mode.
+    The SSH user and key come from [daq_ssh] of the credentials file: without them
+    the DAQ metrics are not used (DisabledDevice).
+    """
     def create(config, key):
+        from trexdmsc.core.credentials import credentials_section
         from trexdmsc.devices.daqmetrics import MetricsFetcherSSH
+        ssh = credentials_section("daq_ssh")
+        if not ssh.get("username"):
+            print("No [daq_ssh] username in the credentials file: DAQ metrics disabled")
+            return DisabledDevice("DAQ metrics", reason="no [daq_ssh] credentials")
         return MetricsFetcherSSH(
             url=config.get(key, "url"),
             hostname=config.get(key, "host"),
-            username=config.get(key, "username"),
-            key_filename=config.get(key, "key_filename"),
+            username=ssh["username"],
+            key_filename=ssh.get("key_filename"),
         )
 
     return config.build("daq_metrics", "DAQ metrics", create, lambda: create(config, "daq_metrics"),

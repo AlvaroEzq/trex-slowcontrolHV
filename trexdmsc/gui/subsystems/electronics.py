@@ -47,7 +47,7 @@ class ElectronicsGUI(MultiDeviceGUI):
         # owns its GUI update. Its frame is packed without fill nor expand so that it
         # keeps its natural size.
         if is_disabled(self.electronics_arduino_device):
-            disabled_device_frame(self.frame, self.electronics_arduino_device.name).pack(
+            disabled_device_frame(self.frame, self.electronics_arduino_device.name, self.electronics_arduino_device.reason).pack(
                 side="left", anchor="n", padx=5, pady=5)
         elif self.electronics_arduino_device is not None:
             frame = tk.Frame(self.frame)

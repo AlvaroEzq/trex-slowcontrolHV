@@ -10,7 +10,7 @@ This repository contains software for remote control and monitoring of high volt
    - Register of voltage and current monitor values of the channels of each device.
    - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
    - Trip recovery system to automatically detect, handle and recover a trip. It uses the multidevice raising of voltages to recover a trip. Also, a configurable cooldown time is applied before recovering the trip.
-   - Alert message to slack/mattermost webhook (to do so, copy your slack/mattermost webhook in the global variable SLACK/MATTERMOST_WEBHOOK_URL of [trexdmsc/core/logger.py](trexdmsc/core/logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
+   - Alert message to slack/mattermost webhook (put your slack/mattermost webhook in the [credentials file](#credentials)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
       * CRITICAL: alarms related to safety systems (flammable gas sensor for example).
       * ERROR: error happens which require the users attention.
       * WARNING: expected event as trips.
@@ -18,9 +18,9 @@ This repository contains software for remote control and monitoring of high volt
       * DEBUG: debugging information.
 
       It is recommended to set the slack/mattermost logging level to warning if you want to receive messages when trips happen or error if you want to ignore the messages of trips.
-   - Email alerts of the CRITICAL log records (e.g. gas alarms) through a Gmail account. Copy [email_config.example.toml](email_config.example.toml) to `email_config.toml` (not tracked by git) and fill in the sender account, its App Password (it requires the 2-Step Verification of the account; the normal password does not work) and the recipients. The records arriving within `min_interval` seconds are sent together in a single email.
-   - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) or [femdaq](https://github.com/juanangp/femdaq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication.
-   - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `trexdmsc/utils/googlesheet.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
+   - Email alerts of the CRITICAL log records (e.g. gas alarms) through a Gmail account: fill in the `[email]` section of the [credentials file](#credentials) with the sender account, its App Password (it requires the 2-Step Verification of the account; the normal password does not work) and the recipients. The records arriving within `min_interval` seconds are sent together in a single email.
+   - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) or [femdaq](https://github.com/juanangp/femdaq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication, and the user and key in the `[daq_ssh]` section of the [credentials file](#credentials).
+   - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold) to the Google Sheet run list. The Google service account credentials (json file), the sheet name and the worksheet are set in the `[google_sheet]` section of the [credentials file](#credentials).
 - Monitoring of the sensor and alarm safety system for the use of flammable gas (isobutane): the gas sensors connected to an MX32v2 controller and the digital alarm signals of the safety system read by an Arduino. Every alarm raised or cleared is logged (the raised ones as critical records, so they reach the slack/mattermost webhook).
 - Monitoring and control of the gas system, ported from the old TREX-DM slow control:
    - Gas circuit: Bronkhorst pressure controller (PT41/PCV41), flow controller (FQT40/FQC40) and flow meter (QT41), with setpoint control, and the gas panel Arduino with the pressure and temperature transmitters (PT40, TT40, PT32, TT32, PT30, TT30), the pump relay and the pneumatic valve V40-V46.
@@ -38,7 +38,7 @@ This repository contains software for remote control and monitoring of high volt
    cd trex-slowcontrolHV
    pip install -e .
    ```
-2. Check the addresses of the devices, and which of them are connected, in [config/devices_config.toml](config/devices_config.toml) (see [Devices configuration](#devices-configuration)).
+2. Check the addresses of the devices, and which of them are connected, in [config/devices_config.toml](config/devices_config.toml) (see [Devices configuration](#devices-configuration)), and create the credentials file `config/credentials.toml` (see [Credentials](#credentials)).
 3. Run the main GUI (all the subsystems, with the sidebar to switch between them) from the repository root (the `logs/` directory and the `config/checks_config.toml` and `config/devices_config.toml` defaults are relative to the working directory)
    ```bash
    trexdm-sc
@@ -66,7 +66,7 @@ This repository contains software for remote control and monitoring of high volt
 ### Devices configuration
 
 The address of every device (serial ports, hosts and TCP ports, VISA resources, the
-SSH access to the DAQ PC) is in [config/devices_config.toml](config/devices_config.toml),
+DAQ PC) is in [config/devices_config.toml](config/devices_config.toml),
 one section per device. Every command reads it from the working directory, or from
 the file given with `--devices-config`. The commands have no options for the addresses.
 
@@ -80,6 +80,17 @@ even if it is disabled.
 A device that cannot be reached (and is not disabled) shows a "NO COMMUNICATION"
 banner and is logged once as a warning, after a few failed reads in a row, and once
 more when it answers again.
+
+### Credentials
+
+The webhooks, the email account, the Google Sheet service account and the SSH access
+to the DAQ PC are in `config/credentials.toml`, which is not tracked by git. Copy
+[config/credentials.example.toml](config/credentials.example.toml) to
+`config/credentials.toml` and fill it in. It is read from the working directory. Every
+section is optional: without it, that feature is disabled (no Slack/Mattermost/email
+alerts, no Google Sheet run list, and the DAQ metrics frame shows DISABLED without
+`[daq_ssh]`). The old `email_config.toml` is no longer read: move its `[email]`
+section to the credentials file.
 
 ### Gas system and electronics hardware
 
@@ -184,6 +195,7 @@ The code is organized in layers inside the `trexdmsc` package. The hardware modu
 ```text
 config/checks_config.toml   default checks configuration
 config/devices_config.toml  addresses of the devices and which ones are enabled
+config/credentials.example.toml  template of config/credentials.toml (not in git)
 logs/                       output logs (created at runtime)
 trexdmsc/
 ├── core/                   framework support (no hardware, no GUI)
@@ -236,6 +248,7 @@ trexdmsc/
    - `channel.py`: Implementation of the State and ChannelState classes (with absolute and relative logging thresholds).
    - `check.py`: Implementation of the checks classes.
    - `logger.py`: Logging helper functions and classes (slack/mattermost/email/text widget handlers).
+   - `credentials.py`: Loading of the credentials file.
    - `devicesconfig.py`: Loading of the devices configuration file (`DevicesConfig`) and the `DisabledDevice` placeholder of the disabled devices.
 - `trexdmsc/utils/googlesheet.py`: Other useful functions. For now, it includes the necessary functions for adding rows to the Google Sheet run list.
 

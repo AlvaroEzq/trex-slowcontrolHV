@@ -26,10 +26,14 @@ class DevicesConfigError(Exception):
 
 
 class DisabledDevice:
-    """Stands for a device disabled in the devices configuration file."""
+    """
+    Stands for a device that is not used: disabled in the devices configuration file
+    (or without the credentials it needs, as told by 'reason').
+    """
 
-    def __init__(self, name):
+    def __init__(self, name, reason="devices configuration file"):
         self.name = name
+        self.reason = reason
 
     def __repr__(self):
         return f"DisabledDevice({self.name!r})"

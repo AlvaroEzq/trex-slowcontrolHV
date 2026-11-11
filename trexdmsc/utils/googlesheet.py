@@ -1,19 +1,39 @@
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from trexdmsc.core.logger import LOG_DIR
+from trexdmsc.core.credentials import credentials_section
 
 GOOGLE_SHEET_SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-GOOGLE_SHEET_CREDENTIALS_FILENAME = "trex-slowcontrolHV-credentials.json"
-GOOGLE_SHEET_NAME = "TREX-DM run lists"
 
-WORKSHEET_NUMBER = 6 # starts from 0
 
-def append_row_to_google_sheet(row, worksheet_number=WORKSHEET_NUMBER):
+class GoogleSheetNotConfigured(Exception):
+    pass
+
+
+def google_sheet_settings():
+    """
+    (credentials_file, sheet_name, worksheet_number) from the [google_sheet] section of
+    the credentials file (see trexdmsc.core.credentials).
+    """
+    section = credentials_section("google_sheet")
+    missing = [key for key in ("credentials_file", "sheet_name", "worksheet_number") if key not in section]
+    if missing:
+        raise GoogleSheetNotConfigured(f"[google_sheet] of the credentials file is missing {missing}")
+    return section["credentials_file"], section["sheet_name"], int(section["worksheet_number"])
+
+
+def open_worksheet(worksheet_number=None):
+    """The worksheet of the run list (worksheet_number starts from 0; None: the configured one)."""
+    credentials_file, sheet_name, configured_worksheet = google_sheet_settings()
+    creds = ServiceAccountCredentials.from_json_keyfile_name(credentials_file, GOOGLE_SHEET_SCOPE)
+    client = gspread.authorize(creds)
+    sheet = client.open(sheet_name)
+    return sheet.get_worksheet(configured_worksheet if worksheet_number is None else worksheet_number)
+
+
+def append_row_to_google_sheet(row, worksheet_number=None):
     try:
-        creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEET_CREDENTIALS_FILENAME, GOOGLE_SHEET_SCOPE)
-        client = gspread.authorize(creds)
-        sheet = client.open(GOOGLE_SHEET_NAME)
-        page = sheet.get_worksheet(worksheet_number) # starts from 0
+        page = open_worksheet(worksheet_number)
         result = page.append_row(row, value_input_option='USER_ENTERED', table_range='A5')
         print(f"Row appended in range {result['updates']['updatedRange']}")
     except Exception as e:
@@ -22,12 +42,9 @@ def append_row_to_google_sheet(row, worksheet_number=WORKSHEET_NUMBER):
         with open(LOG_DIR + "/run_list.txt", "a") as file:
             file.write(str(row)+"\n")
 
-def create_row_for_google_sheet(run_number, start_date, run_tag, voltages, other_columns, worksheet_number=WORKSHEET_NUMBER):
+def create_row_for_google_sheet(run_number, start_date, run_tag, voltages, other_columns, worksheet_number=None):
     try:
-        creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEET_CREDENTIALS_FILENAME, GOOGLE_SHEET_SCOPE)
-        client = gspread.authorize(creds)
-        sheet = client.open(GOOGLE_SHEET_NAME)
-        page = sheet.get_worksheet(worksheet_number) # starts from 0
+        page = open_worksheet(worksheet_number)
         column_names = page.row_values(2)
     except Exception as e:
         column_names = ['Run', 'Date', 'Tag', 'Time', 'Vmesh Left (V)', 'Eg-mm (V/cm*bar)', 'Vgem(top-bott) (V)',
@@ -77,12 +94,9 @@ def create_row_for_google_sheet(run_number, start_date, run_tag, voltages, other
     row[2] = run_tag
     return row
 
-def get_last_run_number_from_google_sheet(worksheet_number=WORKSHEET_NUMBER):
+def get_last_run_number_from_google_sheet(worksheet_number=None):
     try:
-        creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SHEET_CREDENTIALS_FILENAME, GOOGLE_SHEET_SCOPE)
-        client = gspread.authorize(creds)
-        sheet = client.open(GOOGLE_SHEET_NAME)
-        page = sheet.get_worksheet(worksheet_number) # starts from 0
+        page = open_worksheet(worksheet_number)
         column_values = page.col_values(1)  # 1 refers to column A (run number)
         run_numbers_col = [val for val in column_values if val]
         run_numbers = []
@@ -141,12 +155,11 @@ def write_to_log_file(message:str, log_filename:str, print_message:bool=True):
             file.write(time + " " + message + '\n')
 
 def send_slack_message(message:str, log_filename="", print_message=True):
-    #### webhook to Alvaro chat
-    webhook_url = ""
-    #### webhook to trex-operations channel
-    #webhook_url = ""
+    webhook_url = credentials_section("slack").get("webhook_url", "")
     write_to_log_file(message, log_filename, print_message=print_message)
     write_to_log_file(message, "slack.log", print_message=False) # always write to slack.log too
+    if not webhook_url:
+        return
     slack_data = {'text': message}
     try:
         requests.post(webhook_url, data=json.dumps(slack_data), headers={'Content-Type': 'application/json'})

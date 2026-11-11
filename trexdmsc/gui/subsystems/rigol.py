@@ -38,7 +38,7 @@ class RigolsGUI(MultiDeviceGUI):
             if device is None:
                 continue
             if is_disabled(device):
-                disabled_device_frame(self.frame, device.name).pack(side="top", fill="x",
+                disabled_device_frame(self.frame, device.name, device.reason).pack(side="top", fill="x",
                                                                     anchor="n", padx=5, pady=5)
                 continue
             frame = tk.Frame(self.frame)

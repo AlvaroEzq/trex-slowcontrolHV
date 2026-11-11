@@ -126,7 +126,7 @@ class HVGUI(MultiDeviceGUI):
         if is_disabled(self.caen_module):
             self.caen_frame = tk.Frame(self.frame)
             self.caen_frame.pack(side="left", fill="x", anchor="n", expand=True)
-            disabled_device_frame(self.caen_frame, self.caen_module.name).pack(
+            disabled_device_frame(self.caen_frame, self.caen_module.name, self.caen_module.reason).pack(
                 side="top", anchor="n", padx=5, pady=5)
         elif self.caen_module is not None:
             self.caen_frame = tk.Frame(self.frame)
@@ -144,7 +144,7 @@ class HVGUI(MultiDeviceGUI):
         if is_disabled(self.spellman_module):
             self.spellman_frame = tk.Frame(self.frame)
             self.spellman_frame.pack(side="right", fill="x", anchor="n", expand=False)
-            disabled_device_frame(self.spellman_frame, self.spellman_module.name).pack(
+            disabled_device_frame(self.spellman_frame, self.spellman_module.name, self.spellman_module.reason).pack(
                 side="top", anchor="n", padx=5, pady=5)
         elif self.spellman_module is not None:
             self.spellman_frame = tk.Frame(self.frame)
@@ -411,7 +411,7 @@ class HVGUI(MultiDeviceGUI):
 
     def create_daq_frame(self, frame):
         if is_disabled(self.daq_metrics_fetcher):
-            disabled_device_frame(frame, self.daq_metrics_fetcher.name).pack(
+            disabled_device_frame(frame, self.daq_metrics_fetcher.name, self.daq_metrics_fetcher.reason).pack(
                 side="top", anchor="n", padx=5, pady=5)
             return
         daqmetrics = FemDaqMetrics(self.daq_metrics_fetcher)

@@ -70,7 +70,7 @@ class GasGUI(MultiDeviceGUI):
         for device in self.bronkhorst_devices:
             self.add_bronkhorst_gui(circuit_frame, device)
         if is_disabled(self.gas_arduino_device):
-            disabled_device_frame(circuit_frame, self.gas_arduino_device.name).pack(
+            disabled_device_frame(circuit_frame, self.gas_arduino_device.name, self.gas_arduino_device.reason).pack(
                 side="top", anchor="n", fill="x", padx=5, pady=3)
         elif self.gas_arduino_device is not None:
             frame = tk.Frame(circuit_frame)
@@ -88,7 +88,7 @@ class GasGUI(MultiDeviceGUI):
             vacuum_frame = tk.LabelFrame(self.frame, text="Vacuum", font=("", 14), labelanchor="n")
             vacuum_frame.pack(side="left", anchor="n", padx=5, pady=5)
             if is_disabled(self.maxigauge_device):
-                disabled_device_frame(vacuum_frame, self.maxigauge_device.name).pack(
+                disabled_device_frame(vacuum_frame, self.maxigauge_device.name, self.maxigauge_device.reason).pack(
                     side="top", anchor="n", fill="x", padx=5, pady=3)
                 return
             frame = tk.Frame(vacuum_frame)
@@ -103,7 +103,7 @@ class GasGUI(MultiDeviceGUI):
 
     def add_bronkhorst_gui(self, parent, device):
         if is_disabled(device):
-            disabled_device_frame(parent, device.name).pack(side="top", anchor="n", fill="x",
+            disabled_device_frame(parent, device.name, device.reason).pack(side="top", anchor="n", fill="x",
                                                             padx=5, pady=3)
             return
         frame = tk.Frame(parent)

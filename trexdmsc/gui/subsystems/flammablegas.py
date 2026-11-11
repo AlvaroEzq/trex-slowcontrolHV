@@ -59,7 +59,7 @@ class FlammableGasGUI(MultiDeviceGUI):
         # keeps its natural size instead of being stretched over the whole frame
         # (which is as large as the window when the subsystem is shown by a SuperGUI).
         if is_disabled(self.mx32_device):
-            disabled_device_frame(self.frame, self.mx32_device.name).pack(
+            disabled_device_frame(self.frame, self.mx32_device.name, self.mx32_device.reason).pack(
                 side="left", anchor="n", padx=5, pady=5)
         elif self.mx32_device is not None:
             self.mx32_frame = tk.Frame(self.frame)
@@ -74,7 +74,7 @@ class FlammableGasGUI(MultiDeviceGUI):
             self.all_guis[self.mx32_device.name] = self.mx32_gui
 
         if is_disabled(self.arduino_device):
-            disabled_device_frame(self.frame, self.arduino_device.name).pack(
+            disabled_device_frame(self.frame, self.arduino_device.name, self.arduino_device.reason).pack(
                 side="left", anchor="n", padx=5, pady=5)
         elif self.arduino_device is not None:
             self.arduino_frame = tk.Frame(self.frame)

@@ -11,15 +11,16 @@ def enable_children(parent, enabled=True):
         else:
             enable_children(child, enabled)
 
-def disabled_device_frame(parent, name):
+def disabled_device_frame(parent, name, reason="devices configuration file"):
     """
-    Greyed frame standing for a device disabled in the devices configuration file
-    (see trexdmsc.core.devicesconfig). The caller places it (pack/grid).
+    Greyed frame standing for a device that is not used (a DisabledDevice, see
+    trexdmsc.core.devicesconfig), e.g. disabled in the devices configuration file.
+    The caller places it (pack/grid).
     """
     frame = tk.LabelFrame(parent, text=name, font=("", 12), fg="grey",
                           labelanchor="n", padx=20, pady=10, bd=3)
     tk.Label(frame, text="DISABLED", fg="grey", font=("", 14, "bold")).pack()
-    tk.Label(frame, text="(devices configuration file)", fg="grey").pack()
+    tk.Label(frame, text=f"({reason})", fg="grey").pack()
     return frame
 
 def validate_numeric_entry_input(new_value):

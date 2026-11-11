@@ -1,5 +1,4 @@
 import datetime as dt
-import os
 import logging
 import queue
 import threading
@@ -9,15 +8,9 @@ import smtplib
 import time
 from email.message import EmailMessage
 
-import toml
-
 from trexdmsc.core.channel import LOG_DIR
 
-SLACK_WEBHOOK_URL = "" # add here the webkook url
-MATTERMOST_WEBHOOK_URL = ""
-# local file with the email sender settings and password (not in git, see
-# email_config.example.toml). Without it, no emails are sent.
-EMAIL_CONFIG_FILENAME = "email_config.toml"
+from trexdmsc.core.credentials import credentials_section
 
 class ThreadedHandler(logging.Handler):
     def __init__(self):
@@ -198,18 +191,17 @@ class EmailHandler(ThreadedHandler):
     def __repr__(self):
         return f"{self.__class__.__name__}({self.sender} -> {', '.join(self.recipients)})"
 
-def load_email_config(filename=EMAIL_CONFIG_FILENAME):
-    """Return the [email] settings of the file, or None (no emails) if it is missing or incomplete."""
-    if not os.path.isfile(filename):
-        return None
-    try:
-        config = toml.load(filename).get("email", {})
-    except Exception as e:
-        print(f"Error reading the email configuration '{filename}': {e}")
+def load_email_config():
+    """
+    The [email] settings of the credentials file (see trexdmsc.core.credentials), or
+    None (no emails) if they are missing or incomplete.
+    """
+    config = credentials_section("email")
+    if not config:
         return None
     missing = [key for key in ("sender", "app_password", "recipients") if not config.get(key)]
     if missing:
-        print(f"Email configuration '{filename}' is missing {missing}: emails disabled")
+        print(f"[email] of the credentials file is missing {missing}: emails disabled")
         return None
     return {
         "smtp_server": config.get("smtp_server", "smtp.gmail.com"),
@@ -250,13 +242,13 @@ def configure_basic_logger(logger_name:str, log_level=logging.DEBUG):
     logger = configure_slack_logger(
         logger_name,
         log_filename=f"{LOG_DIR}/slack_{logger_name}.log",
-        slack_webhook_url=SLACK_WEBHOOK_URL,
+        slack_webhook_url=credentials_section("slack").get("webhook_url", ""),
         log_level=logging.ERROR
     )
     logger = configure_mattermost_logger(
         logger_name,
         log_filename=f"{LOG_DIR}/mattermost_{logger_name}.log",
-        mattermost_webhook_url=MATTERMOST_WEBHOOK_URL,
+        mattermost_webhook_url=credentials_section("mattermost").get("webhook_url", ""),
         log_level=logging.INFO
     )
     logger = configure_email_logger(

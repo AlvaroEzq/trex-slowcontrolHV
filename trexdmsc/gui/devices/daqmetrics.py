@@ -275,7 +275,7 @@ class DaqMetricsGUI(DeviceGUI):
 
 def main():
     from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
-                                             load_devices_config)
+                                             is_disabled, load_devices_config)
     from trexdmsc.devices import build
 
     parser = argparse.ArgumentParser(description="Daq metrics GUI")
@@ -285,6 +285,8 @@ def main():
     config = load_devices_config(args)
     with exit_on_config_error():
         metrics_fetcher = build.build_daq_metrics_fetcher(config, standalone=True)
+    if is_disabled(metrics_fetcher):
+        raise SystemExit(f"Error: DAQ metrics not available ({metrics_fetcher.reason})")
     DaqMetricsGUI(FemDaqMetrics(metrics_fetcher))
 
 
