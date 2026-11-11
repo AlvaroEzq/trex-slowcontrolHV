@@ -157,7 +157,7 @@ class SuperGUI:
 
 
 def main():
-    from trexdmsc.core.check import load_checks_from_toml_file
+    from trexdmsc.core.check import load_checks_or_exit
     from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
                                              load_devices_config)
     from trexdmsc.devices import build
@@ -174,9 +174,8 @@ def main():
                         help="Disable the commands of the gas and electronics subsystems (setpoints and relays)")
     args = parser.parse_args()
 
-    checks_caen = load_checks_from_toml_file(args.checks, "caen")
-    checks_spellman = load_checks_from_toml_file(args.checks, "spellman")
-    checks_multidevice = load_checks_from_toml_file(args.checks, "multidevice")
+    checks_caen, checks_spellman, checks_multidevice = load_checks_or_exit(
+        args.checks, "caen", "spellman", "multidevice")
 
     config = load_devices_config(args)
     with exit_on_config_error():

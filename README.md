@@ -39,7 +39,7 @@ This repository contains software for remote control and monitoring of high volt
    pip install -e .
    ```
 2. Check the addresses of the devices, and which of them are connected, in [config/devices_config.toml](config/devices_config.toml) (see [Devices configuration](#devices-configuration)), and create the credentials file `config/credentials.toml` (see [Credentials](#credentials)).
-3. Run the main GUI (all the subsystems, with the sidebar to switch between them) from the repository root (the `logs/` directory and the `config/checks_config.toml` and `config/devices_config.toml` defaults are relative to the working directory)
+3. Run the main GUI (all the subsystems, with the sidebar to switch between them) from the repository root (the `logs/` directory and the `config/checks_config.toml` and `config/devices_config.toml` defaults are relative to the working directory: from another directory the commands stop with an error, unless the configuration files are given with `--checks`/`--devices-config`. `logs/` is created if it does not exist)
    ```bash
    trexdm-sc
    ```

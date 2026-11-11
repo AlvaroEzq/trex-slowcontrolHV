@@ -125,3 +125,18 @@ def load_checks_from_toml_file(file_path: str, group_name: str) -> list:
             checks.append(CheckWithLock(**check))
 
     return checks
+
+
+def load_checks_or_exit(file_path: str, *group_names) -> tuple:
+    """
+    The checks of each group of the checks configuration file, in the order of
+    group_names. For the commands: exits with a clear message if the file is missing
+    (the default one is relative to the working directory) or invalid.
+    """
+    try:
+        return tuple(load_checks_from_toml_file(file_path, group) for group in group_names)
+    except FileNotFoundError:
+        raise SystemExit(f"Error: checks configuration file '{file_path}' not found (run the"
+                         f" command from the repository root, or give the file with --checks)") from None
+    except toml.TomlDecodeError as e:
+        raise SystemExit(f"Error: invalid checks configuration file '{file_path}': {e}") from None

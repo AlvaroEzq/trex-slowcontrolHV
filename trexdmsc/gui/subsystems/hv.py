@@ -13,7 +13,7 @@ from trexdmsc.gui.devices import rigol as rigolgui
 
 from trexdmsc.utils import googlesheet as utils
 from trexdmsc.gui.base.checkframe import ChecksFrame
-from trexdmsc.core.check import load_checks_from_toml_file
+from trexdmsc.core.check import load_checks_or_exit
 from trexdmsc.gui.base.widgets import (PrintToTextWidget, ToolTip, enable_children,
                                       validate_numeric_entry_input, disabled_device_frame)
 from trexdmsc.devices.daqmetrics import FemDaqMetrics
@@ -472,7 +472,7 @@ class HVGUI(MultiDeviceGUI):
 
         self.triprec_logger = logging.getLogger("app.triprec")
         self.triprec_logger.setLevel(logging.DEBUG)
-        file_handler = logging.FileHandler(f"{logger.LOG_DIR}/trip_recovery.log")
+        file_handler = logger.create_file_handler(f"{logger.LOG_DIR}/trip_recovery.log")
         file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
         file_handler.setLevel(logging.INFO)
         self.triprec_logger.addHandler(file_handler)
@@ -1058,9 +1058,8 @@ def main():
 
     args = parser.parse_args()
 
-    checks_caen = load_checks_from_toml_file(args.checks, "caen")
-    checks_spellman = load_checks_from_toml_file(args.checks, "spellman")
-    checks_multidevice = load_checks_from_toml_file(args.checks, "multidevice")
+    checks_caen, checks_spellman, checks_multidevice = load_checks_or_exit(
+        args.checks, "caen", "spellman", "multidevice")
 
     config = load_devices_config(args)
     with exit_on_config_error():

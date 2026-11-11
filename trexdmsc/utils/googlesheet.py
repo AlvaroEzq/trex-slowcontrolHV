@@ -39,6 +39,7 @@ def append_row_to_google_sheet(row, worksheet_number=None):
     except Exception as e:
         print(f"Error while appending row to Google Sheet: {e}")
     finally:
+        os.makedirs(LOG_DIR, exist_ok=True)
         with open(LOG_DIR + "/run_list.txt", "a") as file:
             file.write(str(row)+"\n")
 
@@ -141,6 +142,7 @@ def write_to_log_file(message:str, log_filename:str, print_message:bool=True):
         print(message)
     if log_filename:
         filename = LOG_DIR + "/" + log_filename
+        os.makedirs(LOG_DIR, exist_ok=True)
         if not os.path.isfile(filename):
             try:
                 # create the file if it does not exist

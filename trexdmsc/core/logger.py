@@ -1,5 +1,6 @@
 import datetime as dt
 import logging
+import os
 import queue
 import threading
 import requests
@@ -11,6 +12,12 @@ from email.message import EmailMessage
 from trexdmsc.core.channel import LOG_DIR
 
 from trexdmsc.core.credentials import credentials_section
+
+def create_file_handler(log_filename):
+    """A logging.FileHandler, creating its directory (logs/) if it does not exist yet."""
+    os.makedirs(os.path.dirname(os.path.abspath(log_filename)), exist_ok=True)
+    return logging.FileHandler(log_filename)
+
 
 class ThreadedHandler(logging.Handler):
     def __init__(self):
@@ -271,7 +278,7 @@ def configure_slack_logger(logger_name:str, log_filename:str, slack_webhook_url:
     if slack_webhook_url:
         slack_handler = SlackHandler(slack_webhook_url)
         slack_handler.setLevel(log_level)
-        file_slack_handler = logging.FileHandler(log_filename)
+        file_slack_handler = create_file_handler(log_filename)
         file_slack_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
         file_slack_handler.setLevel(slack_handler.level)
         logger.addHandler(slack_handler)
@@ -284,7 +291,7 @@ def configure_mattermost_logger(logger_name:str, log_filename:str, mattermost_we
     if mattermost_webhook_url:
         mattermost_handler = MattermostHandler(mattermost_webhook_url)
         mattermost_handler.setLevel(log_level)
-        file_mattermost_handler = logging.FileHandler(log_filename)
+        file_mattermost_handler = create_file_handler(log_filename)
         file_mattermost_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
         file_mattermost_handler.setLevel(mattermost_handler.level)
         logger.addHandler(mattermost_handler)
@@ -296,7 +303,7 @@ def configure_email_logger(logger_name:str, log_filename:str, email_config:dict,
     if email_config:
         email_handler = EmailHandler(**email_config)
         email_handler.setLevel(log_level)
-        file_email_handler = logging.FileHandler(log_filename)
+        file_email_handler = create_file_handler(log_filename)
         file_email_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
         file_email_handler.setLevel(email_handler.level)
         logger.addHandler(email_handler)
@@ -316,7 +323,7 @@ def configure_streamer_logger(logger_name:str, text_widget=None, log_filename:st
         logger.addHandler(stream_handler)
 
     if log_filename:
-        file_handler = logging.FileHandler(log_filename)
+        file_handler = create_file_handler(log_filename)
         file_handler.setFormatter(logging.Formatter('%(asctime)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
         logger.addHandler(file_handler)
     return logger
