@@ -3,7 +3,11 @@ import tkinter as tk
 
 from trexdmsc.gui.devices import arduino as arduinogui
 from trexdmsc.gui.devices import mx32v2 as mx32v2gui
+from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                         is_disabled, load_devices_config)
+from trexdmsc.devices import build
 from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
+from trexdmsc.gui.base.widgets import disabled_device_frame
 
 
 class FlammableGasGUI(MultiDeviceGUI):
@@ -22,6 +26,9 @@ class FlammableGasGUI(MultiDeviceGUI):
     - sensors (optional): The sensors configured in the MX32v2 (defaults to mx32v2.SENSORS).
     - channel_names (optional): The alarm signals read by the Arduino
         (defaults to arduinogui.CHANNEL_NAMES).
+
+    A device can be a DisabledDevice (disabled in the devices configuration file):
+    a greyed DISABLED frame is shown in its place.
     """
 
     def __init__(self, mx32_device=None, arduino_device=None, sensors=None, channel_names=None,
@@ -51,7 +58,10 @@ class FlammableGasGUI(MultiDeviceGUI):
         # Their frames are packed without fill nor expand so that each device GUI
         # keeps its natural size instead of being stretched over the whole frame
         # (which is as large as the window when the subsystem is shown by a SuperGUI).
-        if self.mx32_device is not None:
+        if is_disabled(self.mx32_device):
+            disabled_device_frame(self.frame, self.mx32_device.name).pack(
+                side="left", anchor="n", padx=5, pady=5)
+        elif self.mx32_device is not None:
             self.mx32_frame = tk.Frame(self.frame)
             self.mx32_frame.pack(side="left", anchor="n", padx=5, pady=5)
             self.mx32_gui = mx32v2gui.MX32v2GUI(
@@ -63,7 +73,10 @@ class FlammableGasGUI(MultiDeviceGUI):
             )
             self.all_guis[self.mx32_device.name] = self.mx32_gui
 
-        if self.arduino_device is not None:
+        if is_disabled(self.arduino_device):
+            disabled_device_frame(self.frame, self.arduino_device.name).pack(
+                side="left", anchor="n", padx=5, pady=5)
+        elif self.arduino_device is not None:
             self.arduino_frame = tk.Frame(self.frame)
             self.arduino_frame.pack(side="left", anchor="n", padx=5, pady=5)
             self.arduino_gui = arduinogui.ArduinoGUI(
@@ -76,28 +89,27 @@ class FlammableGasGUI(MultiDeviceGUI):
             self.all_guis[self.arduino_device.name] = self.arduino_gui
 
 
+def build_flammable_gas_devices(config, test=False):
+    """
+    Create the devices of the flammable gas subsystem from the devices configuration
+    (the simulators if test is True, DisabledDevices for the disabled ones).
+    """
+    return {
+        "mx32_device": build.build_mx32v2(config, test),
+        "arduino_device": build.build_flammable_gas_arduino(config, test),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="GUI of the flammable gas (isobutane) safety system")
-    parser.add_argument("--mx32-port", type=str, default="/dev/ttyUSB1", help="Serial port of the MX32v2")
-    parser.add_argument("--mx32-baudrate", type=int, default=9600, help="Modbus baudrate of the MX32v2 (default: 9600)")
-    parser.add_argument("--mx32-slave-id", type=int, default=0, help="Modbus slave number of the MX32v2 (default: 0)")
-    parser.add_argument("--arduino-port", type=str, default="/dev/ttyACM0", help="Serial port of the Arduino")
+    add_devices_config_argument(parser)
     parser.add_argument("--test", action="store_true", help="Use simulated devices for testing")
     args = parser.parse_args()
 
-    if args.test:
-        from trexdmsc.simulators import ArduinoSimulator, MX32v2Simulator
-        mx32_device = MX32v2Simulator()
-        arduino_device = ArduinoSimulator()
-        log = False
-    else:
-        from trexdmsc.devices.arduino import ArduinoReader
-        from trexdmsc.devices.mx32v2 import MX32v2
-        mx32_device = MX32v2(port=args.mx32_port, baudrate=args.mx32_baudrate, slave_id=args.mx32_slave_id)
-        arduino_device = ArduinoReader(port=args.arduino_port)
-        log = True
-
-    FlammableGasGUI(mx32_device=mx32_device, arduino_device=arduino_device, log=log)
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        devices = build_flammable_gas_devices(config, test=args.test)
+    FlammableGasGUI(**devices, log=not args.test)
 
 
 if __name__ == "__main__":

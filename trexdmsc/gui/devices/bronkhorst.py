@@ -4,7 +4,6 @@ import argparse
 import math
 import tkinter as tk
 
-from trexdmsc.devices.bronkhorst import Bronkhorst, BRONKHORSTS, GAS_PANEL_HOST
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
@@ -263,25 +262,21 @@ class BronkhorstGUI(DeviceGUI):
 
 
 def main():
-    configs = {config.name.split()[-1]: config for config in BRONKHORSTS} # P, Q, M
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
+
     parser = argparse.ArgumentParser(description="Bronkhorst GUI")
-    parser.add_argument("--device", choices=sorted(configs), default="P",
+    parser.add_argument("--device", choices=sorted(build.BRONKHORST_KEYS), default="P",
                         help="Which Bronkhorst of the gas panel (default: P)")
-    parser.add_argument("--host", type=str, default=GAS_PANEL_HOST,
-                        help=f"Host of the bridge servers (default: {GAS_PANEL_HOST})")
-    parser.add_argument("--port", type=int, default=None,
-                        help="TCP port of the bridge server (default: the one of the device)")
+    add_devices_config_argument(parser)
     parser.add_argument("--read-only", action="store_true", help="Do not allow setpoint changes")
     parser.add_argument("--test", action="store_true", help="Use a simulated device for testing")
     args = parser.parse_args()
 
-    config = configs[args.device]
-    if args.test:
-        from trexdmsc.simulators import BronkhorstSimulator
-        device = BronkhorstSimulator(config)
-    else:
-        device = Bronkhorst(config, host=args.host, port=args.port)
-
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        device = build.build_bronkhorst(config, args.device, args.test, standalone=True)
     BronkhorstGUI(device=device, read_only=args.read_only, log=not args.test)
 
 

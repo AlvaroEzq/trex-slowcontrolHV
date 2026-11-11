@@ -11,15 +11,15 @@ from trexdmsc.gui.devices import caen as caengui
 from trexdmsc.gui.devices import spellman as spellmangui
 from trexdmsc.gui.devices import rigol as rigolgui
 
-import hvps
-from trexdmsc.devices import spellman as spll
-from trexdmsc.devices import rigol as rgl
-
 from trexdmsc.utils import googlesheet as utils
 from trexdmsc.gui.base.checkframe import ChecksFrame
 from trexdmsc.core.check import load_checks_from_toml_file
-from trexdmsc.gui.base.widgets import PrintToTextWidget, ToolTip, enable_children, validate_numeric_entry_input
-from trexdmsc.devices.daqmetrics import MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
+from trexdmsc.gui.base.widgets import (PrintToTextWidget, ToolTip, enable_children,
+                                      validate_numeric_entry_input, disabled_device_frame)
+from trexdmsc.devices.daqmetrics import FemDaqMetrics
+from trexdmsc.devices import build
+from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                         is_disabled, load_devices_config)
 from trexdmsc.gui.devices.daqmetrics import DaqMetricsGUI
 from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
 from trexdmsc.core import logger
@@ -28,7 +28,16 @@ from trexdmsc.core import logger
 class HVGUI(MultiDeviceGUI):
     def __init__(self, caen_module=None, spellman_module=None, rigol_module_1=None, rigol_module_2=None,
                  checks_caen=None, checks_spellman=None, checks_multidevice=None, log=True,
-                 parent_frame=None, auto_gui_update=True, gui_update_time=1):
+                 parent_frame=None, auto_gui_update=True, gui_update_time=1,
+                 daq_metrics_fetcher=None):
+        """
+        The CAEN module, the Spellman and the DAQ metrics fetcher (MetricsFetcherSSH)
+        can be a DisabledDevice (disabled in the devices configuration file): a greyed
+        DISABLED frame is shown in their place. Without daq_metrics_fetcher (None) the
+        DAQ metrics frame is not shown. The multi-device control (raising/turning off
+        protocols and trip recovery) needs both the CAEN and the Spellman.
+        """
+        self.daq_metrics_fetcher = daq_metrics_fetcher
         if checks_caen is None:
             checks_caen = []
         if checks_spellman is None:
@@ -114,7 +123,12 @@ class HVGUI(MultiDeviceGUI):
     def create_gui(self):
         self.validate_numeric_input = (self.root.register(validate_numeric_entry_input), "%P")
 
-        if self.caen_module is not None:
+        if is_disabled(self.caen_module):
+            self.caen_frame = tk.Frame(self.frame)
+            self.caen_frame.pack(side="left", fill="x", anchor="n", expand=True)
+            disabled_device_frame(self.caen_frame, self.caen_module.name).pack(
+                side="top", anchor="n", padx=5, pady=5)
+        elif self.caen_module is not None:
             self.caen_frame = tk.Frame(self.frame)
             self.caen_frame.pack(side="left", fill="x", anchor="n", expand=True)
             self.caen_gui = caengui.CaenHVPSGUI(module=self.caen_module, parent_frame=self.caen_frame,
@@ -127,7 +141,12 @@ class HVGUI(MultiDeviceGUI):
             self.channels_vset_guientries = {name: entry for name, entry in zip(self.caen_gui.channels_name, self.caen_gui.vset_entries)}
             self.channels_vset_guilabel = {name: label for name, label in zip(self.caen_gui.channels_name, self.caen_gui.vset_labels)}
 
-        if self.spellman_module is not None:
+        if is_disabled(self.spellman_module):
+            self.spellman_frame = tk.Frame(self.frame)
+            self.spellman_frame.pack(side="right", fill="x", anchor="n", expand=False)
+            disabled_device_frame(self.spellman_frame, self.spellman_module.name).pack(
+                side="top", anchor="n", padx=5, pady=5)
+        elif self.spellman_module is not None:
             self.spellman_frame = tk.Frame(self.frame)
             self.spellman_frame.pack(side="right", fill="x", anchor="n", expand=False)
             self.spellman_gui = spellmangui.SpellmanFrame(spellman=self.spellman_module, parent=self.spellman_frame, checks=self.spellman_checks,
@@ -141,9 +160,10 @@ class HVGUI(MultiDeviceGUI):
 
 
         electronics_frame = self.caen_frame if self.caen_frame else self.frame
-        daq_frame = tk.Frame(electronics_frame)
-        daq_frame.pack(side="right", expand=False, fill='both', padx=20)
-        self.create_daq_frame(daq_frame)
+        if self.daq_metrics_fetcher is not None:
+            daq_frame = tk.Frame(electronics_frame)
+            daq_frame.pack(side="right", expand=False, fill='both', padx=20)
+            self.create_daq_frame(daq_frame)
         if self.rigol_module_1 is not None:
             self.rigol_frame_1 = tk.Frame(electronics_frame)
             self.rigol_frame_1.pack(side="top", fill="x", anchor="n", expand=True)
@@ -167,7 +187,7 @@ class HVGUI(MultiDeviceGUI):
         self.text_visible = True # State to track if the widget is hidden
         self.create_scrolled_text(scrolled_text_frame)
 
-        if self.caen_module is not None or self.spellman_module is not None:
+        if self.caen_gui is not None and self.spellman_gui is not None:
             self.create_multidevice_frame(self.spellman_frame)
 
         # self.menu_bar is created by MultiDeviceGUI, which attaches it to the window
@@ -390,14 +410,11 @@ class HVGUI(MultiDeviceGUI):
         self.checks_frame = ChecksFrame(right_frame, checks=self.checks, channels=self.all_channels, locks=all_devices_locks)
 
     def create_daq_frame(self, frame):
-        metrics_fetcher = MetricsFetcherSSH(
-            url="http://localhost:8080/metrics",
-            hostname="192.168.3.80",
-            username="usertrex",
-            key_filename="/home/usertrex/.ssh/id_rsa"
-        )
-        
-        daqmetrics = FemDaqMetrics(metrics_fetcher)
+        if is_disabled(self.daq_metrics_fetcher):
+            disabled_device_frame(frame, self.daq_metrics_fetcher.name).pack(
+                side="top", anchor="n", padx=5, pady=5)
+            return
+        daqmetrics = FemDaqMetrics(self.daq_metrics_fetcher)
         daqmetrics_gui = DaqMetricsGUI(daqmetrics, parent_frame=frame, all_channels=self.all_channels,
                                        channels_vset_guilabel=self.channels_vset_guilabel, auto_gui_update=False)
         
@@ -1034,10 +1051,9 @@ class HVGUI(MultiDeviceGUI):
 
 
 def main():
-    
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
-    parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB0")
+    add_devices_config_argument(parser)
     parser.add_argument("--checks", type=str, help="Select checks configuration file", default="config/checks_config.toml")
 
     args = parser.parse_args()
@@ -1046,39 +1062,20 @@ def main():
     checks_spellman = load_checks_from_toml_file(args.checks, "spellman")
     checks_multidevice = load_checks_from_toml_file(args.checks, "multidevice")
 
-    if not args.test:
-        with hvps.Caen(port=args.port) as caen:
-            print("port:", caen.port)
-            print("baudrate:", caen.baudrate)
-            m = caen.module(0)
-            spellman = spll.Spellman()
-            #rigol1 = rgl.RigolPowerSupply(name="Rigol Left", resource_name='USB0::6833::42152::DP9D263500831::0::INSTR')
-            #rigol2 = rgl.RigolPowerSupply(name="Rigol Right", resource_name='USB0::6833::42152::DP9D263500827::0::INSTR')
-            app = HVGUI(
-                    caen_module=m,
-                    spellman_module=spellman,                    
-                    #rigol_module_1=rigol1,
-                    #rigol_module_2=rigol2,
-                    checks_caen=checks_caen,
-                    checks_spellman=checks_spellman,
-                    checks_multidevice=checks_multidevice
-                )
-
-    else:
-        from trexdmsc.simulators import ModuleSimulator, SpellmanSimulator, RigolSimulator
-        caen_module = ModuleSimulator(4, trip_probability=0)
-        spellman_module = SpellmanSimulator()
-        rigol_module_1 = RigolSimulator()
-        rigol_module_2 = RigolSimulator()
-        app = HVGUI(caen_module=caen_module,
-                    spellman_module=spellman_module,
-                    #rigol_module_1=rigol_module_1,
-                    #rigol_module_2=rigol_module_2,
-                    checks_caen=checks_caen,
-                    checks_spellman=checks_spellman,
-                    checks_multidevice=checks_multidevice,
-                    log=False
-                )
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        spellman_module = build.build_spellman(config, args.test)
+        daq_metrics_fetcher = build.build_daq_metrics_fetcher(config, args.test)
+        caen_context = build.open_caen_module(config, args.test)
+    with caen_context as caen_module:
+        HVGUI(caen_module=caen_module,
+              spellman_module=spellman_module,
+              daq_metrics_fetcher=daq_metrics_fetcher,
+              checks_caen=checks_caen,
+              checks_spellman=checks_spellman,
+              checks_multidevice=checks_multidevice,
+              log=not args.test,
+              )
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ import datetime
 import time
 
 from trexdmsc.utils import googlesheet as utils
-from trexdmsc.devices.daqmetrics import MetricsFetcher, MetricsFetcherSSH, FeminosDaqMetrics, FemDaqMetrics
+from trexdmsc.devices.daqmetrics import MetricsFetcher, FeminosDaqMetrics, FemDaqMetrics
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
 
@@ -274,16 +274,19 @@ class DaqMetricsGUI(DeviceGUI):
             self.add_run_to_googlesheet()
 
 def main():
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
+
     parser = argparse.ArgumentParser(description="Daq metrics GUI")
+    add_devices_config_argument(parser)
     args = parser.parse_args()
 
-    #metrics_fetcher = MetricsFetcher(url="http://localhost:8080/metrics")
-    metrics_fetcher = MetricsFetcherSSH(url="http://localhost:8080/metrics",hostname="192.168.3.80",username="usertrex",key_filename="/home/usertrex/.ssh/id_rsa")
-    
-    #daqmetrics = FeminosDaqMetrics(metrics_fetcher)
-    daqmetrics = FemDaqMetrics(metrics_fetcher)
-    
-    DaqMetricsGUI(daqmetrics)
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        metrics_fetcher = build.build_daq_metrics_fetcher(config, standalone=True)
+    DaqMetricsGUI(FemDaqMetrics(metrics_fetcher))
+
 
 if __name__ == "__main__":
     main()

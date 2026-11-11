@@ -2,7 +2,6 @@ import tkinter as tk
 import argparse
 
 # import spellmanModule as spll  # Assuming spellmanModule has required functions
-from trexdmsc.devices.spellman import Spellman
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.gui.base.checkframe import ChecksFrame
 from trexdmsc.gui.base.devicegui import DeviceGUI
@@ -371,20 +370,19 @@ class SpellmanFrame(DeviceGUI):
 
 # Usage
 def main():
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
-    parser.add_argument("--port", type=int, help="Select port", default=50001)
-    parser.add_argument("--host", type=str, help="Select host", default='192.168.17.1')
-
+    add_devices_config_argument(parser)
     args = parser.parse_args()
 
-    if not args.test:
-        spll = Spellman(args.host, args.port)
-        app = SpellmanFrame(spll)
-    else:
-        from trexdmsc.simulators import SpellmanSimulator
-        spll = SpellmanSimulator()
-        app = SpellmanFrame(spll, log=False)
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        spellman = build.build_spellman(config, args.test, standalone=True)
+    SpellmanFrame(spellman, log=not args.test)
 
 
 if __name__ == "__main__":

@@ -1,11 +1,14 @@
 import argparse
 import tkinter as tk
 
-from trexdmsc.devices.bridge import GAS_PANEL_HOST, VACUUM_ELECTRONICS_HOST
+from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                         is_disabled, load_devices_config)
+from trexdmsc.devices import build
 from trexdmsc.gui.devices import arduinoio as arduinoiogui
 from trexdmsc.gui.devices import bronkhorst as bronkhorstgui
 from trexdmsc.gui.devices import maxigauge as maxigaugegui
 from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
+from trexdmsc.gui.base.widgets import disabled_device_frame
 
 
 class GasGUI(MultiDeviceGUI):
@@ -26,6 +29,9 @@ class GasGUI(MultiDeviceGUI):
     - maxigauge_device (optional): The MaxiGauge.
     - read_only (bool): Disable all the commands (setpoints and relays), e.g. to
         monitor the gas system while another slow control is controlling it.
+
+    A device can be a DisabledDevice (disabled in the devices configuration file):
+    a greyed DISABLED frame is shown in its place.
     """
 
     def __init__(self, bronkhorst_devices=(), gas_arduino_device=None, maxigauge_device=None,
@@ -63,7 +69,10 @@ class GasGUI(MultiDeviceGUI):
         # then the transmitters, pump and valve of the gas panel Arduino
         for device in self.bronkhorst_devices:
             self.add_bronkhorst_gui(circuit_frame, device)
-        if self.gas_arduino_device is not None:
+        if is_disabled(self.gas_arduino_device):
+            disabled_device_frame(circuit_frame, self.gas_arduino_device.name).pack(
+                side="top", anchor="n", fill="x", padx=5, pady=3)
+        elif self.gas_arduino_device is not None:
             frame = tk.Frame(circuit_frame)
             frame.pack(side="top", anchor="n", fill="x", padx=5, pady=3)
             self.gas_arduino_gui = arduinoiogui.ArduinoIOGUI(
@@ -78,6 +87,10 @@ class GasGUI(MultiDeviceGUI):
         if self.maxigauge_device is not None:
             vacuum_frame = tk.LabelFrame(self.frame, text="Vacuum", font=("", 14), labelanchor="n")
             vacuum_frame.pack(side="left", anchor="n", padx=5, pady=5)
+            if is_disabled(self.maxigauge_device):
+                disabled_device_frame(vacuum_frame, self.maxigauge_device.name).pack(
+                    side="top", anchor="n", fill="x", padx=5, pady=3)
+                return
             frame = tk.Frame(vacuum_frame)
             frame.pack(side="top", anchor="n", padx=5, pady=3)
             self.maxigauge_gui = maxigaugegui.MaxiGaugeGUI(
@@ -89,6 +102,10 @@ class GasGUI(MultiDeviceGUI):
             self.all_guis[self.maxigauge_device.name] = self.maxigauge_gui
 
     def add_bronkhorst_gui(self, parent, device):
+        if is_disabled(device):
+            disabled_device_frame(parent, device.name).pack(side="top", anchor="n", fill="x",
+                                                            padx=5, pady=3)
+            return
         frame = tk.Frame(parent)
         frame.pack(side="top", anchor="n", fill="x", padx=5, pady=3)
         gui = bronkhorstgui.BronkhorstGUI(
@@ -102,44 +119,32 @@ class GasGUI(MultiDeviceGUI):
         self.all_guis[device.name] = gui
 
 
-def build_gas_devices(test=False, gas_host=GAS_PANEL_HOST, vacuum_host=VACUUM_ELECTRONICS_HOST):
-    """Create the devices of the gas subsystem (the simulators if test is True)."""
-    from trexdmsc.devices.arduinoio import GAS_ARDUINO
-    from trexdmsc.devices.bronkhorst import BRONKHORST_P, BRONKHORST_Q, BRONKHORST_M
-
-    if test:
-        from trexdmsc.simulators import ArduinoIOSimulator, BronkhorstSimulator, MaxiGaugeSimulator
-        p = BronkhorstSimulator(BRONKHORST_P)
-        q = BronkhorstSimulator(BRONKHORST_Q)
-        m = BronkhorstSimulator(BRONKHORST_M, source=q) # the flow meter follows the controller
-        return {
-            "bronkhorst_devices": (p, q, m),
-            "gas_arduino_device": ArduinoIOSimulator(GAS_ARDUINO),
-            "maxigauge_device": MaxiGaugeSimulator(),
-        }
-
-    from trexdmsc.devices.arduinoio import ArduinoIO
-    from trexdmsc.devices.bronkhorst import Bronkhorst
-    from trexdmsc.devices.maxigauge import MaxiGauge
+def build_gas_devices(config, test=False):
+    """
+    Create the devices of the gas subsystem from the devices configuration (the
+    simulators if test is True, DisabledDevices for the disabled ones).
+    """
+    p = build.build_bronkhorst(config, "P", test)
+    q = build.build_bronkhorst(config, "Q", test)
+    # the flow meter simulator follows the flow controller simulator
+    m = build.build_bronkhorst(config, "M", test, source=None if is_disabled(q) else q)
     return {
-        "bronkhorst_devices": tuple(Bronkhorst(config, host=gas_host)
-                                    for config in (BRONKHORST_P, BRONKHORST_Q, BRONKHORST_M)),
-        "gas_arduino_device": ArduinoIO(GAS_ARDUINO, host=gas_host),
-        "maxigauge_device": MaxiGauge(host=vacuum_host),
+        "bronkhorst_devices": (p, q, m),
+        "gas_arduino_device": build.build_arduinoio(config, "gas", test),
+        "maxigauge_device": build.build_maxigauge(config, test),
     }
 
 
 def main():
     parser = argparse.ArgumentParser(description="GUI of the gas system (gas circuit and vacuum)")
-    parser.add_argument("--gas-host", type=str, default=GAS_PANEL_HOST,
-                        help=f"Host of the gas panel bridge servers (default: {GAS_PANEL_HOST})")
-    parser.add_argument("--vacuum-host", type=str, default=VACUUM_ELECTRONICS_HOST,
-                        help=f"Host of the MaxiGauge bridge server (default: {VACUUM_ELECTRONICS_HOST})")
+    add_devices_config_argument(parser)
     parser.add_argument("--read-only", action="store_true", help="Disable setpoints and relay commands")
     parser.add_argument("--test", action="store_true", help="Use simulated devices for testing")
     args = parser.parse_args()
 
-    devices = build_gas_devices(test=args.test, gas_host=args.gas_host, vacuum_host=args.vacuum_host)
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        devices = build_gas_devices(config, test=args.test)
     GasGUI(**devices, read_only=args.read_only, log=not args.test)
 
 

@@ -157,27 +157,19 @@ class SuperGUI:
 
 
 def main():
-    import hvps
-    from trexdmsc.devices import spellman as spll
     from trexdmsc.core.check import load_checks_from_toml_file
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
     from trexdmsc.gui.subsystems.hv import HVGUI
-    from trexdmsc.gui.subsystems.flammablegas import FlammableGasGUI
+    from trexdmsc.gui.subsystems.flammablegas import FlammableGasGUI, build_flammable_gas_devices
     from trexdmsc.gui.subsystems.gas import GasGUI, build_gas_devices
     from trexdmsc.gui.subsystems.electronics import ElectronicsGUI, build_electronics_devices
-    from trexdmsc.devices.bridge import GAS_PANEL_HOST, VACUUM_ELECTRONICS_HOST
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
-    parser.add_argument("--port", type=str, help="Select port for CAEN", default="/dev/ttyUSB2")
+    add_devices_config_argument(parser)
     parser.add_argument("--checks", type=str, help="Select checks configuration file", default="config/checks_config.toml")
-    parser.add_argument("--mx32-port", type=str, help="Serial port of the MX32v2 gas sensor controller", default="/dev/ttyUSB1")
-    parser.add_argument("--arduino-port", type=str, help="Serial port of the Arduino of the safety system", default="/dev/ttyACM0")
-    parser.add_argument("--gas-host", type=str, default=GAS_PANEL_HOST,
-                        help=f"Host of the gas panel bridge servers (default: {GAS_PANEL_HOST})")
-    parser.add_argument("--vacuum-host", type=str, default=VACUUM_ELECTRONICS_HOST,
-                        help=f"Host of the MaxiGauge bridge server (default: {VACUUM_ELECTRONICS_HOST})")
-    parser.add_argument("--electronics-host", type=str, default=VACUUM_ELECTRONICS_HOST,
-                        help=f"Host of the electronics Arduino bridge server (default: {VACUUM_ELECTRONICS_HOST})")
     parser.add_argument("--read-only", action="store_true",
                         help="Disable the commands of the gas and electronics subsystems (setpoints and relays)")
     args = parser.parse_args()
@@ -186,14 +178,24 @@ def main():
     checks_spellman = load_checks_from_toml_file(args.checks, "spellman")
     checks_multidevice = load_checks_from_toml_file(args.checks, "multidevice")
 
-    def build_app(caen_module, spellman_module, mx32_device, arduino_device, gas_devices,
-                  electronics_devices, log=True):
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        spellman_module = build.build_spellman(config, args.test)
+        daq_metrics_fetcher = build.build_daq_metrics_fetcher(config, args.test)
+        flammable_gas_devices = build_flammable_gas_devices(config, args.test)
+        gas_devices = build_gas_devices(config, args.test)
+        electronics_devices = build_electronics_devices(config, args.test)
+        caen_context = build.open_caen_module(config, args.test)
+    log = not args.test
+
+    with caen_context as caen_module:
         subsystems = {
             # each subsystem is built inside the content frame of the SuperGUI and
             # without its own scheduler: the SuperGUI owns the only GUI update loop
             "HV": lambda frame: HVGUI(
                 caen_module=caen_module,
                 spellman_module=spellman_module,
+                daq_metrics_fetcher=daq_metrics_fetcher,
                 checks_caen=checks_caen,
                 checks_spellman=checks_spellman,
                 checks_multidevice=checks_multidevice,
@@ -201,49 +203,28 @@ def main():
                 parent_frame=frame,
                 auto_gui_update=False,
             ),
-        }
-        if mx32_device is not None or arduino_device is not None:
-            subsystems["Flammable gas"] = lambda frame: FlammableGasGUI(
-                mx32_device=mx32_device,
-                arduino_device=arduino_device,
+            "Flammable gas": lambda frame: FlammableGasGUI(
+                **flammable_gas_devices,
                 log=log,
                 parent_frame=frame,
                 auto_gui_update=False,
-            )
-        subsystems["Gas"] = lambda frame: GasGUI(
-            **gas_devices,
-            log=log,
-            parent_frame=frame,
-            auto_gui_update=False,
-            read_only=args.read_only,
-        )
-        subsystems["Electronics"] = lambda frame: ElectronicsGUI(
-            **electronics_devices,
-            log=log,
-            parent_frame=frame,
-            auto_gui_update=False,
-            read_only=args.read_only,
-        )
-        return SuperGUI(subsystems, title="TREX Slow Control")
-
-    if not args.test:
-        from trexdmsc.devices.arduino import ArduinoReader
-        from trexdmsc.devices.mx32v2 import MX32v2
-        mx32_device = MX32v2(port=args.mx32_port)
-        arduino_device = ArduinoReader(port=args.arduino_port)
-        gas_devices = build_gas_devices(gas_host=args.gas_host, vacuum_host=args.vacuum_host)
-        electronics_devices = build_electronics_devices(host=args.electronics_host)
-        with hvps.Caen(port=args.port) as caen:
-            print("port:", caen.port)
-            print("baudrate:", caen.baudrate)
-            build_app(caen.module(0), spll.Spellman(), mx32_device, arduino_device,
-                      gas_devices, electronics_devices).run()
-    else:
-        from trexdmsc.simulators import (ArduinoSimulator, ModuleSimulator, MX32v2Simulator,
-                                SpellmanSimulator)
-        build_app(ModuleSimulator(4, trip_probability=0), SpellmanSimulator(),
-                  MX32v2Simulator(), ArduinoSimulator(),
-                  build_gas_devices(test=True), build_electronics_devices(test=True), log=False).run()
+            ),
+            "Gas": lambda frame: GasGUI(
+                **gas_devices,
+                log=log,
+                parent_frame=frame,
+                auto_gui_update=False,
+                read_only=args.read_only,
+            ),
+            "Electronics": lambda frame: ElectronicsGUI(
+                **electronics_devices,
+                log=log,
+                parent_frame=frame,
+                auto_gui_update=False,
+                read_only=args.read_only,
+            ),
+        }
+        SuperGUI(subsystems, title="TREX Slow Control").run()
 
 
 if __name__ == "__main__":

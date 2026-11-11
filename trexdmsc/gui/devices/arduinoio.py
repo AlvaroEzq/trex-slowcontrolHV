@@ -5,7 +5,7 @@ import math
 import time
 import tkinter as tk
 
-from trexdmsc.devices.arduinoio import ArduinoIO, ArduinoIOError, ARDUINOS, WATCHDOG_TIMEOUT
+from trexdmsc.devices.arduinoio import ArduinoIOError, WATCHDOG_TIMEOUT
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
@@ -344,25 +344,21 @@ class ArduinoIOGUI(DeviceGUI):
 
 
 def main():
-    configs = {config.name.split()[0].lower(): config for config in ARDUINOS} # gas, electronics
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
+
     parser = argparse.ArgumentParser(description="Arduino I/O GUI (gas panel / electronics Arduinos)")
-    parser.add_argument("--which", choices=sorted(configs), default="gas",
+    parser.add_argument("--which", choices=sorted(build.ARDUINOIO_KEYS), default="gas",
                         help="Which Arduino (default: gas)")
-    parser.add_argument("--host", type=str, default=None,
-                        help="Host of the bridge server (default: the one of the Arduino)")
-    parser.add_argument("--port", type=int, default=None,
-                        help="TCP port of the bridge server (default: the one of the Arduino)")
+    add_devices_config_argument(parser)
     parser.add_argument("--read-only", action="store_true", help="Do not allow switching the relays")
     parser.add_argument("--test", action="store_true", help="Use a simulated device for testing")
     args = parser.parse_args()
 
-    config = configs[args.which]
-    if args.test:
-        from trexdmsc.simulators import ArduinoIOSimulator
-        device = ArduinoIOSimulator(config)
-    else:
-        device = ArduinoIO(config, host=args.host, port=args.port)
-
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        device = build.build_arduinoio(config, args.which, args.test, standalone=True)
     ArduinoIOGUI(device=device, read_only=args.read_only, log=not args.test)
 
 

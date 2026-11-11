@@ -3,10 +3,8 @@ from __future__ import annotations
 import argparse
 import tkinter as tk
 
-from trexdmsc.devices.maxigauge import (MaxiGauge, MaxiGaugeError, GAUGES, GAUGE_VALUE_NAMES,
-                                        STATUS_NAMES, STATUS_OK, MAXIGAUGE_PORT,
-                                        failed_gauge_reading)
-from trexdmsc.devices.bridge import VACUUM_ELECTRONICS_HOST
+from trexdmsc.devices.maxigauge import (MaxiGaugeError, GAUGES, GAUGE_VALUE_NAMES,
+                                        STATUS_NAMES, STATUS_OK, failed_gauge_reading)
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
@@ -175,20 +173,18 @@ class MaxiGaugeGUI(DeviceGUI):
 
 
 def main():
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
+
     parser = argparse.ArgumentParser(description="MaxiGauge GUI Monitor")
-    parser.add_argument("--host", type=str, default=VACUUM_ELECTRONICS_HOST,
-                        help=f"Host of the MaxiGauge bridge server (default: {VACUUM_ELECTRONICS_HOST})")
-    parser.add_argument("--port", type=int, default=MAXIGAUGE_PORT,
-                        help=f"TCP port of the MaxiGauge bridge server (default: {MAXIGAUGE_PORT})")
+    add_devices_config_argument(parser)
     parser.add_argument("--test", action="store_true", help="Use a simulated device for testing")
     args = parser.parse_args()
 
-    if args.test:
-        from trexdmsc.simulators import MaxiGaugeSimulator
-        device = MaxiGaugeSimulator()
-    else:
-        device = MaxiGauge(host=args.host, port=args.port)
-
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        device = build.build_maxigauge(config, args.test, standalone=True)
     MaxiGaugeGUI(device=device, log=not args.test)
 
 

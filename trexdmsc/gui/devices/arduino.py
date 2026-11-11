@@ -16,7 +16,6 @@ ALARM_SIGNAL = 1
 
 from serial import SerialException
 
-from trexdmsc.devices.arduino import ArduinoReader
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.core.check import Check
 from trexdmsc.gui.base.checkframe import ChecksFrame
@@ -123,13 +122,19 @@ class ArduinoGUI(DeviceGUI):
             self.channels_labels[i].config(text=text, fg=color)
 
 def main():
-    parser = argparse.ArgumentParser(description="Arduino GUI Control")
-    parser.add_argument("--port", type=str, default="/dev/ttyACM0", help="Serial port for the Arduino device")
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
+
+    parser = argparse.ArgumentParser(description="GUI of the Arduino reading the alarm signals of the flammable gas safety system")
+    add_devices_config_argument(parser)
+    parser.add_argument("--test", action="store_true", help="Use a simulated device for testing")
     args = parser.parse_args()
 
-    # Initialize the Arduino device
-    arduino_device = ArduinoReader(port=args.port)
-    ArduinoGUI(device=arduino_device, channel_names=CHANNEL_NAMES)
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        arduino_device = build.build_flammable_gas_arduino(config, args.test, standalone=True)
+    ArduinoGUI(device=arduino_device, channel_names=CHANNEL_NAMES, log=not args.test)
 
 
 if __name__ == "__main__":

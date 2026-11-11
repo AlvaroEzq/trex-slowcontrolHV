@@ -666,9 +666,13 @@ class CaenHVPSGUI(DeviceGUI):
 
 
 def main():
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--test", action="store_true", help="Enable test mode")
-    parser.add_argument("--port", type=str, help="Select port", default="/dev/ttyUSB0")
+    add_devices_config_argument(parser)
     parser.add_argument("--silence", action="store_true", help="Silence alarm")
 
     args = parser.parse_args()
@@ -688,18 +692,17 @@ def main():
         ),
     ]
 
-    if not args.test:
-        with hvps.Caen(port=args.port) as caen:
-            print("port:", caen.port)
-            print("baudrate:", caen.baudrate)
-            m = caen.module(0)
-            CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS)
-
-    else:
+    if args.test:
         from trexdmsc.simulators import ModuleSimulator
-
         m = ModuleSimulator(4)
         CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS, log=False)
+        return
+
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        caen_context = build.open_caen_module(config, standalone=True)
+    with caen_context as m:
+        CaenHVPSGUI(module=m, channel_names=CHANNEL_NAMES, silence=args.silence, checks=CHECKS)
 
 
 if __name__ == "__main__":

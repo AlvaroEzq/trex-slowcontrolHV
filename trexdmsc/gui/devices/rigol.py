@@ -22,7 +22,6 @@ CHANNEL_NAMES_RIGHT = [
 
 import pyvisa
 
-from trexdmsc.devices.rigol import RigolPowerSupply
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.core.check import Check
 from trexdmsc.gui.base.checkframe import ChecksFrame
@@ -148,23 +147,23 @@ class RigolGUI(DeviceGUI):
             self.device.turn_off_channel(channel_index)
 
 def main():
-    parser = argparse.ArgumentParser(description="BGA244 GUI Control")
-    parser.add_argument("--resource", type=str, help="Resource name for the BGA244 device")
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
+
+    parser = argparse.ArgumentParser(description="Rigol power supply GUI")
+    parser.add_argument("--which", choices=sorted(build.RIGOL_KEYS), default="left",
+                        help="Which Rigol of the devices configuration (default: left)")
+    add_devices_config_argument(parser)
     parser.add_argument("--test", action="store_true", help="Use a simulated device for testing")
     args = parser.parse_args()
 
-    if args.test:
-        from trexdmsc.simulators import RigolSimulator
-        print("Using Rigol Simulator")
-        rigol_device = RigolSimulator()
-    else:
-        # Initialize the Rigol power supply
-        if args.resource is None:
-            print("Please provide a resource name using --resource")
-            exit(1)
-        rigol_device = RigolPowerSupply(resource_name=args.resource)
-    
-    RigolGUI(device=rigol_device, channel_names=CHANNEL_NAMES)
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        rigol_device = build.build_rigol(config, args.which, args.test, standalone=True)
+    channel_names = CHANNEL_NAMES_LEFT if args.which == "left" else CHANNEL_NAMES_RIGHT
+    RigolGUI(device=rigol_device, channel_names=channel_names)
+
 
 if __name__ == "__main__":
     main()

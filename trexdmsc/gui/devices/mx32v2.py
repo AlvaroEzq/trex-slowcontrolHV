@@ -4,7 +4,7 @@ import logging
 import tkinter as tk
 import argparse
 
-from trexdmsc.devices.mx32v2 import MX32v2, SENSORS, SENSOR_VALUE_NAMES, failed_sensor_reading
+from trexdmsc.devices.mx32v2 import SENSORS, SENSOR_VALUE_NAMES, failed_sensor_reading
 from trexdmsc.core.channel import ChannelState
 from trexdmsc.core.check import Check
 from trexdmsc.gui.base.checkframe import ChecksFrame
@@ -197,23 +197,18 @@ class MX32v2GUI(DeviceGUI):
 
 
 def main():
+    from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                             load_devices_config)
+    from trexdmsc.devices import build
+
     parser = argparse.ArgumentParser(description="MX32v2 GUI Monitor")
-    parser.add_argument("--port", type=str, default="/dev/ttyUSB1", help="Serial port of the MX32v2 (e.g. /dev/ttyUSB0)")
-    parser.add_argument("--baudrate", type=int, default=9600, help="Modbus baudrate (default: 9600)")
-    parser.add_argument("--slave-id", type=int, default=0, help="Modbus slave number (default: 0)")
+    add_devices_config_argument(parser)
     parser.add_argument("--test", action="store_true", help="Use a simulated device for testing")
     args = parser.parse_args()
 
-    if args.test:
-        from trexdmsc.simulators import MX32v2Simulator
-        print("Using MX32v2 Simulator")
-        mx32_device = MX32v2Simulator()
-    else:
-        if args.port is None:
-            print("Please provide a serial port using --port")
-            exit(1)
-        mx32_device = MX32v2(port=args.port, baudrate=args.baudrate, slave_id=args.slave_id)
-
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        mx32_device = build.build_mx32v2(config, args.test, standalone=True)
     MX32v2GUI(device=mx32_device)
 
 

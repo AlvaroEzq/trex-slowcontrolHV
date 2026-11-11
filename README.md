@@ -38,7 +38,8 @@ This repository contains software for remote control and monitoring of high volt
    cd trex-slowcontrolHV
    pip install -e .
    ```
-2. Run the main GUI (all the subsystems, with the sidebar to switch between them) from the repository root (the `logs/` directory and the `config/checks_config.toml` default are relative to the working directory)
+2. Check the addresses of the devices, and which of them are connected, in [config/devices_config.toml](config/devices_config.toml) (see [Devices configuration](#devices-configuration)).
+3. Run the main GUI (all the subsystems, with the sidebar to switch between them) from the repository root (the `logs/` directory and the `config/checks_config.toml` and `config/devices_config.toml` defaults are relative to the working directory)
    ```bash
    trexdm-sc
    ```
@@ -57,19 +58,37 @@ This repository contains software for remote control and monitoring of high volt
    ```
    Or even the GUI of an individual device. For example,
    ```bash
-   trexdm-sc-caen --port /dev/ttyUSB0
+   trexdm-sc-caen
+   trexdm-sc-bronkhorst --device Q
    ```
-   The available commands are `trexdm-sc`, `trexdm-sc-hv`, `trexdm-sc-flammablegas`, `trexdm-sc-gas`, `trexdm-sc-electronics`, `trexdm-sc-rigol`, `trexdm-sc-caen`, `trexdm-sc-spellman`, `trexdm-sc-rigol-device`, `trexdm-sc-mx32v2`, `trexdm-sc-arduino`, `trexdm-sc-bronkhorst`, `trexdm-sc-maxigauge`, `trexdm-sc-arduinoio` and `trexdm-sc-daqmetrics` (use `--help` to see their options). Every module with a `main()` can also be run without installing the commands, e.g. `python3 -m trexdmsc.gui.devices.caen --port /dev/ttyUSB0`.
+   The available commands are `trexdm-sc`, `trexdm-sc-hv`, `trexdm-sc-flammablegas`, `trexdm-sc-gas`, `trexdm-sc-electronics`, `trexdm-sc-rigol`, `trexdm-sc-caen`, `trexdm-sc-spellman`, `trexdm-sc-rigol-device`, `trexdm-sc-mx32v2`, `trexdm-sc-arduino`, `trexdm-sc-bronkhorst`, `trexdm-sc-maxigauge`, `trexdm-sc-arduinoio` and `trexdm-sc-daqmetrics` (use `--help` to see their options). Every module with a `main()` can also be run without installing the commands, e.g. `python3 -m trexdmsc.gui.devices.caen`.
+
+### Devices configuration
+
+The address of every device (serial ports, hosts and TCP ports, VISA resources, the
+SSH access to the DAQ PC) is in [config/devices_config.toml](config/devices_config.toml),
+one section per device. Every command reads it from the working directory, or from
+the file given with `--devices-config`. The commands have no options for the addresses.
+
+A device that is not connected can be disabled with `enabled = false` in its section:
+the subsystem GUIs and the main GUI do not create it nor read it, and show a greyed
+DISABLED frame in its place. The multi-device control of the HV subsystem needs both the
+CAEN and the Spellman. The single-device commands (`trexdm-sc-caen`,
+`trexdm-sc-bronkhorst`...) only take the address from the file: they start the device
+even if it is disabled.
+
+A device that cannot be reached (and is not disabled) shows a "NO COMMUNICATION"
+banner and is logged once as a warning, after a few failed reads in a row, and once
+more when it answers again.
 
 ### Gas system and electronics hardware
 
 The Bronkhorsts, the MaxiGauge and the gas and electronics Arduinos are not connected
 to the slow control PC: as in the old slow control, each of them is connected to one of
 two Raspberry Pis that run a TCP-to-serial bridge server per device (the
-`servers/*.py` and `services/*.service` of the old slow control). The default hosts are
-`192.168.15.100` (gas panel: Bronkhorsts and gas Arduino) and `192.168.15.101` (MaxiGauge
-and electronics Arduino), and can be changed with the `--gas-host`, `--vacuum-host` and
-`--electronics-host` options.
+`servers/*.py` and `services/*.service` of the old slow control): `192.168.15.100` (gas
+panel: Bronkhorsts and gas Arduino) and `192.168.15.101` (MaxiGauge and electronics
+Arduino), as set in [config/devices_config.toml](config/devices_config.toml).
 
 The firmware of the Arduinos has a watchdog: without any command for 1 second it
 drives all its outputs LOW, which switches the pump off and closes the pneumatic valve
@@ -164,6 +183,7 @@ The code is organized in layers inside the `trexdmsc` package. The hardware modu
 
 ```text
 config/checks_config.toml   default checks configuration
+config/devices_config.toml  addresses of the devices and which ones are enabled
 logs/                       output logs (created at runtime)
 trexdmsc/
 ├── core/                   framework support (no hardware, no GUI)
@@ -182,7 +202,7 @@ trexdmsc/
    - `base/multidevicegui.py`: Implementation of the abstract class that serves as base class for the subsystem GUIs (a group of device GUIs). Implement the `create_gui` abstract method, creating there the children `DeviceGUI`s with `auto_gui_update=False` inside `self.frame` and registering them in `self.all_guis`.
    - `base/devicegui.py`: Implementation of the abstract class that serves as base class for the individual devices GUIs. This abstract class implements a device lock for multithreading-safe communication with the device and a command queue to keep the order of the communications to the device. Please, use the `issue_command` method (or at least acquire the device lock manually) for any function (or statement) that requires to communicate with the device to avoid spurious errors. To write the individual device GUI, define your class as a children of this base class and implement the appropiate `read_values` (for background monitoring) and `create_gui` (for the GUI layout) abstract methods for your particular case. Do not forget to call the parent class constructor (`super().__init__`) at the end of your the class constructor (`__init__`), as it will start the GUI mainloop (when used standalone) and any line written after this will not be executed (until the GUI is closed). Build the widgets of the GUI inside `self.frame` and forward the `auto_gui_update` argument to `super().__init__`. It also handles the read failures: transient ones are tolerated and only reported once they persist (`handle_read_failure`/`handle_read_recovery`), the exceptions listed in `connection_errors` show a "NO COMMUNICATION" banner and call the `disconnect_device`/`reconnect_device`/`on_device_lost` hooks, and `log_alarm_transition` logs the alarms when they are raised (critical) or cleared.
    - `base/checkframe.py`: Implementation of the ChecksFrame class to display and manage the checks.
-   - `base/widgets.py`: Implementation of GUI utility classes such as ToolTip and PrintToTextWidget.
+   - `base/widgets.py`: Implementation of GUI utility classes such as ToolTip and PrintToTextWidget, and the greyed frame of the disabled devices.
    - `base/readonly.py`: `write_command` decorator for the `DeviceGUI` methods that write to the device, which are ignored in read-only mode.
    - `subsystems/`: subsystem GUIs, each of them can be run on its own.
       - `hv.py`: **HV subsystem GUI** that contains individual interfaces for CAEN and Spellman HV devices, as well as multi-device control.
@@ -201,6 +221,7 @@ trexdmsc/
       - `maxigauge.py`: GUI for the vacuum gauges of the MaxiGauge.
       - `arduinoio.py`: GUI for an Arduino with the trexdm_serial firmware (analog sensors and relays), used for both the gas panel and the electronics Arduinos.
 - `trexdmsc/devices/`: device modules (the CAEN one is the external `hvps` library)
+   - `build.py`: Creation of every device from the devices configuration file (the device, its simulator in test mode, or a `DisabledDevice`), shared by the subsystems and the single-device commands.
    - `spellman.py`: Class for managing the Spellman HV supply.
    - `rigol.py`: Class for managing the Rigol power supplies.
    - `mx32v2.py`: Class for managing the MX32v2 gas sensor controller (through Modbus) and the configuration of the sensors of the installation (which sensors are connected to each line and what their alarm thresholds are).
@@ -215,11 +236,13 @@ trexdmsc/
    - `channel.py`: Implementation of the State and ChannelState classes (with absolute and relative logging thresholds).
    - `check.py`: Implementation of the checks classes.
    - `logger.py`: Logging helper functions and classes (slack/mattermost/email/text widget handlers).
+   - `devicesconfig.py`: Loading of the devices configuration file (`DevicesConfig`) and the `DisabledDevice` placeholder of the disabled devices.
 - `trexdmsc/utils/googlesheet.py`: Other useful functions. For now, it includes the necessary functions for adding rows to the Google Sheet run list.
 
 ### Adding a new device
 
 1. Write the device API class in `trexdmsc/devices/` and its simulator in `trexdmsc/simulators/` (and export it in `trexdmsc/simulators/__init__.py`).
-2. Write its `DeviceGUI` in `trexdmsc/gui/devices/`, with a `main()` for standalone use.
-3. Add it to a subsystem in `trexdmsc/gui/subsystems/` (or create a new one and register it in `trexdmsc/gui/supergui.py`).
-4. Optionally, add a console script for it in `pyproject.toml`.
+2. Add a section with its address (and `enabled = true`) to `config/devices_config.toml`, and a builder for it in `trexdmsc/devices/build.py`.
+3. Write its `DeviceGUI` in `trexdmsc/gui/devices/`, with a `main()` for standalone use (creating the device with its builder and `standalone=True`).
+4. Add it to a subsystem in `trexdmsc/gui/subsystems/` (or create a new one and register it in `trexdmsc/gui/supergui.py`), showing `disabled_device_frame()` instead of its GUI when the device is a `DisabledDevice`.
+5. Optionally, add a console script for it in `pyproject.toml`.

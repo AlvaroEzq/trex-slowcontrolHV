@@ -1,9 +1,12 @@
 import argparse
 import tkinter as tk
 
-from trexdmsc.devices.bridge import VACUUM_ELECTRONICS_HOST
+from trexdmsc.core.devicesconfig import (add_devices_config_argument, exit_on_config_error,
+                                         is_disabled, load_devices_config)
+from trexdmsc.devices import build
 from trexdmsc.gui.devices import arduinoio as arduinoiogui
 from trexdmsc.gui.base.multidevicegui import MultiDeviceGUI
+from trexdmsc.gui.base.widgets import disabled_device_frame
 
 
 class ElectronicsGUI(MultiDeviceGUI):
@@ -19,6 +22,9 @@ class ElectronicsGUI(MultiDeviceGUI):
     - electronics_arduino_device (optional): The Arduino of the electronics.
     - read_only (bool): Disable the relay commands, e.g. to monitor the relays while
         another slow control is controlling them.
+
+    A device can be a DisabledDevice (disabled in the devices configuration file):
+    a greyed DISABLED frame is shown in its place.
     """
 
     def __init__(self, electronics_arduino_device=None, parent_frame=None, auto_gui_update=True,
@@ -40,7 +46,10 @@ class ElectronicsGUI(MultiDeviceGUI):
         # the child device GUI is created with auto_gui_update=False: this subsystem
         # owns its GUI update. Its frame is packed without fill nor expand so that it
         # keeps its natural size.
-        if self.electronics_arduino_device is not None:
+        if is_disabled(self.electronics_arduino_device):
+            disabled_device_frame(self.frame, self.electronics_arduino_device.name).pack(
+                side="left", anchor="n", padx=5, pady=5)
+        elif self.electronics_arduino_device is not None:
             frame = tk.Frame(self.frame)
             frame.pack(side="left", anchor="n", padx=5, pady=5)
             self.electronics_arduino_gui = arduinoiogui.ArduinoIOGUI(
@@ -53,30 +62,24 @@ class ElectronicsGUI(MultiDeviceGUI):
             self.all_guis[self.electronics_arduino_device.name] = self.electronics_arduino_gui
 
 
-def build_electronics_devices(test=False, host=VACUUM_ELECTRONICS_HOST):
-    """Create the devices of the electronics subsystem (the simulators if test is True)."""
-    from trexdmsc.devices.arduinoio import ELECTRONICS_ARDUINO
-
-    if test:
-        from trexdmsc.simulators import ArduinoIOSimulator
-        # around the levels of the Hall sensors of the old slow control (2.58-2.69 V)
-        nominal = {channel.name: voltage for channel, voltage in
-                   zip(ELECTRONICS_ARDUINO.analog_channels, (2.75, 2.75, 2.62, 2.40))}
-        return {"electronics_arduino_device": ArduinoIOSimulator(ELECTRONICS_ARDUINO, nominal_values=nominal)}
-
-    from trexdmsc.devices.arduinoio import ArduinoIO
-    return {"electronics_arduino_device": ArduinoIO(ELECTRONICS_ARDUINO, host=host)}
+def build_electronics_devices(config, test=False):
+    """
+    Create the devices of the electronics subsystem from the devices configuration
+    (the simulators if test is True, DisabledDevices for the disabled ones).
+    """
+    return {"electronics_arduino_device": build.build_arduinoio(config, "electronics", test)}
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GUI of the electronics relays and current sensors")
-    parser.add_argument("--host", type=str, default=VACUUM_ELECTRONICS_HOST,
-                        help=f"Host of the electronics Arduino bridge server (default: {VACUUM_ELECTRONICS_HOST})")
+    parser = argparse.ArgumentParser(description="GUI of the electronics (power supply relays and Hall sensors)")
+    add_devices_config_argument(parser)
     parser.add_argument("--read-only", action="store_true", help="Disable the relay commands")
     parser.add_argument("--test", action="store_true", help="Use simulated devices for testing")
     args = parser.parse_args()
 
-    devices = build_electronics_devices(test=args.test, host=args.host)
+    config = load_devices_config(args)
+    with exit_on_config_error():
+        devices = build_electronics_devices(config, test=args.test)
     ElectronicsGUI(**devices, read_only=args.read_only, log=not args.test)
 
 

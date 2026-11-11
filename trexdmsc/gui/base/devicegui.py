@@ -330,7 +330,9 @@ class DeviceGUI(ABC):
         The first failures are only recorded at debug level, where they do not
         reach the Slack/Mattermost handlers. Once the same key (DEVICE, or one of its
         sensors/channels) has failed 'read_failures_to_warn' reads in a row the
-        problem is real and gets logged as a warning, once, until it recovers.
+        problem is real and gets logged as a warning, once: the next failures are not
+        logged at all (a device that is not connected would otherwise fill the log
+        with a line per read), until it recovers (see handle_read_recovery()).
 
         Returns True when the failure has lasted long enough to be published as a
         failed reading; while it returns False the caller keeps the last values.
@@ -343,9 +345,8 @@ class DeviceGUI(ABC):
             self.logger.debug(f"{message} (failure {failures} of {to_warn}, tolerated)")
             return False
         if failures == to_warn:
-            self.logger.warning(f"{message} (failed {failures} reads in a row)")
-        else:
-            self.logger.debug(message) # already warned about this one
+            self.logger.warning(f"{message} (failed {failures} reads in a row, not"
+                                f" logged again until it recovers)")
         return True
 
     def handle_read_recovery(self, key, message):
