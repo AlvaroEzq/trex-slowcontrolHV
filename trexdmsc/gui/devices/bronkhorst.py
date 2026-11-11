@@ -20,7 +20,9 @@ DEFAULT_SETPOINT_ALARM_READS = 5
 READ_LOOP_TIME = 1
 READ_ONLY_READ_LOOP_TIME = 2
 
-COLOR_OK = "green"
+# Values without any problem are shown in the normal text color, with no status text:
+# only the problems (alarm, fault, no communication) are highlighted.
+COLOR_NORMAL = "black"
 COLOR_ALARM = "red"
 COLOR_UNKNOWN = "orange"
 COLOR_IDLE = "grey"
@@ -104,7 +106,7 @@ class BronkhorstGUI(DeviceGUI):
                                         padx=10, pady=5, labelanchor="n", bd=3)
         self.main_frame.pack(fill="both", expand=True)
 
-        # row 0: the measurement and the status (OK / ALARM / no communication)
+        # row 0: the measurement and the status (ALARM / no communication, empty if fine)
         tk.Label(self.main_frame, text=f"{self.config.measure_tag} [{self.config.unit}]:",
                  width=16, anchor="e").grid(row=0, column=0, sticky="e")
         self.measure_label = tk.Label(self.main_frame, text="NO DATA", fg=COLOR_UNKNOWN,
@@ -112,7 +114,6 @@ class BronkhorstGUI(DeviceGUI):
         self.measure_label.grid(row=0, column=1, padx=5)
         self.status_label = tk.Label(self.main_frame, text="no communication", fg=COLOR_UNKNOWN)
         self.status_label.grid(row=0, column=2, columnspan=2, sticky="w", padx=2)
-        ToolTip(self.status_label, "OK: answering and no alarm active")
 
         # row 1: the setpoint (controllers only)
         if self.config.controller:
@@ -250,7 +251,7 @@ class BronkhorstGUI(DeviceGUI):
 
         any_alarm = any(self.alarms.values())
         self.measure_label.config(text=f"{values['measure']:.{precision}f}",
-                                  fg=COLOR_ALARM if any_alarm else COLOR_OK)
+                                  fg=COLOR_ALARM if any_alarm else COLOR_NORMAL)
         if self.config.controller:
             setpoint = values["setpoint"]
             self.setpoint_label.config(text=f"{setpoint:.{precision}f}")
@@ -260,8 +261,7 @@ class BronkhorstGUI(DeviceGUI):
                 self.setpoint_entry.insert(0, f"{setpoint:.{precision}f}")
         for key, label in self.alarm_labels.items():
             label.config(fg=COLOR_ALARM if self.alarms[key] else COLOR_IDLE)
-        self.status_label.config(text="ALARM" if any_alarm else "OK",
-                                 fg=COLOR_ALARM if any_alarm else COLOR_OK)
+        self.status_label.config(text="ALARM" if any_alarm else "", fg=COLOR_ALARM)
 
 
 def main():

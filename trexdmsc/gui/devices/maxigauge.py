@@ -9,7 +9,9 @@ from trexdmsc.core.channel import ChannelState
 from trexdmsc.gui.base.widgets import ToolTip
 from trexdmsc.gui.base.devicegui import DeviceGUI
 
-COLOR_OK = "green"
+# Values without any problem are shown in the normal text color, with no status text:
+# only the problems (alarm, fault, no communication) are highlighted.
+COLOR_NORMAL = "black"
 COLOR_ALARM = "red"
 COLOR_FAULT = "dark orange"
 COLOR_UNKNOWN = "orange"
@@ -163,13 +165,14 @@ class MaxiGaugeGUI(DeviceGUI):
             self.status_labels[gauge.name].config(text=status_text, fg=COLOR_IDLE)
             return
 
-        if status == STATUS_OK:
-            color = COLOR_ALARM if alarm else COLOR_OK
+        if alarm:
+            color = COLOR_ALARM
         else:
-            color = COLOR_ALARM if alarm else COLOR_FAULT
+            color = COLOR_NORMAL if status == STATUS_OK else COLOR_FAULT
         self.pressure_labels[gauge.name].config(text=f"{values['pressure']:.3e} {gauge.unit}", fg=color)
-        self.status_labels[gauge.name].config(text=status_text,
-                                              fg=COLOR_OK if status == STATUS_OK else COLOR_FAULT)
+        # a gauge measuring normally has no status text: only its problems are shown
+        self.status_labels[gauge.name].config(text="" if status == STATUS_OK else status_text,
+                                              fg=COLOR_FAULT)
 
 
 def main():

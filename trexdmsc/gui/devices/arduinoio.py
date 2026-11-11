@@ -24,12 +24,15 @@ READ_ONLY_READ_LOOP_TIME = 2.0
 # A read cycle longer than this leaves too little margin to the watchdog: warn.
 SLOW_CYCLE_TIME = 0.8 * WATCHDOG_TIMEOUT
 
-COLOR_OK = "green"
+# Values without any problem are shown in the normal text color, with no status text:
+# only the problems (alarm, fault, no communication) are highlighted.
+COLOR_NORMAL = "black"
+# an active relay (pump ON, valve OPEN...) is the exception: it stays green, so that
+# what is switched on is seen at a glance
+COLOR_ON = "green"
 COLOR_ALARM = "red"
 COLOR_UNKNOWN = "orange"
 COLOR_IDLE = "grey"
-COLOR_ON = "green"
-COLOR_OFF = "black"
 
 LOW = "low"
 HIGH = "high"
@@ -345,7 +348,7 @@ class ArduinoIOGUI(DeviceGUI):
         value = values["value"]
         self.value_labels[channel.name].config(
             text=f"{value:.{channel.precision}f}",
-            fg=COLOR_ALARM if any(alarms.values()) else COLOR_OK,
+            fg=COLOR_ALARM if any(alarms.values()) else COLOR_NORMAL,
         )
         if channel.name in self.indicator_labels:
             for bound, text, color in channel.indicator:
@@ -362,7 +365,7 @@ class ArduinoIOGUI(DeviceGUI):
         elif values["on"]:
             label.config(text=output.on_text, fg=COLOR_ON)
         else:
-            label.config(text=output.off_text, fg=COLOR_OFF)
+            label.config(text=output.off_text, fg=COLOR_NORMAL)
 
 
 def main():

@@ -129,7 +129,7 @@ def build_gas_devices(config, test=False):
     # the flow meter simulator follows the flow controller simulator
     m = build.build_bronkhorst(config, "M", test, source=None if is_disabled(q) else q)
     return {
-        "bronkhorst_devices": (p, q, m),
+        "bronkhorst_devices": (p, m, q), # the order they are shown in
         "gas_arduino_device": build.build_arduinoio(config, "gas", test),
         "maxigauge_device": build.build_maxigauge(config, test),
     }
