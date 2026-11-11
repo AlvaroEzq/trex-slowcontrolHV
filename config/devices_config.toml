@@ -58,6 +58,9 @@ port = 50004
 enabled = true
 host = "192.168.15.100"
 port = 50000
+# sensors that are not read (broken or not connected): shown as DISABLED, no values
+# logged and no alarms. Sensors: PT40, TT40, PT32, TT32, PT30, TT30
+disabled_sensors = []
 
 [maxigauge]
 enabled = true
@@ -69,6 +72,8 @@ port = 50001
 enabled = true
 host = "192.168.15.101"
 port = 50000
+# sensors that are not read (see [gas_arduino]). Sensors: BiPo1, BiPo2, RnFree1, RnFree2
+disabled_sensors = []
 
 # ----------------------------------------------- Rigol subsystem (trexdm-sc-rigol)
 [rigol_left]

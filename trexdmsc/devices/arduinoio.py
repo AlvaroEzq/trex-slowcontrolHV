@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional, Tuple
 
 from trexdmsc.devices.bridge import BridgeClient, GAS_PANEL_HOST, VACUUM_ELECTRONICS_HOST
@@ -36,6 +36,8 @@ class AnalogChannelConfig:
     - low_alarm / high_alarm: alarm when the value goes below / above (None: no alarm).
     - indicator: optional ((lower bound, text, color), ...) shown next to the value:
       the first entry whose bound the value is above is shown, in the given order.
+    - enabled: False for a sensor that is not read (broken or not connected), set from
+      'disabled_sensors' in the devices configuration file (see with_disabled_sensors()).
     """
     name: str
     description: str
@@ -47,6 +49,7 @@ class AnalogChannelConfig:
     low_alarm: Optional[float] = None
     high_alarm: Optional[float] = None
     indicator: Tuple[Tuple[float, str, str], ...] = ()
+    enabled: bool = True
 
     def to_value(self, counts: int) -> float:
         x0, y0, x1, y1 = self.calibration
@@ -85,6 +88,20 @@ class ArduinoIOConfig:
     port: int = ARDUINO_PORT
     analog_channels: Tuple[AnalogChannelConfig, ...] = ()
     outputs: Tuple[OutputConfig, ...] = ()
+
+    def with_disabled_sensors(self, names) -> "ArduinoIOConfig":
+        """
+        A copy of this configuration with the analog channels in 'names' disabled.
+        Raises ValueError for a name that is not one of its analog channels.
+        """
+        names = set(names)
+        unknown = names - {channel.name for channel in self.analog_channels}
+        if unknown:
+            raise ValueError(f"unknown sensors {sorted(unknown)} (the sensors of the {self.name}"
+                             f" are {[channel.name for channel in self.analog_channels]})")
+        return replace(self, analog_channels=tuple(
+            replace(channel, enabled=False) if channel.name in names else channel
+            for channel in self.analog_channels))
 
 
 def _pressure_transmitter(name, description, input, calibration):

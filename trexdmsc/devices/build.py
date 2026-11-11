@@ -9,7 +9,7 @@ standalone=True to start it anyway).
 """
 import contextlib
 
-from trexdmsc.core.devicesconfig import DisabledDevice, is_disabled
+from trexdmsc.core.devicesconfig import DevicesConfigError, DisabledDevice, is_disabled
 
 
 # ------------------------------------------------------------------ HV subsystem
@@ -143,9 +143,21 @@ ARDUINOIO_KEYS = {"gas": "gas_arduino", "electronics": "electronics_arduino"}
 
 
 def build_arduinoio(config, which, test=False, standalone=False):
-    """which: 'gas' (gas panel Arduino) or 'electronics'."""
+    """
+    which: 'gas' (gas panel Arduino) or 'electronics'. The sensors listed in
+    'disabled_sensors' of its section are not read (see AnalogChannelConfig.enabled).
+    """
     from trexdmsc.devices import arduinoio
     arduino_config = {"gas": arduinoio.GAS_ARDUINO, "electronics": arduinoio.ELECTRONICS_ARDUINO}[which]
+    key = ARDUINOIO_KEYS[which]
+    disabled_sensors = config.section(key).get("disabled_sensors", [])
+    if not (isinstance(disabled_sensors, list) and all(isinstance(name, str) for name in disabled_sensors)):
+        raise DevicesConfigError(f"{config.filename}: 'disabled_sensors' of [{key}] must be a list"
+                                 f" of sensor names, e.g. [\"TT40\"]")
+    try:
+        arduino_config = arduino_config.with_disabled_sensors(disabled_sensors)
+    except ValueError as e:
+        raise DevicesConfigError(f"{config.filename}: 'disabled_sensors' of [{key}]: {e}") from None
 
     def create(config, key):
         return arduinoio.ArduinoIO(arduino_config, host=config.get(key, "host"),
@@ -160,8 +172,7 @@ def build_arduinoio(config, which, test=False, standalone=False):
             return ArduinoIOSimulator(arduino_config, nominal_values=nominal)
         return ArduinoIOSimulator(arduino_config)
 
-    return config.build(ARDUINOIO_KEYS[which], arduino_config.name, create, simulator,
-                        test, standalone)
+    return config.build(key, arduino_config.name, create, simulator, test, standalone)
 
 
 # ---------------------------------------------------------------- Rigol subsystem

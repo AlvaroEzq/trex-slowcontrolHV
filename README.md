@@ -77,6 +77,11 @@ CAEN and the Spellman. The single-device commands (`trexdm-sc-caen`,
 `trexdm-sc-bronkhorst`...) only take the address from the file: they start the device
 even if it is disabled.
 
+A single sensor of the gas or electronics Arduino that is broken or not connected
+(e.g. a temperature transmitter reading absurd values) can be disabled with
+`disabled_sensors = ["TT40", ...]` in `[gas_arduino]` / `[electronics_arduino]`: it is
+not read, its values are not logged, its alarms are not checked, and it shows DISABLED.
+
 A device that cannot be reached (and is not disabled) shows a "NO COMMUNICATION"
 banner and is logged once as a warning, after a few failed reads in a row, and once
 more when it answers again.

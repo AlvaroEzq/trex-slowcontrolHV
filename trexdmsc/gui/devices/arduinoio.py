@@ -53,6 +53,8 @@ class ArduinoIOGUI(DeviceGUI):
     the firmware from switching them off: the Arduino must be read every
     READ_LOOP_TIME seconds. The analog sensors can be read less often with the
     'analog_read_every' parameter (advanced options menu) if a cycle takes too long.
+    The disabled sensors (AnalogChannelConfig.enabled, set from 'disabled_sensors' in
+    the devices configuration file) are not read nor logged: they show DISABLED.
 
     In read-only mode the old slow control is in charge of the Arduino: it is read
     only every READ_ONLY_READ_LOOP_TIME seconds, slower than the watchdog, so that this
@@ -66,7 +68,9 @@ class ArduinoIOGUI(DeviceGUI):
     def __init__(self, device, parent_frame=None, log=True, auto_gui_update=True, read_only=False):
         self.config = device.config
         self.read_only = read_only
-        self.analog_channels = tuple(self.config.analog_channels)
+        # the sensors that are read, and the disabled ones, only shown as DISABLED
+        self.analog_channels = tuple(c for c in self.config.analog_channels if c.enabled)
+        self.disabled_channels = tuple(c for c in self.config.analog_channels if not c.enabled)
         self.outputs = tuple(self.config.outputs)
 
         self.alarms = {}
@@ -122,17 +126,25 @@ class ArduinoIOGUI(DeviceGUI):
                                         padx=10, pady=5, labelanchor="n", bd=3)
         self.main_frame.pack(fill="both", expand=True)
 
-        if self.analog_channels:
+        if self.config.analog_channels:
             self.create_sensors_frame(self.main_frame).pack(fill="x", pady=(0, 5))
         if self.outputs:
             self.create_outputs_frame(self.main_frame).pack(fill="x")
 
     def create_sensors_frame(self, frame):
         sensors_frame = tk.LabelFrame(frame, text="Sensors")
-        for row, channel in enumerate(self.analog_channels):
+        for row, channel in enumerate(self.config.analog_channels):
             name_label = tk.Label(sensors_frame, text=f"{channel.name} [{channel.unit}]:", anchor="e", width=12)
             name_label.grid(row=row, column=0, sticky="e")
             ToolTip(name_label, f"{channel.description} (Arduino sensor {channel.input})")
+
+            if not channel.enabled:
+                name_label.config(fg=COLOR_IDLE)
+                disabled_label = tk.Label(sensors_frame, text="DISABLED", fg=COLOR_IDLE)
+                disabled_label.grid(row=row, column=1, columnspan=4, sticky="w", padx=3)
+                ToolTip(disabled_label, f"{channel.name} is not read: it is in 'disabled_sensors'"
+                                        f" of the devices configuration file")
+                continue
 
             value_label = tk.Label(sensors_frame, text="NO DATA", fg=COLOR_UNKNOWN, width=8)
             value_label.grid(row=row, column=1, padx=3)
