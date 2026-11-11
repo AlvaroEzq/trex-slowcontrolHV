@@ -1,4 +1,6 @@
 logs/*
-__pycache__/*
+__pycache__/
+*.egg-info/
 email_config.toml
+config/credentials.toml
 trex-slowcontrolHV-credentials.json

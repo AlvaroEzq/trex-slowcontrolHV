@@ -10,45 +10,118 @@ This repository contains software for remote control and monitoring of high volt
    - Register of voltage and current monitor values of the channels of each device.
    - Automatic multidevice raising of voltages and turning off following the standard protocol (raising or lowering all channels involved voltages simultaneously by steps).
    - Trip recovery system to automatically detect, handle and recover a trip. It uses the multidevice raising of voltages to recover a trip. Also, a configurable cooldown time is applied before recovering the trip.
-   - Alert message to slack/mattermost webhook (to do so, copy your slack/mattermost webhook in the global variable SLACK/MATTERMOST_WEBHOOK_URL of [logger.py](logger.py)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
-      * CRITICAL: alarms related to safety systems (flammable gas sensor for example).
+   - Alert message to slack/mattermost webhook (put your slack/mattermost webhook in the [credentials file](#credentials)). You can select the logging level os the slack messages in the config menu bar. These are the logging levels logic:
+      * CRITICAL: alarms of the flammable gas safety system (MX32v2 gas sensors and the safety alarm signals of its Arduino). Only these use this level.
       * ERROR: error happens which require the users attention.
       * WARNING: expected event as trips.
       * INFO: information on the normal functioning of the program, including trip recovery messages when a trip is detected and recovered successfully.
       * DEBUG: debugging information.
 
       It is recommended to set the slack/mattermost logging level to warning if you want to receive messages when trips happen or error if you want to ignore the messages of trips.
-   - Email alerts of the CRITICAL log records (e.g. gas alarms) through a Gmail account. Copy [email_config.example.toml](email_config.example.toml) to `email_config.toml` (not tracked by git) and fill in the sender account, its App Password (it requires the 2-Step Verification of the account; the normal password does not work) and the recipients. The records arriving within `min_interval` seconds are sent together in a single email.
-   - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) or [femdaq](https://github.com/juanangp/femdaq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication.
-   - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold) to the Google Sheet run list. To configure the connection to the Google Sheet you should change the global variables at `utils.py`. Make sure to have the appropiate google service account credentials (json file) in the root directory.
-- Monitoring of the sensor and alarm safety system for the use of flammable gas (isobutane): the gas sensors connected to an MX32v2 controller and the digital alarm signals of the safety system read by an Arduino. Every alarm raised or cleared is logged (the raised ones as critical records, so they reach the slack/mattermost webhook).
-- CAEN, Spellman SL30, Rigol, MX32v2 and Arduino simulators for testing without hardware.
+   - Email alerts of the CRITICAL log records (the flammable gas alarms) through a Gmail account: fill in the `[email]` section of the [credentials file](#credentials) with the sender account, its App Password (it requires the 2-Step Verification of the account; the normal password does not work) and the recipients. The records arriving within `min_interval` seconds are sent together in a single email.
+   - DAQ monitoring through the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) or [femdaq](https://github.com/juanangp/femdaq) prometheus metrics. As the current DAQ computer is different from the slow-control PC, an ssh connection is established. Make sure to have the necessary ssh key-pair user credentials installed (on the DAQ PC) for the SSH key-based authentication, and the user and key in the `[daq_ssh]` section of the [credentials file](#credentials).
+   - Auto and manual button to add the current run information (run number, run type, metadata in the output file name, voltages and electronic threshold) to the Google Sheet run list. The Google service account credentials (json file), the sheet name and the worksheet are set in the `[google_sheet]` section of the [credentials file](#credentials).
+- Monitoring of the sensor and alarm safety system for the use of flammable gas (isobutane): the gas sensors connected to an MX32v2 controller and the digital alarm signals of the safety system read by an Arduino. Every alarm raised or cleared is logged as a critical record, so it reaches the slack/mattermost webhook and the email.
+- Monitoring and control of the gas system, ported from the old TREX-DM slow control:
+   - Gas circuit: Bronkhorst pressure controller (PT41/PCV41), flow controller (FQT40/FQC40) and flow meter (QT41), with setpoint control, and the gas panel Arduino with the pressure and temperature transmitters (PT40, TT40, PT32, TT32, PT30, TT30), the pump relay and the pneumatic valve V40-V46.
+   - Vacuum: the 6 gauges of the Pfeiffer MaxiGauge (PT31 gas system and PT71 chamber vacuum).
+   - The alarm levels of the safety checks of the old slow control (overpressure, pressure/flow above the setpoint, temperatures out of range, vacuum lost) are raised as error records, so they reach the slack/mattermost webhook (CRITICAL is kept for the flammable gas safety alarms). The automatic interlock actions of the old slow control are not ported (only the alarms).
+- Electronics: the relays of the electronics power supplies and the Hall current sensors, read by the electronics Arduino.
+- Read-only mode (`--read-only`) for the gas and electronics subsystems, to monitor them without sending any command (e.g. while the old slow control is still in use). In this mode the devices are also read less often (see [Gas system and electronics hardware](#gas-system-and-electronics-hardware)).
+- CAEN, Spellman SL30, Rigol, MX32v2, Arduino, Bronkhorst, MaxiGauge and gas/electronics Arduino simulators for testing without hardware.
 
 ## Usage
 
-1. Clone the repository:
+1. Clone the repository and install it (editable mode, so the code can be modified without reinstalling):
    ```bash
    git clone https://github.com/AlvaroEzq/trex-slowcontrolHV.git
+   cd trex-slowcontrolHV
+   pip install -e .
    ```
-2. Run the main GUI (all the subsystems, with the sidebar to switch between them)
+2. Check the addresses of the devices, and which of them are connected, in [config/devices_config.toml](config/devices_config.toml) (see [Devices configuration](#devices-configuration)), and create the credentials file `config/credentials.toml` (see [Credentials](#credentials)).
+3. Run the main GUI (all the subsystems, with the sidebar to switch between them) from the repository root (the `logs/` directory and the `config/checks_config.toml` and `config/devices_config.toml` defaults are relative to the working directory: from another directory the commands stop with an error, unless the configuration files are given with `--checks`/`--devices-config`. `logs/` is created if it does not exist)
    ```bash
-   python3 supergui.py
+   trexdm-sc
    ```
    Or run it with the simulators for testing (so the hardware is not needed)
    ```bash
-   python3 supergui.py --test
+   trexdm-sc --test
    ```
    You can also run a single subsystem independently. For example, the HV one:
    ```bash
-   python3 multiHVgui.py
-   python3 multiHVgui.py --test
-   python3 multiflammablegasgui.py
-   python3 multiflammablegasgui.py --test
+   trexdm-sc-hv
+   trexdm-sc-hv --test
+   trexdm-sc-flammablegas
+   trexdm-sc-flammablegas --test
+   trexdm-sc-gas --read-only
+   trexdm-sc-electronics --test
    ```
    Or even the GUI of an individual device. For example,
    ```bash
-   python3 caengui.py --port /dev/ttyUSB0
+   trexdm-sc-caen
+   trexdm-sc-bronkhorst --device Q
    ```
+   The available commands are `trexdm-sc`, `trexdm-sc-hv`, `trexdm-sc-flammablegas`, `trexdm-sc-gas`, `trexdm-sc-electronics`, `trexdm-sc-rigol`, `trexdm-sc-caen`, `trexdm-sc-spellman`, `trexdm-sc-rigol-device`, `trexdm-sc-mx32v2`, `trexdm-sc-arduino`, `trexdm-sc-bronkhorst`, `trexdm-sc-maxigauge`, `trexdm-sc-arduinoio` and `trexdm-sc-daqmetrics` (use `--help` to see their options). Every module with a `main()` can also be run without installing the commands, e.g. `python3 -m trexdmsc.gui.devices.caen`.
+
+### Devices configuration
+
+The address of every device (serial ports, hosts and TCP ports, VISA resources, the
+DAQ PC) is in [config/devices_config.toml](config/devices_config.toml),
+one section per device. Every command reads it from the working directory, or from
+the file given with `--devices-config`. The commands have no options for the addresses.
+
+A device that is not connected can be disabled with `enabled = false` in its section:
+the subsystem GUIs and the main GUI do not create it nor read it, and show a greyed
+DISABLED frame in its place. The multi-device control of the HV subsystem needs both the
+CAEN and the Spellman. The single-device commands (`trexdm-sc-caen`,
+`trexdm-sc-bronkhorst`...) only take the address from the file: they start the device
+even if it is disabled.
+
+A single sensor of the gas or electronics Arduino that is broken or not connected
+(e.g. a temperature transmitter reading absurd values) can be disabled with
+`disabled_sensors = ["TT40", ...]` in `[gas_arduino]` / `[electronics_arduino]`: it is
+not read, its values are not logged, its alarms are not checked, and it shows DISABLED.
+
+A device that cannot be reached (and is not disabled) shows a "NO COMMUNICATION"
+banner and is logged once as a warning, after a few failed reads in a row, and once
+more when it answers again.
+
+### Credentials
+
+The webhooks, the email account, the Google Sheet service account and the SSH access
+to the DAQ PC are in `config/credentials.toml`, which is not tracked by git. Copy
+[config/credentials.example.toml](config/credentials.example.toml) to
+`config/credentials.toml` and fill it in. It is read from the working directory. Every
+section is optional: without it, that feature is disabled (no Slack/Mattermost/email
+alerts, no Google Sheet run list, and the DAQ metrics frame shows DISABLED without
+`[daq_ssh]`). The old `email_config.toml` is no longer read: move its `[email]`
+section to the credentials file.
+
+### Gas system and electronics hardware
+
+The Bronkhorsts, the MaxiGauge and the gas and electronics Arduinos are not connected
+to the slow control PC: as in the old slow control, each of them is connected to one of
+two Raspberry Pis that run a TCP-to-serial bridge server per device (the
+`servers/*.py` and `services/*.service` of the old slow control): `192.168.15.100` (gas
+panel: Bronkhorsts and gas Arduino) and `192.168.15.101` (MaxiGauge and electronics
+Arduino), as set in [config/devices_config.toml](config/devices_config.toml).
+
+The firmware of the Arduinos has a watchdog: without any command for 1 second it
+drives all its outputs LOW, which switches the pump off and closes the pneumatic valve
+(the electronics relays are active LOW, so they stay on). The Arduino GUIs read every
+0.5 s, which keeps them alive, and warn if a read cycle gets too close to the watchdog
+timeout. So stopping the slow control (without the old one running) switches the pump
+off and closes the valve.
+
+Running alongside the old slow control (`--read-only`): the bridge servers answer one
+request at a time, so both slow controls can use them without mixing their messages,
+but every request of one of them delays the other. The safety checks of the old slow
+control give up (and leave their work state) when their values are more than 2 s old.
+So in read-only mode the Arduinos and the Bronkhorsts are read only every 2 s. For the
+Arduinos this is also slower than their watchdog on purpose: the old slow control is
+the one keeping the outputs alive, and if it stops the pump is still switched off and
+the valve closed. As a consequence, starting the slow control in read-only mode
+without the old one running lets the watchdog drive the Arduino outputs LOW.
 
 ## Requirements
 
@@ -66,9 +139,15 @@ SuperGUI                     (sidebar + navigation, owns the Tk root)
 │   ├── CaenHVPSGUI (DeviceGUI)
 │   ├── SpellmanFrame (DeviceGUI)
 │   └── ...
-└── FlammableGasGUI (MultiDeviceGUI)
-    ├── MX32v2GUI (DeviceGUI)
-    └── ArduinoGUI (DeviceGUI)
+├── FlammableGasGUI (MultiDeviceGUI)
+│   ├── MX32v2GUI (DeviceGUI)
+│   └── ArduinoGUI (DeviceGUI)
+├── GasGUI (MultiDeviceGUI)
+│   ├── BronkhorstGUI (DeviceGUI) x3
+│   ├── ArduinoIOGUI (DeviceGUI)
+│   └── MaxiGaugeGUI (DeviceGUI)
+└── ElectronicsGUI (MultiDeviceGUI)
+    └── ArduinoIOGUI (DeviceGUI)
 ```
 
 Two rules define the architecture:
@@ -116,29 +195,72 @@ only when it is the standalone/top-level GUI (i.e. when no `parent_frame` is giv
 
 ## Project Structure
 
-- GUIs modules
+The code is organized in layers inside the `trexdmsc` package. The hardware modules never import tkinter, and the GUI modules never talk to the hardware outside `read_values()` / `issue_command()`.
+
+```text
+config/checks_config.toml   default checks configuration
+config/devices_config.toml  addresses of the devices and which ones are enabled
+config/credentials.example.toml  template of config/credentials.toml (not in git)
+logs/                       output logs (created at runtime)
+trexdmsc/
+├── core/                   framework support (no hardware, no GUI)
+├── devices/                device API classes (hardware communication)
+├── simulators/             device simulators for --test mode
+├── gui/
+│   ├── base/               GUI base classes and widgets
+│   ├── devices/            one DeviceGUI per device
+│   ├── subsystems/         MultiDeviceGUIs grouping device GUIs
+│   └── supergui.py
+└── utils/
+```
+
+- `trexdmsc/gui/`: GUI modules
    - `supergui.py`: **Main GUI** that contains the different subsystems (HV, ...) and the sidebar to navigate between them. It owns the only GUI update scheduler of the application.
-   - `multidevicegui.py`: Implementation of the abstract class that serves as base class for the subsystem GUIs (a group of device GUIs). Implement the `create_gui` abstract method, creating there the children `DeviceGUI`s with `auto_gui_update=False` inside `self.frame` and registering them in `self.all_guis`.
-   - `multiHVgui.py`: **HV subsystem GUI** that contains individual interfaces for CAEN and Spellman HV devices, as well as multi-device control. It can be run on its own.
-   - `multiflammablegasgui.py`: **Flammable gas safety subsystem GUI**, grouping the GUIs of the two devices of the isobutane sensor and alarm safety system (the MX32v2 gas sensor controller and the Arduino). It can be run on its own.
-   - `multirigolgui.py`: Subsystem GUI grouping several Rigol power supplies. It can be run on its own.
-   - `devicegui.py`: Implementation of the abstract class that serves as base class for the individual devices GUIs. This abstract class implements a device lock for multithreading-safe communication with the device and a command queue to keep the order of the communications to the device. Please, use the `issue_command` method (or at least acquire the device lock manually) for any function (or statement) that requires to communicate with the device to avoid spurious errors. To write the individual device GUI, define your class as a children of this base class and implement the appropiate `read_values` (for background monitoring) and `create_gui` (for the GUI layout) abstract methods for your particular case. Do not forget to call the parent class constructor (`super().__init__`) at the end of your the class constructor (`__init__`), as it will start the GUI mainloop (when used standalone) and any line written after this will not be executed (until the GUI is closed). Build the widgets of the GUI inside `self.frame` and forward the `auto_gui_update` argument to `super().__init__`. You can use the following as examples:
-      - `caengui.py`: GUI for CAEN HV devices.
-      - `spellmangui.py`: GUI for Spellman HV devices.
-      - `rigolgui.py`: GUI for Rigol power supplies.
-      - `mx32v2gui.py`: GUI for the gas sensors connected to an MX32v2 controller.
-      - `arduinogui.py`: GUI for the digital alarm signals of the safety system read by an Arduino.
-      - `daqmetricsgui.py`: GUI for the DAQ metrics.
-   - `checksframe.py`: Implementation of the ChecksFrame class to display and manage the checks.
-   - `utilsgui.py`: Implementation of GUI utility classes such as ToolTip and PrintToTextWidget.
-- Device modules
-   - `spellmanClass.py`: Class for managing the Spellman HV supply.
-   - `rigolClass.py`: Class for managing the Rigol power supplies.
+   - `base/multidevicegui.py`: Implementation of the abstract class that serves as base class for the subsystem GUIs (a group of device GUIs). Implement the `create_gui` abstract method, creating there the children `DeviceGUI`s with `auto_gui_update=False` inside `self.frame` and registering them in `self.all_guis`.
+   - `base/devicegui.py`: Implementation of the abstract class that serves as base class for the individual devices GUIs. This abstract class implements a device lock for multithreading-safe communication with the device and a command queue to keep the order of the communications to the device. Please, use the `issue_command` method (or at least acquire the device lock manually) for any function (or statement) that requires to communicate with the device to avoid spurious errors. To write the individual device GUI, define your class as a children of this base class and implement the appropiate `read_values` (for background monitoring) and `create_gui` (for the GUI layout) abstract methods for your particular case. Do not forget to call the parent class constructor (`super().__init__`) at the end of your the class constructor (`__init__`), as it will start the GUI mainloop (when used standalone) and any line written after this will not be executed (until the GUI is closed). Build the widgets of the GUI inside `self.frame` and forward the `auto_gui_update` argument to `super().__init__`. It also handles the read failures: transient ones are tolerated and only reported once they persist (`handle_read_failure`/`handle_read_recovery`), the exceptions listed in `connection_errors` show a "NO COMMUNICATION" banner and call the `disconnect_device`/`reconnect_device`/`on_device_lost` hooks, and `log_alarm_transition` logs the alarms when they are raised (error by default) or cleared (info by default).
+   - `base/checkframe.py`: Implementation of the ChecksFrame class to display and manage the checks.
+   - `base/widgets.py`: Implementation of GUI utility classes such as ToolTip and PrintToTextWidget, and the greyed frame of the disabled devices.
+   - `base/readonly.py`: `write_command` decorator for the `DeviceGUI` methods that write to the device, which are ignored in read-only mode.
+   - `subsystems/`: subsystem GUIs, each of them can be run on its own.
+      - `hv.py`: **HV subsystem GUI** that contains individual interfaces for CAEN and Spellman HV devices, as well as multi-device control.
+      - `flammablegas.py`: **Flammable gas safety subsystem GUI**, grouping the GUIs of the two devices of the isobutane sensor and alarm safety system (the MX32v2 gas sensor controller and the Arduino).
+      - `gas.py`: **Gas subsystem GUI**: the gas circuit (Bronkhorsts and gas panel Arduino) and the vacuum gauges (MaxiGauge).
+      - `electronics.py`: **Electronics subsystem GUI**: the electronics relays and Hall current sensors (electronics Arduino).
+      - `rigol.py`: Subsystem GUI grouping several Rigol power supplies.
+   - `devices/`: individual device GUIs. You can use them as examples:
+      - `caen.py`: GUI for CAEN HV devices.
+      - `spellman.py`: GUI for Spellman HV devices.
+      - `rigol.py`: GUI for Rigol power supplies.
+      - `mx32v2.py`: GUI for the gas sensors connected to an MX32v2 controller.
+      - `arduino.py`: GUI for the digital alarm signals of the safety system read by an Arduino.
+      - `daqmetrics.py`: GUI for the DAQ metrics.
+      - `bronkhorst.py`: GUI for a Bronkhorst pressure/flow controller or flow meter.
+      - `maxigauge.py`: GUI for the vacuum gauges of the MaxiGauge.
+      - `arduinoio.py`: GUI for an Arduino with the trexdm_serial firmware (analog sensors and relays), used for both the gas panel and the electronics Arduinos.
+- `trexdmsc/devices/`: device modules (the CAEN one is the external `hvps` library)
+   - `build.py`: Creation of every device from the devices configuration file (the device, its simulator in test mode, or a `DisabledDevice`), shared by the subsystems and the single-device commands.
+   - `spellman.py`: Class for managing the Spellman HV supply.
+   - `rigol.py`: Class for managing the Rigol power supplies.
    - `mx32v2.py`: Class for managing the MX32v2 gas sensor controller (through Modbus) and the configuration of the sensors of the installation (which sensors are connected to each line and what their alarm thresholds are).
    - `arduino.py`: Class for reading the digital alarm signals of the safety system from the Arduino serial line.
-   - `simulators.py`: CAEN, Spellman, Rigol, MX32v2 and Arduino device simulator classes.
-- Support modules
+   - `bridge.py`: Client of the TCP-to-serial bridge servers of the Raspberry Pis of the gas system and electronics.
+   - `bronkhorst.py`: Class for the Bronkhorst instruments (ProPar ASCII protocol) and the configuration of the three instruments of the gas panel.
+   - `maxigauge.py`: Class for the Pfeiffer MaxiGauge and the configuration of its gauges.
+   - `arduinoio.py`: Class for the Arduinos with the trexdm_serial firmware and the configuration of the gas panel and electronics Arduinos (sensors with their calibrations and alarms, and relays).
+   - `daqmetrics.py`: Implementation of MetricsFetcher and MetricsFetcherSSH to extract the prometheus metrics of the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) acquisition program.
+- `trexdmsc/simulators/`: CAEN, Spellman, Rigol, MX32v2, Arduino, Bronkhorst, MaxiGauge and Arduino I/O device simulator classes (one module per device, all of them importable from `trexdmsc.simulators`).
+- `trexdmsc/core/`: support modules
+   - `channel.py`: Implementation of the State and ChannelState classes (with absolute and relative logging thresholds).
    - `check.py`: Implementation of the checks classes.
-   - `logger.py`: Implementation of the ChannelState class and logging helper functions and classes.
-   - `metrics_fetcher.py`: Implementation of MetricsFetcher and MetricsFetchcerSSH to extract the prometheus metrics of the [feminos-daq](https://github.com/rest-for-physics/feminos-daq) acquisition program.
-   - `utils.py`: Other useful functions. For now, it includes the necessary functions for adding rows to the Google Sheet run list.
+   - `logger.py`: Logging helper functions and classes (slack/mattermost/email/text widget handlers).
+   - `credentials.py`: Loading of the credentials file.
+   - `devicesconfig.py`: Loading of the devices configuration file (`DevicesConfig`) and the `DisabledDevice` placeholder of the disabled devices.
+- `trexdmsc/utils/googlesheet.py`: Other useful functions. For now, it includes the necessary functions for adding rows to the Google Sheet run list.
+
+### Adding a new device
+
+1. Write the device API class in `trexdmsc/devices/` and its simulator in `trexdmsc/simulators/` (and export it in `trexdmsc/simulators/__init__.py`).
+2. Add a section with its address (and `enabled = true`) to `config/devices_config.toml`, and a builder for it in `trexdmsc/devices/build.py`.
+3. Write its `DeviceGUI` in `trexdmsc/gui/devices/`, with a `main()` for standalone use (creating the device with its builder and `standalone=True`).
+4. Add it to a subsystem in `trexdmsc/gui/subsystems/` (or create a new one and register it in `trexdmsc/gui/supergui.py`), showing `disabled_device_frame()` instead of its GUI when the device is a `DisabledDevice`.
+5. Optionally, add a console script for it in `pyproject.toml`.

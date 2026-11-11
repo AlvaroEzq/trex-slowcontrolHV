@@ -1,0 +1,85 @@
+# Devices of the TREX-DM slow control: their addresses and whether they are used.
+#
+# enabled = false: the device is not created nor read by the subsystem GUIs and the
+# main GUI (trexdm-sc), which show a greyed DISABLED frame in its place. Use it for
+# the devices that are not connected. The single-device commands (trexdm-sc-caen,
+# trexdm-sc-bronkhorst...) take the address from here but start the device anyway.
+#
+# Read from the working directory by default (run the commands from the repository
+# root), or give another file with --devices-config.
+
+# ---------------------------------------------------------------- HV subsystem
+[caen]
+enabled = true
+port = "/dev/ttyUSB2"  # serial port of the CAEN N1471H
+
+[spellman]
+enabled = true
+host = "192.168.17.1"  # Spellman SL30 (TCP)
+port = 50001
+
+# DAQ metrics of the HV subsystem: read through SSH on the DAQ PC (the SSH user and
+# key are in the credentials file, [daq_ssh])
+[daq_metrics]
+enabled = true
+host = "192.168.3.80"
+url = "http://localhost:8080/metrics"  # prometheus metrics, as seen from the DAQ PC
+
+# ------------------------------------------------------ flammable gas subsystem
+[mx32v2]
+enabled = true
+port = "/dev/ttyUSB1"  # Modbus RTU serial port of the MX32v2 gas sensor controller
+baudrate = 9600
+slave_id = 0
+
+[flammable_gas_arduino]
+enabled = true
+port = "/dev/ttyACM0"  # Arduino reading the alarm signals of the safety system
+
+# --------------------------------------------------------------- gas subsystem
+# The gas panel devices are reached through the bridge servers (TCP to serial) of
+# the Raspberry Pis of the old slow control
+[bronkhorst_p]
+enabled = true
+host = "192.168.15.100"
+port = 50002
+
+[bronkhorst_q]
+enabled = true
+host = "192.168.15.100"
+port = 50003
+
+[bronkhorst_m]
+enabled = true
+host = "192.168.15.100"
+port = 50004
+
+[gas_arduino]
+enabled = true
+host = "192.168.15.100"
+port = 50000
+# sensors that are not read (broken or not connected): shown as DISABLED, no values
+# logged and no alarms. Sensors: PT40, TT40, PT32, TT32, PT30, TT30
+disabled_sensors = []
+
+[maxigauge]
+enabled = true
+host = "192.168.15.101"
+port = 50001
+
+# ------------------------------------------------------- electronics subsystem
+[electronics_arduino]
+enabled = true
+host = "192.168.15.101"
+port = 50000
+# sensors that are not read (see [gas_arduino]). Sensors: BiPo1, BiPo2, RnFree1, RnFree2
+disabled_sensors = []
+
+# ----------------------------------------------- Rigol subsystem (trexdm-sc-rigol)
+[rigol_left]
+enabled = true
+resource = "USB0::6833::42152::DP9D263500831::0::INSTR"  # VISA resource name
+
+[rigol_right]
+enabled = true
+resource = "USB0::6833::42152::DP9D263500827::0::INSTR"

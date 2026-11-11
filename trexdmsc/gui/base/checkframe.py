@@ -1,0 +1,325 @@
+import tkinter as tk
+from tkinter import messagebox
+import threading
+import time
+
+from trexdmsc.core.check import Check, CheckWithLock
+from trexdmsc.gui.base.widgets import ToolTip
+
+class ChecksFrame:
+    def __init__(self, parent_frame = None, checks = None, channels = None, locks = None):
+        if checks is None:
+            checks = []
+        if channels is None:
+            channels = {}
+        if locks is None:
+            locks = {}
+
+        self.root = parent_frame
+        self.checks = checks
+        self.channels = channels
+        self.locks = locks
+
+        self.checks_vars = []
+        self.checks_checkboxes = []
+        self.checks_tooltips = []
+        self.checks_states = []
+        self.edit_checks_button = None
+
+        self.config_params = {
+            "show_warning_window": True,
+            "seconds_between_checks": 2,
+        }
+
+        self.create_security_frame()
+
+    def set_config_param(self, key : str, value):
+        if key in self.config_params:
+            self.config_params[key] = value
+        else:
+            print(f"Warning: {key} is not a valid config parameter.")
+        return self.config_params.get(key, None)
+
+    def set_config_params(self, config_params : dict):
+        for key, value in config_params.items():
+            if key in self.config_params:
+                self.config_params[key] = value
+            else:
+                print(f"Warning: {key} is not a valid config parameter.")
+        return self.config_params
+
+    def get_config_param(self, key : str):
+        return self.config_params.get(key, None)
+
+    def get_config_params(self):
+        return self.config_params
+
+    def set_checks(self, checks : list):
+        if checks is None:
+            checks = []
+        self.checks = checks
+        self.set_checks_channels_and_locks()
+
+    def create_security_frame(self):
+        start_mainloop = False
+        if self.root is None:
+            self.root = tk.Tk()
+            self.root.title("Security checks")
+            start_mainloop = True
+
+        security_frame = tk.LabelFrame(self.root, text="Security checks")
+        security_frame.grid(row=2, column=0, padx=10, pady=10, sticky="NWE")
+
+        self.set_checks_channels_and_locks()
+
+        self.checks_vars = []
+        self.checks_checkboxes = []
+        self.checks_tooltips = []
+        for i, check in enumerate(self.checks):
+            self.checks_states.append("unavailable")
+            var = tk.BooleanVar()
+            var.set(check.is_available())
+            self.checks_vars.append(var)
+            var.trace_variable("w", lambda *args, x=i: self.checks[x].set_active(self.checks_vars[x].get()))
+
+            checkbox = tk.Checkbutton(
+                security_frame,
+                text=f" {check.name}",
+                variable=var,
+                font=("", 12),
+                borderwidth=0,
+                highlightthickness=0,
+            )
+            checkbox.grid(row=i+1, column=0, sticky="w", padx=0, pady=0)
+            self.checks_checkboxes.append(checkbox)
+            tooltip = ToolTip(checkbox, check.description + " ( " + check.condition + " ) ")
+            self.checks_tooltips.append(tooltip)
+        
+        self.edit_checks_button = tk.Button(
+            security_frame,
+            text="Edit checks",
+            font=("Arial", 10),
+            command=self.open_edit_checks_window,
+        )
+        self.edit_checks_button.grid(row=len(self.checks)+1, column=0, padx=10, pady=10, sticky="w")
+
+        self.frame = security_frame
+        # the check thread talks to tkinter, so it must not start before the main
+        # loop is running (otherwise: "main thread is not in main loop")
+        self.root.after(0, self.start_background_threads)
+
+        if start_mainloop:
+            self.root.mainloop()
+
+        return security_frame
+
+    def open_edit_checks_window(self):
+        new_window = tk.Toplevel(self.root)
+        new_window.title("Edit checks")
+        new_window.configure(bg="darkblue")
+
+        tk.Label(new_window, text="Check name", font=("Arial", 12), bg="blue", fg="white").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        tk.Label(new_window, text="Condition", font=("Arial", 12), bg="blue", fg="white").grid(row=0, column=1, padx=10, pady=5, sticky="w")
+        tk.Label(new_window, text="Description", font=("Arial", 12), bg="blue", fg="white").grid(row=0, column=2, padx=10, pady=5, sticky="w")
+
+        name_entries = []
+        condition_entries = []
+        description_entries = []
+        delete_buttons = []
+        for i, check in enumerate(self.checks):
+            name_entry = tk.Entry(new_window, width=20, justify="center")
+            name_entry.insert(0, check.name)
+            name_entry.grid(row=i+1, column=0, padx=10, pady=5)
+            name_entries.append(name_entry)
+
+            condition_entry = tk.Entry(new_window, width=40, justify="center")
+            condition_entry.insert(0, check.condition)
+            condition_entry.grid(row=i+1, column=1, padx=10, pady=5)
+            condition_entries.append(condition_entry)
+
+            description_entry = tk.Entry(new_window, width=50, justify="center")
+            description_entry.insert(0, check.description)
+            description_entry.grid(row=i+1, column=2, padx=10, pady=5)
+            description_entries.append(description_entry)
+            
+        def apply_changes():
+            for i, check in enumerate(self.checks):
+                name = name_entries[i].get()
+                condition = condition_entries[i].get()
+                description = description_entries[i].get()
+                channels = self.channels.copy() # set all the channels for the checks
+                self.checks[i] = Check(name, condition, channels, description)
+                self.checks_checkboxes[i].config(text=f" {name}")
+                self.checks_tooltips[i].change_text(description)
+            new_window.destroy()
+
+        def add_check():
+            name_entries.append(tk.Entry(new_window, width=20, justify="center"))
+            name_entries[-1].grid(row=len(name_entries), column=0, padx=10, pady=5)
+            condition_entries.append(tk.Entry(new_window, width=40, justify="center"))
+            condition_entries[-1].grid(row=len(condition_entries), column=1, padx=10, pady=5)
+            description_entries.append(tk.Entry(new_window, width=50, justify="center"))
+            description_entries[-1].grid(row=len(description_entries), column=2, padx=10, pady=5)
+            # move the buttons to the bottom
+            new_check_button.grid(row=len(name_entries)+1, column=0, padx=10, pady=10, sticky="w")
+            cancel_button.grid(row=len(name_entries)+2, column=0, padx=10, pady=10, sticky="e")
+            apply_button.grid(row=len(name_entries)+2, column=1, padx=10, pady=10, sticky="w")
+            # add the check to the list
+            self.checks_states.append("unavailable")
+            self.checks_vars.append(tk.BooleanVar())
+            self.checks_vars[-1].set(False)
+            self.checks_vars[-1].trace_variable("w", lambda *args, x=len(self.checks)-1: self.checks[x].set_active(self.checks_vars[x].get()))
+            self.checks_checkboxes.append(tk.Checkbutton(
+                self.frame,
+                text=f"",
+                variable=self.checks_vars[-1],
+                font=("", 12),
+                borderwidth=0,
+                highlightthickness=0,
+            ))
+            self.checks_checkboxes[-1].grid(row=len(self.checks)+1, column=0, sticky="w", padx=0, pady=0)
+            self.checks.append(CheckWithLock("", ""))
+            self.set_checks_channels_and_locks()
+            self.checks_tooltips.append(ToolTip(self.checks_checkboxes[-1], self.checks[-1].description + "( " + self.checks[-1].condition + " )"))
+            # move the edit button to the bottom
+            self.edit_checks_button.grid(row=len(self.checks)+1, column=0, padx=10, pady=10, sticky="w")
+
+        # Add "add check" button
+        new_check_button = tk.Button(
+            new_window,
+            text="Add check",
+            font=("Arial", 10),
+            bg="navy",
+            fg="white",
+            command=add_check,
+        )
+        new_check_button.grid(row=len(self.checks)+1, column=0, padx=10, pady=10, sticky="w")
+
+        cancel_button = tk.Button(
+            new_window,
+            text="Cancel",
+            font=("Arial", 10),
+            bg="navy",
+            fg="white",
+            command=new_window.destroy,
+        )
+        cancel_button.grid(row=len(self.checks)+2, column=0, padx=10, pady=10, sticky="e")
+
+        apply_button = tk.Button(
+            new_window,
+            text="Apply",
+            font=("Arial", 10),
+            bg="darkblue",
+            fg="white",
+            command=apply_changes,
+        )
+        apply_button.grid(row=len(self.checks)+2, column=1, padx=10, pady=10, sticky="w")
+    
+    def set_checks_channels_and_locks(self):
+        # set all the channels for the checks, just in case the channels are not initialized
+        for check in self.checks:
+            check.set_channels(self.channels)
+        # set all the devices locks for the checks, just in case the devices locks are not initialized
+        for check in self.checks:
+            if isinstance(check, CheckWithLock):
+                check.set_devices(self.locks)
+
+    def check_conditions(self):
+        failed_checks = []
+        for i, check in enumerate(self.checks):
+            if not check.is_available():
+                self.checks_states[i] = "unavailable"
+                continue
+            if check.eval_condition():
+                self.checks_states[i] = "passed"
+            else:
+                if self.checks_states[i] != "failed":
+                    self.checks_states[i] = "failed"
+                    failed_checks.append(check)
+        if failed_checks:
+            message = "\n".join([f"Check '{check.name}' failed." for check in failed_checks])
+            if self.config_params["show_warning_window"]:
+                threading.Thread(
+                    target=lambda: messagebox.showwarning(
+                        "Warning", message, parent=self.root
+                    )
+                ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
+        self.schedule_in_main_thread(self.update_gui)
+        return failed_checks == []
+    
+    def simulate_check_conditions(self, parameters_values : dict):
+        failed_checks = []
+        for i, check in enumerate(self.checks):
+            if not check.is_available():
+                self.checks_states[i] = "unavailable"
+                continue
+            if check.simulate_eval_condition(parameters_values):
+                self.checks_states[i] = "passed"
+            else:
+                if self.checks_states[i] != "failed":
+                    self.checks_states[i] = "failed"
+                    failed_checks.append(check)
+        if failed_checks:
+            message = "\n".join([f"Simulated check '{check.name}' failed." for check in failed_checks])
+            if self.config_params["show_warning_window"]:
+                threading.Thread(
+                    target=lambda: messagebox.showwarning(
+                        "Warning", message, parent=self.root
+                    )
+                ).start() # show the warning in a new thread to avoid blocking the main thread until the warning is closed
+        self.schedule_in_main_thread(self.update_gui)
+        return failed_checks == []
+    
+    def update_gui(self):
+        for i, check_state in enumerate(self.checks_states):
+            frame_bg_color = self.frame.cget("bg")
+            current_bg_color = self.checks_checkboxes[i].cget("bg")
+            current_fg_color = self.checks_checkboxes[i].cget("fg")
+            if check_state == "unavailable":
+                if current_bg_color != "gray":
+                    self.checks_checkboxes[i].config(bg=frame_bg_color)
+                if current_fg_color != "black":
+                    self.checks_checkboxes[i].config(fg="black")
+            elif check_state == "passed":
+                if current_fg_color != "green":
+                    self.checks_checkboxes[i].config(fg="green")
+                if current_bg_color != frame_bg_color:
+                    self.checks_checkboxes[i].config(bg=frame_bg_color)
+            elif check_state == "failed":
+                if current_fg_color != "black":
+                    self.checks_checkboxes[i].config(fg="black")
+                if current_bg_color != "red":
+                    self.checks_checkboxes[i].config(bg="red")
+            else:
+                print(f"Warning: check state '{check_state}' is not valid.")
+                self.checks_checkboxes[i].config(bg="blue", fg="orange")
+
+    def schedule_in_main_thread(self, func, *args):
+        """Schedule func in the tkinter main loop (tkinter must only be used from it)."""
+        try:
+            self.root.after(0, func, *args)
+        except (RuntimeError, tk.TclError):
+            pass # the main loop is not running (GUI starting up or already closed)
+
+    def check_loop(self):
+        while True:
+            try:
+                self.check_conditions()
+            except Exception as e:
+                print(f"Warning: checks evaluation failed: {e}")
+            time.sleep(self.config_params.get("seconds_between_checks", 2)) # better to sleep for a while to avoid locking the devices with too many checks
+
+    def start_background_threads(self):
+        threading.Thread(target=self.check_loop, daemon=True).start()
+
+def main():
+    checks = [
+        Check("Check 1", "ch1 > 10", {"ch1": 15}, "Check if ch1 is greater than 10"),
+        Check("Check 2", "ch2 < 10", {"ch2": 5}, "Check if ch2 is less than 10"),
+        Check("Check 3", "ch1 + ch2 == 20", {"ch1": 15, "ch2": 5}, "Check if ch1 + ch2 is equal to 20"),
+    ]
+    checks_frame = ChecksFrame(checks=checks)
+
+
+if __name__ == "__main__":
+    main()
