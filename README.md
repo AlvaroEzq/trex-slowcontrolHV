@@ -27,7 +27,7 @@ This repository contains software for remote control and monitoring of high volt
    - Vacuum: the 6 gauges of the Pfeiffer MaxiGauge (PT31 gas system and PT71 chamber vacuum).
    - The alarm levels of the safety checks of the old slow control (overpressure, pressure/flow above the setpoint, temperatures out of range, vacuum lost) are raised as critical records, so they reach the slack/mattermost webhook. The automatic interlock actions of the old slow control are not ported (only the alarms).
 - Electronics: the relays of the electronics power supplies and the Hall current sensors, read by the electronics Arduino.
-- Read-only mode (`--read-only`) for the gas and electronics subsystems, to monitor them without sending any command (e.g. while the old slow control is still in use).
+- Read-only mode (`--read-only`) for the gas and electronics subsystems, to monitor them without sending any command (e.g. while the old slow control is still in use). In this mode the devices are also read less often (see [Gas system and electronics hardware](#gas-system-and-electronics-hardware)).
 - CAEN, Spellman SL30, Rigol, MX32v2, Arduino, Bronkhorst, MaxiGauge and gas/electronics Arduino simulators for testing without hardware.
 
 ## Usage
@@ -74,9 +74,19 @@ and electronics Arduino), and can be changed with the `--gas-host`, `--vacuum-ho
 The firmware of the Arduinos has a watchdog: without any command for 1 second it
 drives all its outputs LOW, which switches the pump off and closes the pneumatic valve
 (the electronics relays are active LOW, so they stay on). The Arduino GUIs read every
-0.5 s (also in read-only mode), which keeps them alive, and warn if a read cycle gets
-too close to the watchdog timeout. So stopping the slow control (without the old one
-running) switches the pump off and closes the valve.
+0.5 s, which keeps them alive, and warn if a read cycle gets too close to the watchdog
+timeout. So stopping the slow control (without the old one running) switches the pump
+off and closes the valve.
+
+Running alongside the old slow control (`--read-only`): the bridge servers answer one
+request at a time, so both slow controls can use them without mixing their messages,
+but every request of one of them delays the other. The safety checks of the old slow
+control give up (and leave their work state) when their values are more than 2 s old.
+So in read-only mode the Arduinos and the Bronkhorsts are read only every 2 s. For the
+Arduinos this is also slower than their watchdog on purpose: the old slow control is
+the one keeping the outputs alive, and if it stops the pump is still switched off and
+the valve closed. As a consequence, starting the slow control in read-only mode
+without the old one running lets the watchdog drive the Arduino outputs LOW.
 
 ## Requirements
 

@@ -14,6 +14,13 @@ from trexdmsc.gui.base.readonly import write_command
 # Read loop period (s). Every read cycle talks to the Arduino, which keeps its
 # watchdog (WATCHDOG_TIMEOUT) from driving the outputs LOW, so it must stay well below.
 READ_LOOP_TIME = 0.5
+# Read loop period (s) in read-only mode, i.e. while the old slow control is in charge
+# of the Arduino. It must stay above WATCHDOG_TIMEOUT: these reads must not keep the
+# watchdog alive, so that the outputs still go LOW if the old slow control stops.
+# It also keeps the load low on the bridge server, shared with the old slow control:
+# the server answers one request at a time, and the safety checks of the old slow
+# control give up when their values are delayed by more than 2 s.
+READ_ONLY_READ_LOOP_TIME = 2.0
 # A read cycle longer than this leaves too little margin to the watchdog: warn.
 SLOW_CYCLE_TIME = 0.8 * WATCHDOG_TIMEOUT
 
@@ -44,9 +51,12 @@ class ArduinoIOGUI(DeviceGUI):
 
     The outputs are read on every read cycle, which is also what keeps the watchdog of
     the firmware from switching them off: the Arduino must be read every
-    READ_LOOP_TIME seconds, also in read-only mode. The analog sensors can be read
-    less often with the 'analog_read_every' parameter (advanced options menu) if a
-    cycle takes too long.
+    READ_LOOP_TIME seconds. The analog sensors can be read less often with the
+    'analog_read_every' parameter (advanced options menu) if a cycle takes too long.
+
+    In read-only mode the old slow control is in charge of the Arduino: it is read
+    only every READ_ONLY_READ_LOOP_TIME seconds, slower than the watchdog, so that this
+    GUI does not keep the outputs alive if the old slow control stops.
     """
 
     # the device cannot be reached (bridge server, serial link) or answers nonsense:
@@ -100,7 +110,7 @@ class ArduinoIOGUI(DeviceGUI):
                         parent_frame=parent_frame,
                         auto_gui_update=auto_gui_update,
                         logging_enabled=log,
-                        read_loop_time=READ_LOOP_TIME,
+                        read_loop_time=READ_ONLY_READ_LOOP_TIME if read_only else READ_LOOP_TIME,
                         )
 
     # ------------------------------------------------------------------ GUI layout
@@ -272,6 +282,8 @@ class ArduinoIOGUI(DeviceGUI):
             alarms[HIGH] = active
 
     def check_cycle_time(self, duration):
+        if self.read_only:
+            return # the watchdog is kept alive by the old slow control, not by this GUI
         if duration > SLOW_CYCLE_TIME and not self.slow_cycle_warned:
             self.slow_cycle_warned = True
             self.logger.warning(

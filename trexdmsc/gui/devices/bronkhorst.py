@@ -15,6 +15,12 @@ from trexdmsc.gui.base.readonly import write_command
 # one for a while, which is not an alarm. Configurable from the advanced options menu.
 DEFAULT_SETPOINT_ALARM_READS = 5
 
+# Read loop period (s). In read-only mode the old slow control is also reading the
+# Bronkhorsts through the same bridge servers, which answer one request at a time
+# (and wait 0.1 s for each answer): read less often to keep their load low.
+READ_LOOP_TIME = 1
+READ_ONLY_READ_LOOP_TIME = 2
+
 COLOR_OK = "green"
 COLOR_ALARM = "red"
 COLOR_UNKNOWN = "orange"
@@ -81,7 +87,7 @@ class BronkhorstGUI(DeviceGUI):
                         parent_frame=parent_frame,
                         auto_gui_update=auto_gui_update,
                         logging_enabled=log,
-                        read_loop_time=1,
+                        read_loop_time=READ_ONLY_READ_LOOP_TIME if read_only else READ_LOOP_TIME,
                         )
 
     @property
