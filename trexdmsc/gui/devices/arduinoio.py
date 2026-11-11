@@ -323,9 +323,8 @@ class ArduinoIOGUI(DeviceGUI):
     def set_output(self, output, on):
         self.device.set_output(output, on)
         # checked by the next read_output(), which runs on this same command thread
+        # not logged: the new state is in the data file of the output
         self.commanded_outputs[output.name] = bool(on)
-        self.logger.info(f"{self.device.name}: {output.name} switched"
-                         f" {output.on_text if on else output.off_text}")
 
     # ------------------------------------------------------------- GUI (Tk thread)
     def update_gui(self):

@@ -207,8 +207,8 @@ class BronkhorstGUI(DeviceGUI):
 
     @write_command
     def set_setpoint(self, value):
+        # not logged: the new setpoint is in the data file of the device
         self.device.set_setpoint(value)
-        self.logger.info(f"{self.config.name}: setpoint set to {value:g} {self.config.unit}")
 
     # ------------------------------------------------------------- GUI (Tk thread)
     def request_setpoint(self):
