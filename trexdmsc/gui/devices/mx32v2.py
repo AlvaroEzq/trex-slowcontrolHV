@@ -140,11 +140,12 @@ class MX32v2GUI(DeviceGUI):
 
     def log_alarm_transitions(self, sensor, previous_values, values):
         """
-        Log every alarm that has just been raised or cleared (both critical).
+        Log every alarm that has just been raised or cleared, both as CRITICAL: the
+        flammable gas alarms are safety alarms.
 
         Only the transitions are logged: the read loop runs every few seconds and
-        the critical records are forwarded to Slack/Mattermost, so logging on every
-        read while an alarm is standing would flood those channels.
+        the critical records are forwarded to Slack/Mattermost/email, so logging on
+        every read while an alarm is standing would flood those channels.
         """
         if not values.get("comm_ok", False):
             # the flags of a failed reading are all False, which is not a real
@@ -163,6 +164,7 @@ class MX32v2GUI(DeviceGUI):
                 f"{self.device.name} {sensor.name} (line {sensor.line}): gas alarm"
                 f" {alarm.number} cleared at {concentration:.0f} {sensor.unit}"
                 f" (threshold {alarm.level:g} {sensor.unit})",
+                raised_level=logging.CRITICAL,
                 cleared_level=logging.CRITICAL,
             )
 

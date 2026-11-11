@@ -358,18 +358,19 @@ class DeviceGUI(ABC):
             self.logger.debug(f"{message} after {failures} failed reads")
 
     def log_alarm_transition(self, was_active, active, raised_message, cleared_message,
-                             cleared_level=logging.INFO):
+                             raised_level=logging.ERROR, cleared_level=logging.INFO):
         """
-        Log an alarm that has just been raised (critical) or cleared (cleared_level).
+        Log an alarm that has just been raised (raised_level) or cleared (cleared_level).
 
-        Only the transitions are logged: the critical records are forwarded to
-        Slack/Mattermost/email, so logging on every read while an alarm is standing
-        would flood those channels.
+        Only the transitions are logged: the alarms are forwarded to Slack/Mattermost
+        (and the CRITICAL ones by email), so logging on every read while an alarm is
+        standing would flood those channels. CRITICAL is kept for the alarms of the
+        flammable gas safety system: the other alarms are raised as ERROR.
         """
         if bool(active) == bool(was_active):
             return
         if active:
-            self.logger.critical(raised_message)
+            self.logger.log(raised_level, raised_message)
         else:
             self.logger.log(cleared_level, cleared_message)
 

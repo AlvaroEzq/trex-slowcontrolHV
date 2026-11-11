@@ -42,7 +42,7 @@ class BronkhorstGUI(DeviceGUI):
     A GUI class for one Bronkhorst of the gas panel: a pressure/flow controller
     (measurement and setpoint) or a flow meter (measurement only).
 
-    Alarms, logged as critical when raised (so they reach Slack/Mattermost):
+    Alarms, logged as errors when raised (so they reach Slack/Mattermost):
     - the measurement goes above config.max_alarm.
     - the measurement stays above the setpoint + config.setpoint_margin_alarm.
     """

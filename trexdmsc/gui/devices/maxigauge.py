@@ -24,7 +24,7 @@ class MaxiGaugeGUI(DeviceGUI):
     """
     A GUI class for monitoring the vacuum gauges connected to the MaxiGauge.
 
-    A gauge with a max_alarm raises an alarm (logged as critical, so it reaches
+    A gauge with a max_alarm raises an alarm (logged as an error, so it reaches
     Slack/Mattermost) when its pressure goes above it, or when it is over range.
     """
 
