@@ -104,12 +104,15 @@ class BronkhorstGUI(DeviceGUI):
                                         padx=10, pady=5, labelanchor="n", bd=3)
         self.main_frame.pack(fill="both", expand=True)
 
-        # row 0: the measurement
+        # row 0: the measurement and the status (OK / ALARM / no communication)
         tk.Label(self.main_frame, text=f"{self.config.measure_tag} [{self.config.unit}]:",
                  width=16, anchor="e").grid(row=0, column=0, sticky="e")
         self.measure_label = tk.Label(self.main_frame, text="NO DATA", fg=COLOR_UNKNOWN,
                                       font=("", 14), width=9)
         self.measure_label.grid(row=0, column=1, padx=5)
+        self.status_label = tk.Label(self.main_frame, text="no communication", fg=COLOR_UNKNOWN)
+        self.status_label.grid(row=0, column=2, columnspan=2, sticky="w", padx=2)
+        ToolTip(self.status_label, "OK: answering and no alarm active")
 
         # row 1: the setpoint (controllers only)
         if self.config.controller:
@@ -131,7 +134,9 @@ class BronkhorstGUI(DeviceGUI):
                 self.setpoint_entry.config(state="disabled")
                 self.setpoint_button.config(state="disabled")
 
-        # row 2: alarm indicators and communication status
+        # row 2: alarm indicators (if the device has any alarm)
+        if not self.alarms:
+            return
         alarms_frame = tk.Frame(self.main_frame)
         alarms_frame.grid(row=2, column=0, columnspan=4, pady=(5, 0))
         if ALARM_MAX in self.alarms:
@@ -148,8 +153,6 @@ class BronkhorstGUI(DeviceGUI):
             ToolTip(label, f"Alarm when {self.config.measure_tag} stays above the setpoint"
                            f" by more than {self.config.setpoint_margin_alarm:g} {self.config.unit}")
             self.alarm_labels[ALARM_SETPOINT] = label
-        self.status_label = tk.Label(alarms_frame, text="no communication", fg=COLOR_UNKNOWN)
-        self.status_label.pack(side="left", padx=5)
 
     # ------------------------------------------------------------ hardware (thread)
     def read_values(self):

@@ -82,12 +82,18 @@ class OutputConfig:
 
 @dataclass(frozen=True)
 class ArduinoIOConfig:
-    """An Arduino of the slow control: where its bridge server is and what it has connected."""
+    """
+    An Arduino of the slow control: where its bridge server is and what it has connected.
+
+    - sensor_columns: the GUI shows the analog channels in this many columns, filled
+      row by row in the order of analog_channels.
+    """
     name: str
     host: str
     port: int = ARDUINO_PORT
     analog_channels: Tuple[AnalogChannelConfig, ...] = ()
     outputs: Tuple[OutputConfig, ...] = ()
+    sensor_columns: int = 1
 
     def with_disabled_sensors(self, names) -> "ArduinoIOConfig":
         """
@@ -119,7 +125,8 @@ def _temperature_transmitter(name, description, input, calibration, low_alarm):
 
 # Arduino of the gas panel: pressure and temperature transmitters of the gas circuit
 # (calibrations of slowcontrol/trexDM.py of the old slow control), the pump relay and
-# the pneumatic valve.
+# the pneumatic valve. Each pressure transmitter is shown next to the temperature
+# transmitter of the same point (PTn | TTn in each row).
 GAS_ARDUINO = ArduinoIOConfig(
     name="Gas Arduino",
     host=GAS_PANEL_HOST,
@@ -135,6 +142,7 @@ GAS_ARDUINO = ArduinoIOConfig(
         OutputConfig("Pump", "R1-SC pump relay", THREE_PINS),
         OutputConfig("Valve V40-V46", "Pneumatic valve V40-V46", (4,), on_text="OPEN", off_text="CLOSE"),
     ),
+    sensor_columns=2,
 )
 
 # Levels of the Hall current sensors of the old slow control (volts): "an inner

@@ -131,45 +131,55 @@ class ArduinoIOGUI(DeviceGUI):
         if self.outputs:
             self.create_outputs_frame(self.main_frame).pack(fill="x")
 
+    # grid columns of a sensor in the sensors frame: name, value, indicator, low and
+    # high alarms (the ones a sensor does not have stay empty), and a spacer
+    SENSOR_GRID_COLUMNS = 6
+
     def create_sensors_frame(self, frame):
         sensors_frame = tk.LabelFrame(frame, text="Sensors")
-        for row, channel in enumerate(self.config.analog_channels):
-            name_label = tk.Label(sensors_frame, text=f"{channel.name} [{channel.unit}]:", anchor="e", width=12)
-            name_label.grid(row=row, column=0, sticky="e")
-            ToolTip(name_label, f"{channel.description} (Arduino sensor {channel.input})")
-
-            if not channel.enabled:
-                name_label.config(fg=COLOR_IDLE)
-                disabled_label = tk.Label(sensors_frame, text="DISABLED", fg=COLOR_IDLE)
-                disabled_label.grid(row=row, column=1, columnspan=4, sticky="w", padx=3)
-                ToolTip(disabled_label, f"{channel.name} is not read: it is in 'disabled_sensors'"
-                                        f" of the devices configuration file")
-                continue
-
-            value_label = tk.Label(sensors_frame, text="NO DATA", fg=COLOR_UNKNOWN, width=8)
-            value_label.grid(row=row, column=1, padx=3)
-            self.value_labels[channel.name] = value_label
-
-            column = 2
-            if channel.indicator:
-                indicator_label = tk.Label(sensors_frame, text="?", width=2, font=("", 12, "bold"))
-                indicator_label.grid(row=row, column=column)
-                self.indicator_labels[channel.name] = indicator_label
-                column += 1
-
-            self.alarm_labels[channel.name] = {}
-            for key in (LOW, HIGH):
-                if key not in self.alarms[channel.name]:
-                    continue
-                level = channel.low_alarm if key == LOW else channel.high_alarm
-                text = f"{'<' if key == LOW else '>'} {level:g}"
-                label = tk.Label(sensors_frame, text=text, fg=COLOR_IDLE, relief="ridge", width=7)
-                label.grid(row=row, column=column, padx=1, pady=1)
-                ToolTip(label, f"Alarm when {channel.name} goes {'below' if key == LOW else 'above'}"
-                               f" {level:g} {channel.unit}")
-                self.alarm_labels[channel.name][key] = label
-                column += 1
+        columns = max(1, self.config.sensor_columns)
+        for index, channel in enumerate(self.config.analog_channels):
+            row, first = divmod(index, columns)
+            first *= self.SENSOR_GRID_COLUMNS
+            if first:
+                # spacer between the sensor columns
+                sensors_frame.grid_columnconfigure(first - 1, minsize=12)
+            self.create_sensor_widgets(sensors_frame, channel, row, first)
         return sensors_frame
+
+    def create_sensor_widgets(self, sensors_frame, channel, row, first):
+        name_label = tk.Label(sensors_frame, text=f"{channel.name} [{channel.unit}]:", anchor="e")
+        name_label.grid(row=row, column=first, sticky="e")
+        ToolTip(name_label, f"{channel.description} (Arduino sensor {channel.input})")
+
+        if not channel.enabled:
+            name_label.config(fg=COLOR_IDLE)
+            disabled_label = tk.Label(sensors_frame, text="DISABLED", fg=COLOR_IDLE)
+            disabled_label.grid(row=row, column=first + 1, columnspan=4, sticky="w", padx=3)
+            ToolTip(disabled_label, f"{channel.name} is not read: it is in 'disabled_sensors'"
+                                    f" of the devices configuration file")
+            return
+
+        value_label = tk.Label(sensors_frame, text="NO DATA", fg=COLOR_UNKNOWN, width=8)
+        value_label.grid(row=row, column=first + 1, padx=3)
+        self.value_labels[channel.name] = value_label
+
+        if channel.indicator:
+            indicator_label = tk.Label(sensors_frame, text="?", width=2, font=("", 12, "bold"))
+            indicator_label.grid(row=row, column=first + 2)
+            self.indicator_labels[channel.name] = indicator_label
+
+        self.alarm_labels[channel.name] = {}
+        for column, key in ((first + 3, LOW), (first + 4, HIGH)):
+            if key not in self.alarms[channel.name]:
+                continue
+            level = channel.low_alarm if key == LOW else channel.high_alarm
+            text = f"{'<' if key == LOW else '>'} {level:g}"
+            label = tk.Label(sensors_frame, text=text, fg=COLOR_IDLE, relief="ridge", width=5)
+            label.grid(row=row, column=column, padx=1, pady=1)
+            ToolTip(label, f"Alarm when {channel.name} goes {'below' if key == LOW else 'above'}"
+                           f" {level:g} {channel.unit}")
+            self.alarm_labels[channel.name][key] = label
 
     def create_outputs_frame(self, frame):
         outputs_frame = tk.LabelFrame(frame, text="Relays")
