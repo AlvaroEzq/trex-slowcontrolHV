@@ -46,7 +46,7 @@ class GasGUI(MultiDeviceGUI):
         self.gas_arduino_gui = None
         self.maxigauge_gui = None
 
-        super().__init__(name="TREX Gas",
+        super().__init__(name="TREX-DM Gas",
                          devices=[*self.bronkhorst_devices, gas_arduino_device, maxigauge_device],
                          parent_frame=parent_frame,
                          auto_gui_update=auto_gui_update,

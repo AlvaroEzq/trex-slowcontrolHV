@@ -26,7 +26,7 @@ class RigolsGUI(MultiDeviceGUI):
         self.channel_names = channel_names if channel_names is not None else {}
         self.device_frames = {}
 
-        super().__init__(name="TREX Rigols",
+        super().__init__(name="TREX-DM Rigols",
                          devices=devices,
                          parent_frame=parent_frame,
                          auto_gui_update=auto_gui_update,

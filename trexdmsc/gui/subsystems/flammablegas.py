@@ -43,7 +43,7 @@ class FlammableGasGUI(MultiDeviceGUI):
         self.arduino_gui = None
         self.channel_names = channel_names
 
-        super().__init__(name="TREX Flammable Gas",
+        super().__init__(name="TREX-DM Flammable Gas",
                          devices=[mx32_device, arduino_device],
                          parent_frame=parent_frame,
                          auto_gui_update=auto_gui_update,

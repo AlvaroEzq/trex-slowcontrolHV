@@ -33,7 +33,7 @@ class ElectronicsGUI(MultiDeviceGUI):
         self.electronics_arduino_gui = None
         self.read_only = read_only
 
-        super().__init__(name="TREX Electronics",
+        super().__init__(name="TREX-DM Electronics",
                          devices=[electronics_arduino_device],
                          parent_frame=parent_frame,
                          auto_gui_update=auto_gui_update,

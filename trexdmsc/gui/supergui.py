@@ -223,7 +223,7 @@ def main():
                 read_only=args.read_only,
             ),
         }
-        SuperGUI(subsystems, title="TREX Slow Control").run()
+        SuperGUI(subsystems, title="TREX-DM Slow Control").run()
 
 
 if __name__ == "__main__":

@@ -113,7 +113,7 @@ class HVGUI(MultiDeviceGUI):
 
         self.logger = logger.configure_basic_logger("app", log_level=logging.DEBUG)
 
-        super().__init__(name="TREX HV SC",
+        super().__init__(name="TREX-DM HV SC",
                          devices=[caen_module, spellman_module, rigol_module_1, rigol_module_2],
                          parent_frame=parent_frame,
                          auto_gui_update=auto_gui_update,
